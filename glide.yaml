@@ -1,0 +1,6 @@
+package: github.com/go-sstables
+testImports:
+- package: github.com/stretchr/testify
+  version: v1.2.1
+  subpackages:
+  - assert
