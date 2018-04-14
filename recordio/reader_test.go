@@ -33,8 +33,41 @@ func TestReaderHappyPathMultiRecord(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
+func TestReaderHappyPathMultiRecordSnappyCompressed(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/recordio_SnappyWriterMultiRecord_asc")
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	for expectedLen := 0; expectedLen < 255; expectedLen++ {
+		buf, err := reader.ReadNext()
+		assert.Nil(t, err)
+		assertAscendingBytes(t, buf, expectedLen)
+	}
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
 func TestReaderHappyPathSkipMultiRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/recordio_UncompressedWriterMultiRecord_asc")
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	for expectedLen := 0; expectedLen < 255; expectedLen++ {
+		if expectedLen%2 == 0 {
+			buf, err := reader.ReadNext()
+			assert.Nil(t, err)
+			assertAscendingBytes(t, buf, expectedLen)
+		} else {
+			err = reader.SkipNext()
+			assert.Nil(t, err)
+		}
+	}
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
+func TestReaderHappyPathSkipMultiRecordCompressed(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/recordio_SnappyWriterMultiRecord_asc")
 	assert.Nil(t, err)
 	defer reader.Close()
 

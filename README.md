@@ -18,7 +18,7 @@ coming soon...
 
 ### Benchmark 
 
-For writes, here's a simple write benchmark on a SSD.
+Here's a simple write benchmark on a SSD.
 Basically writing a thousand records of varying sizes, with normal buffered writes and sync writes after each record.
 
 Keep in mind that compression should not save IO, since we're compressing random data.

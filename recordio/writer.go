@@ -158,8 +158,9 @@ func (w *FileWriter) Close() (error) {
 	return w.file.Close()
 }
 
+// TODO(thomas): use an option pattern instead
 func NewFileWriterWithPath(path string) (*FileWriter, error) {
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
@@ -182,10 +183,8 @@ func NewFileWriterWithFile(file *os.File) (*FileWriter, error) {
 	}, nil
 }
 
-// TODO(thomas): use an option pattern instead
-
 func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, error) {
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
@@ -204,54 +203,6 @@ func NewCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, 
 		open:            false,
 		closed:          false,
 		compressionType: compType,
-		currentOffset:   0,
-	}, nil
-}
-
-func NewGzipCompressedFileWriterWithPath(path string) (*FileWriter, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := NewGzipCompressedFileWriterWithFile(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-func NewGzipCompressedFileWriterWithFile(file *os.File) (*FileWriter, error) {
-	return &FileWriter{
-		file:            file,
-		open:            false,
-		closed:          false,
-		compressionType: CompressionTypeGZIP,
-		currentOffset:   0,
-	}, nil
-}
-
-func NewSnappyCompressedFileWriterWithPath(path string) (*FileWriter, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := NewGzipCompressedFileWriterWithFile(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
-}
-
-func NewSnappyCompressedFileWriterWithFile(file *os.File) (*FileWriter, error) {
-	return &FileWriter{
-		file:            file,
-		open:            false,
-		closed:          false,
-		compressionType: CompressionTypeSnappy,
 		currentOffset:   0,
 	}, nil
 }

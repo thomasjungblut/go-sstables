@@ -146,12 +146,17 @@ func (r *FileReader) SkipNext() error {
 		return errors.New("reader was either not opened yet or is closed already")
 	}
 
-	payloadSizeUncompressed, _, err := readHeader(r)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readHeader(r)
 	if err != nil {
 		return nil
 	}
 
-	expectedOffset := int64(r.currentOffset + uint64(payloadSizeUncompressed))
+	expectedBytesSkipped := payloadSizeUncompressed
+	if r.compressor != nil {
+		expectedBytesSkipped = payloadSizeCompressed
+	}
+
+	expectedOffset := int64(r.currentOffset + expectedBytesSkipped)
 	newOffset, err := r.file.Seek(expectedOffset, 0)
 	if err != nil {
 		return err
@@ -161,7 +166,7 @@ func (r *FileReader) SkipNext() error {
 		return errors.New("seek did not return expected offset, it was: " + strconv.FormatInt(newOffset, 10))
 	}
 
-	r.currentOffset = r.currentOffset + uint64(payloadSizeUncompressed)
+	r.currentOffset = r.currentOffset + expectedBytesSkipped
 
 	return nil
 }
