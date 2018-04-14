@@ -8,12 +8,61 @@ import (
 
 func TestReaderHappyPathSingleRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/recordio_UncompressedSingleRecord")
+	assert.Nil(t, err)
 	defer reader.Close()
 
 	// should contain an ascending 13 byte buffer
 	buf, err := reader.ReadNext()
 	assert.Nil(t, err)
 	assertAscendingBytes(t, buf, 13)
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
+func TestReaderHappyPathMultiRecord(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/recordio_UncompressedWriterMultiRecord_asc")
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	for expectedLen := 0; expectedLen < 255; expectedLen++ {
+		buf, err := reader.ReadNext()
+		assert.Nil(t, err)
+		assertAscendingBytes(t, buf, expectedLen)
+	}
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
+func TestReaderHappyPathSkipMultiRecord(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/recordio_UncompressedWriterMultiRecord_asc")
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	for expectedLen := 0; expectedLen < 255; expectedLen++ {
+		if expectedLen%2 == 0 {
+			buf, err := reader.ReadNext()
+			assert.Nil(t, err)
+			assertAscendingBytes(t, buf, expectedLen)
+		} else {
+			err = reader.SkipNext()
+			assert.Nil(t, err)
+		}
+	}
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
+func TestReaderHappyPathSkipAllMultiRecord(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/recordio_UncompressedWriterMultiRecord_asc")
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	for expectedLen := 0; expectedLen < 255; expectedLen++ {
+		err = reader.SkipNext()
+		assert.Nil(t, err)
+	}
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
 }
 
 func TestReaderVersionMismatchV0(t *testing.T) {
@@ -82,7 +131,7 @@ func TestReaderForbidsDoubleOpens(t *testing.T) {
 }
 
 func newOpenedTestReader(t *testing.T, file string) (*FileReader, error) {
-	reader := newTestReader("test_files/recordio_UncompressedSingleRecord", t)
+	reader := newTestReader(file, t)
 	err := reader.Open()
 	assert.Nil(t, err)
 	return reader, err
