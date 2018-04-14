@@ -1,5 +1,10 @@
 package recordio
 
+import (
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+	"fmt"
+)
+
 const Version uint32 = 0x01
 const MagicNumberSeparator uint32 = 0x130691
 
@@ -33,4 +38,17 @@ type ReaderI interface {
 	SkipNext() (error)
 	// Closes this reader
 	Close() error
+}
+
+func NewCompressorForType(compType int) (compressor.CompressionI, error) {
+	switch compType {
+	case CompressionTypeNone:
+		return nil, nil
+	case CompressionTypeSnappy:
+		return &compressor.SnappyCompressor{}, nil
+	case CompressionTypeGZIP:
+		return &compressor.GzipCompressor{}, nil
+	default:
+		return nil, fmt.Errorf("unsupported compression type %d", compType)
+	}
 }

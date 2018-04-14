@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"fmt"
 	"encoding/binary"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
 type FileReader struct {
@@ -16,6 +17,7 @@ type FileReader struct {
 	file            *os.File
 	currentOffset   uint64
 	compressionType int
+	compressor      compressor.CompressionI
 }
 
 func (r *FileReader) Open() error {
@@ -59,11 +61,12 @@ func (r *FileReader) Open() error {
 		return fmt.Errorf("unknown compression type [%d]", compressionType)
 	}
 
-	if compressionType != CompressionTypeNone {
-		return fmt.Errorf("compression type %d is unsupported", compressionType)
+	r.compressionType = int(compressionType)
+	r.compressor, err = NewCompressorForType(r.compressionType)
+	if err != nil {
+		return err
 	}
 
-	r.compressionType = int(compressionType)
 	r.currentOffset = uint64(len(bytes))
 	r.headerBuffer = make([]byte, HeaderSizeBytes)
 	r.open = true
@@ -106,23 +109,34 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		return nil, errors.New("reader was either not opened yet or is closed already")
 	}
 
-	payloadSizeUncompressed, _, err := readHeader(r)
-
+	payloadSizeUncompressed, payloadSizeCompressed, err := readHeader(r)
 	if err != nil {
 		return nil, err
 	}
 
-	recordBuffer := make([]byte, payloadSizeUncompressed)
+	expectedBytesRead := payloadSizeUncompressed
+	if r.compressor != nil {
+		expectedBytesRead = payloadSizeCompressed
+	}
+
+	recordBuffer := make([]byte, expectedBytesRead)
 	numRead, err := r.file.Read(recordBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	if numRead != len(recordBuffer) {
-		return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", len(recordBuffer), numRead)
+	if uint64(numRead) != expectedBytesRead {
+		return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
 	}
 
-	r.currentOffset = r.currentOffset + uint64(len(recordBuffer))
+	if r.compressor != nil {
+		recordBuffer, err = r.compressor.Decompress(recordBuffer)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	r.currentOffset = r.currentOffset + expectedBytesRead
 
 	return recordBuffer, nil
 }

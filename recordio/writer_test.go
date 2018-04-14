@@ -8,7 +8,6 @@ import (
 	"errors"
 	"math/rand"
 	"io"
-	"bufio"
 )
 
 func TestWriterHappyPathOpenWriteClose(t *testing.T) {
@@ -56,42 +55,6 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReadWriteEndToEnd(t *testing.T) {
-	// we're reading the file line by line and try to read it back and assert the same content
-	inFile, _ := os.Open("test_files/berlin52.tsp")
-	defer inFile.Close()
-
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
-	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
-	writer, err := NewFileWriterWithFile(tmpFile)
-	assert.Nil(t, err)
-	assert.Nil(t, writer.Open())
-
-	scanner := bufio.NewScanner(inFile)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		_, err = writer.Write([]byte(scanner.Text()))
-		assert.Nil(t, err)
-	}
-
-	assert.Nil(t, writer.Close())
-
-	reader, err := NewFileReaderWithPath(tmpFile.Name())
-	assert.Nil(t, err)
-	assert.Nil(t, reader.Open())
-
-	scanner = bufio.NewScanner(inFile)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		bytes, err := reader.ReadNext()
-		assert.Nil(t, err)
-		assert.Equal(t, scanner.Text(), string(bytes))
-	}
-
-	assert.Nil(t, reader.Close())
-}
-
 func TestWriterForbidsClosedWrites(t *testing.T) {
 	writer := singleWrite(t)
 	defer os.Remove(writer.file.Name())
@@ -118,6 +81,13 @@ func TestWriterForbidsWritesOnUnopenedFiles(t *testing.T) {
 	assert.Equal(t, errors.New("writer was either not opened yet or is closed already"), err)
 }
 
+func TestUnsupportedCompressionType(t *testing.T) {
+	w, err := newCompressedTestWriter(5)
+	assert.Nil(t, err)
+	err = w.Open()
+	assert.Equal(t, errors.New("unsupported compression type 5"), err)
+}
+
 func TestWriterOpenNonEmptyFile(t *testing.T) {
 	writer := singleWrite(t)
 	stat, err := os.Stat(writer.file.Name())
@@ -140,6 +110,21 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 	}
 
 	r, err := NewFileWriterWithFile(tmpFile)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func newCompressedTestWriter(compType int) (*FileWriter, error) {
+	tmpFile, err := ioutil.TempFile("", "recordio_CompressedWriter")
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := NewCompressedFileWriterWithFile(tmpFile, compType)
 
 	if err != nil {
 		return nil, err

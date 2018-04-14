@@ -79,18 +79,20 @@ func TestReaderVersionMismatchV256(t *testing.T) {
 	assert.Equal(t, errors.New("version mismatch, expected 1 but was 256"), err)
 }
 
-func TestReaderCompressionGzip(t *testing.T) {
+func TestReaderCompressionGzipHeader(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord_comp1", t)
 	err := reader.Open()
+	assert.Nil(t, err)
 	defer reader.Close()
-	assert.Equal(t, errors.New("compression type 1 is unsupported"), err)
+	assert.Equal(t, 1, reader.compressionType)
 }
 
-func TestReaderCompressionSnappy(t *testing.T) {
+func TestReaderCompressionSnappyHeader(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord_comp2", t)
 	err := reader.Open()
+	assert.Nil(t, err)
 	defer reader.Close()
-	assert.Equal(t, errors.New("compression type 2 is unsupported"), err)
+	assert.Equal(t, 2, reader.compressionType)
 }
 
 func TestReaderCompressionUnknown(t *testing.T) {

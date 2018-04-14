@@ -1,6 +1,5 @@
-package: github.com/go-sstables
-testImports:
+package: github.com/thomasjungblut/go-sstables
+import:
+- package: github.com/golang/snappy
 - package: github.com/stretchr/testify
-  version: v1.2.1
-  subpackages:
-  - assert
+  version: ^1.2.1

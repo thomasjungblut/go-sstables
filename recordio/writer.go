@@ -3,14 +3,16 @@ package recordio
 import (
 	"os"
 	"errors"
-	"strconv"
 	"encoding/binary"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+	"fmt"
 )
 
 /*
  * This type defines a binary file format (little endian).
  * The file header has a 32 bit version number and a 32 bit compression type enum according to the table above.
  * Each record written in the file follows the following format (sequentially):
+ * TODO(thomas): this can be improved with vint compression
  * - MagicNumber (32 bits) to separate records from each other.
  * - Uncompressed data payload size (64 bits).
  * - Compressed data payload size (64 bits), or 0 if the data is not compressed.
@@ -22,6 +24,7 @@ type FileWriter struct {
 	file            *os.File
 	currentOffset   uint64
 	compressionType int
+	compressor      compressor.CompressionI
 }
 
 func (w *FileWriter) Open() error {
@@ -49,10 +52,15 @@ func (w *FileWriter) Open() error {
 	}
 
 	if newOffset != 0 {
-		return errors.New("seek did not return offset 0, it was: " + strconv.FormatInt(newOffset, 10))
+		return fmt.Errorf("seek did not return offset 0, it was: %d", newOffset)
 	}
 
 	offset, err := writeFileHeader(w)
+	if err != nil {
+		return err
+	}
+
+	w.compressor, err = NewCompressorForType(w.compressionType)
 	if err != nil {
 		return err
 	}
@@ -78,7 +86,6 @@ func writeFileHeader(writer *FileWriter) (int, error) {
 
 func writeRecordHeader(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
-	// TODO(thomas): this can be improved with vint compression
 	bytes := make([]byte, HeaderSizeBytes)
 	binary.LittleEndian.PutUint32(bytes[0:4], MagicNumberSeparator)
 	binary.LittleEndian.PutUint64(bytes[4:12], payloadSizeUncompressed)
@@ -104,15 +111,34 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 		return 0, errors.New("writer was either not opened yet or is closed already")
 	}
 
+	var recordToWrite []byte
+	recordToWrite = record
+
+	uncompressedSize := uint64(len(recordToWrite))
+	compressedSize := uint64(0)
+
+	if w.compressor != nil {
+		compressedRecord, err := w.compressor.Compress(record)
+		if err != nil {
+			return 0, err
+		}
+		recordToWrite = compressedRecord
+		compressedSize = uint64(len(compressedRecord))
+	}
+
 	prevOffset := w.currentOffset
-	headerBytesWritten, err := writeRecordHeader(w, uint64(len(record)), 0)
+	headerBytesWritten, err := writeRecordHeader(w, uncompressedSize, compressedSize)
 	if err != nil {
 		return 0, err
 	}
 
-	recordBytesWritten, err := w.file.Write(record)
+	recordBytesWritten, err := w.file.Write(recordToWrite)
 	if err != nil {
 		return 0, err
+	}
+
+	if recordBytesWritten != len(recordToWrite) {
+		return 0, errors.New("mismatch in written record len")
 	}
 
 	if sync {
@@ -152,6 +178,80 @@ func NewFileWriterWithFile(file *os.File) (*FileWriter, error) {
 		open:            false,
 		closed:          false,
 		compressionType: CompressionTypeNone,
+		currentOffset:   0,
+	}, nil
+}
+
+// TODO(thomas): use an option pattern instead
+
+func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := NewCompressedFileWriterWithFile(f, compType)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func NewCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, error) {
+	return &FileWriter{
+		file:            file,
+		open:            false,
+		closed:          false,
+		compressionType: compType,
+		currentOffset:   0,
+	}, nil
+}
+
+func NewGzipCompressedFileWriterWithPath(path string) (*FileWriter, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := NewGzipCompressedFileWriterWithFile(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func NewGzipCompressedFileWriterWithFile(file *os.File) (*FileWriter, error) {
+	return &FileWriter{
+		file:            file,
+		open:            false,
+		closed:          false,
+		compressionType: CompressionTypeGZIP,
+		currentOffset:   0,
+	}, nil
+}
+
+func NewSnappyCompressedFileWriterWithPath(path string) (*FileWriter, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := NewGzipCompressedFileWriterWithFile(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return r, nil
+}
+
+func NewSnappyCompressedFileWriterWithFile(file *os.File) (*FileWriter, error) {
+	return &FileWriter{
+		file:            file,
+		open:            false,
+		closed:          false,
+		compressionType: CompressionTypeSnappy,
 		currentOffset:   0,
 	}, nil
 }
