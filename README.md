@@ -14,7 +14,63 @@ coming soon...
 
 ## Using RecordIO
 
-coming soon...
+Writing a `recordio` file with snappy compression can be done like this:
+
+```go
+
+writer, err := recordio.NewCompressedFileWriterWithPath(path, recordio.CompressionTypeSnappy)
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+if writer.Open() != nil {
+    log.Fatalf("error: %v", err)
+}
+recordOffset, err := writer.Write([]byte("Hello World!"))
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+log.Printf("wrote a record at offset of %d bytes", recordOffset)
+if writer.Close() != nil {
+    log.Fatalf("error: %v", err)
+}
+
+```
+
+Reading the same file can be done like this:
+
+```go
+
+reader, err := recordio.NewFileReaderWithPath(path)
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+
+if reader.Open() != nil {
+    log.Fatalf("error: %v", err)
+}
+
+for {
+    record, err := reader.ReadNext()
+    // io.EOF signals that no records are left to be read
+    if err == io.EOF {
+        break
+    }
+
+    if err != nil {
+        log.Fatalf("error: %v", err)
+    }
+
+    log.Printf("%s", string(record))
+}
+
+if reader.Close() != nil {
+    log.Fatalf("error: %v", err)
+}
+
+```
+
+You can get the full example from [examples/recordio.go](examples/recordio.go).
+
 
 ### Benchmark 
 

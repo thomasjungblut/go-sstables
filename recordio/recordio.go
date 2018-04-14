@@ -9,7 +9,6 @@ const Version uint32 = 0x01
 const MagicNumberSeparator uint32 = 0x130691
 
 const HeaderSizeBytes = 20
-const RecordSizeBufferBytes = 4096
 
 const (
 	// never reorder, always append
