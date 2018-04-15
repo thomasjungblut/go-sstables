@@ -160,27 +160,11 @@ func (w *FileWriter) Close() (error) {
 
 // TODO(thomas): use an option pattern instead
 func NewFileWriterWithPath(path string) (*FileWriter, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := NewFileWriterWithFile(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
+	return NewCompressedFileWriterWithPath(path, CompressionTypeNone)
 }
 
 func NewFileWriterWithFile(file *os.File) (*FileWriter, error) {
-	return &FileWriter{
-		file:            file,
-		open:            false,
-		closed:          false,
-		compressionType: CompressionTypeNone,
-		currentOffset:   0,
-	}, nil
+	return NewCompressedFileWriterWithFile(file, CompressionTypeNone)
 }
 
 func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, error) {
