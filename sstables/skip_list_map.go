@@ -4,6 +4,7 @@ package sstables
 import (
 	"math/rand"
 	"errors"
+	"bytes"
 )
 
 // Typical comparator contract (similar to Java):
@@ -14,36 +15,47 @@ type KeyComparator func(a interface{}, b interface{}) int
 
 // iterator pattern as described in https://github.com/GoogleCloudPlatform/google-cloud-go/wiki/Iterator-Guidelines
 var Done = errors.New("no more items in iterator")
+var NotFound = errors.New("key was not found")
+
+// example comparator for plain byte arrays
+func BytesComparator(a interface{}, b interface{}) int {
+	return bytes.Compare(a.([]byte), b.([]byte))
+}
 
 type SkipListIteratorI interface {
-	Next() (interface{}, error)
+	// returns the next key, value in sequence
+	// returns Done as the error when the iterator is exhausted
+	Next() (interface{}, interface{}, error)
 }
 
 type SkipListIterator struct {
 	node *SkipListNode
 }
 
-func (it *SkipListIterator) Next() (interface{}, error) {
+func (it *SkipListIterator) Next() (interface{}, interface{}, error) {
 	if it.node == nil {
-		return nil, Done
+		return nil, nil, Done
 	}
-	cur := it.node.key
+	cur := it.node
 	it.node = it.node.Next(0)
-	return cur, nil
+	return cur.key, cur.value, nil
 }
 
-type SkipListI interface {
+type SkipListMapI interface {
 	Size() int
 
-	// Insert key into the list.
+	// Insert key/value into the list.
 	// REQUIRES: nothing that compares equal to key is currently in the list.
-	Insert(key interface{})
+	Insert(key interface{}, value interface{})
 
 	// Returns true if an entry that compares equal to key is in the list.
 	Contains(key interface{}) bool
 
 	// Returns an iterator over the whole sorted sequence
 	Iterator() *SkipListIterator
+
+	// Returns the value element that compares equal to the key supplied or returns NotFound if it does not exist.
+	Get(key interface{}) (interface{}, error)
 
 	// Returns an iterator over the sorted sequence starting at the given key (inclusive if key is in the list).
 	// Using a key that is out of the sequence range will result in either an empty iterator or the full sequence.
@@ -56,7 +68,8 @@ type SkipListNodeI interface {
 }
 
 type SkipListNode struct {
-	key interface{}
+	key   interface{}
+	value interface{}
 	// array length is equal to the current nodes height, next[0] is the lowest level pointer
 	next []*SkipListNode
 }
@@ -69,12 +82,12 @@ func (n *SkipListNode) SetNext(height int, node *SkipListNode) {
 	n.next[height] = node
 }
 
-func newSkipListNode(key interface{}, maxHeight int) *SkipListNode {
+func newSkipListNode(key interface{}, value interface{}, maxHeight int) *SkipListNode {
 	nextNodes := make([]*SkipListNode, maxHeight)
-	return &SkipListNode{key: key, next: nextNodes}
+	return &SkipListNode{key: key, value: value, next: nextNodes}
 }
 
-type SkipList struct {
+type SkipListMap struct {
 	maxHeight int
 	size      int
 
@@ -82,7 +95,7 @@ type SkipList struct {
 	head *SkipListNode
 }
 
-func (list *SkipList) Insert(key interface{}) {
+func (list *SkipListMap) Insert(key interface{}, value interface{}) {
 	prevTable := make([]*SkipListNode, list.maxHeight)
 	x := findGreaterOrEqual(list, key, prevTable)
 
@@ -100,7 +113,7 @@ func (list *SkipList) Insert(key interface{}) {
 		list.maxHeight = randomHeight
 	}
 
-	x = newSkipListNode(key, randomHeight)
+	x = newSkipListNode(key, value, randomHeight)
 	for i := 0; i < randomHeight; i++ {
 		x.SetNext(i, prevTable[i].Next(i))
 		prevTable[i].SetNext(i, x)
@@ -109,36 +122,43 @@ func (list *SkipList) Insert(key interface{}) {
 	list.size++
 }
 
-func (list *SkipList) Size() int {
+func (list *SkipListMap) Size() int {
 	return list.size
 }
 
-func (list *SkipList) Contains(key interface{}) bool {
-	x := findGreaterOrEqual(list, key, nil)
-	if x != nil && list.comp(key, x.key) == 0 {
+func (list *SkipListMap) Contains(key interface{}) bool {
+	_, err := list.Get(key)
+	if err == nil {
 		return true
-	} else {
-		return false
 	}
 	return false
 }
 
-func (list *SkipList) Iterator() *SkipListIterator {
+func (list *SkipListMap) Get(key interface{}) (interface{}, error) {
+	x := findGreaterOrEqual(list, key, nil)
+	if x != nil && list.comp(key, x.key) == 0 {
+		return x.value, nil
+	}
+
+	return nil, NotFound
+}
+
+func (list *SkipListMap) Iterator() *SkipListIterator {
 	// we start the iterator at the next node from the head, so we can share it with the range scan below
 	return &SkipListIterator{node: list.head.Next(0)}
 }
 
-func (list *SkipList) IteratorStartingAt(key interface{}) *SkipListIterator {
+func (list *SkipListMap) IteratorStartingAt(key interface{}) *SkipListIterator {
 	node := findGreaterOrEqual(list, key, nil)
 	return &SkipListIterator{node: node}
 }
 
-func NewSkipList(comp KeyComparator) SkipList {
+func NewSkipList(comp KeyComparator) *SkipListMap {
 	const maxHeight = 12
-	return SkipList{head: newSkipListNode(nil, maxHeight), comp: comp, maxHeight: maxHeight}
+	return &SkipListMap{head: newSkipListNode(nil, nil, maxHeight), comp: comp, maxHeight: maxHeight}
 }
 
-func findGreaterOrEqual(list *SkipList, key interface{}, prevTable []*SkipListNode) *SkipListNode {
+func findGreaterOrEqual(list *SkipListMap, key interface{}, prevTable []*SkipListNode) *SkipListNode {
 	x := list.head
 	level := list.maxHeight - 1
 	for {

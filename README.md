@@ -1,6 +1,7 @@
 ## go-sstables
 
-`go-sstables` is a Go library that contains NoSQL database building blocks like a sequential record format (recordio) and a sorted string table (sstables, indexed using a skip list).
+`go-sstables` is a Go library that contains NoSQL database building blocks like a sequential record format (recordio),
+a sorted string table (sstable) and a memory store (memstore) that stores key/value pairs in memory using a skip list.
 
 It will come with some protobuf convenience bindings.
 
@@ -9,6 +10,10 @@ It will come with some protobuf convenience bindings.
 > go get -d github.com/thomasjungblut/go-sstables
 
 ## Using SSTables
+
+coming soon...
+
+## Using MemStore
 
 coming soon...
 
