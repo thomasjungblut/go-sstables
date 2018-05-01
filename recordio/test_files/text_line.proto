@@ -1,0 +1,8 @@
+syntax = "proto3";
+package test_files;
+
+message TextLine {
+    int32 lineNumber = 1;
+    string line = 2;
+}
+

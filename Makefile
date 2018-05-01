@@ -11,6 +11,12 @@ BINARIES  := sstables
 # Required for globs to work correctly
 SHELL=/bin/bash
 
+.PHONY: compile-proto
+compile-proto:
+	@echo
+	@echo "==> Compiling Protobuf files <=="
+	protoc --go_out=. recordio/test_files/text_line.proto
+
 .PHONY: test
 test: TESTFLAGS += -race -v
 

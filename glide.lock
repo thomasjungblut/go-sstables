@@ -1,6 +1,10 @@
-hash: 1297a912256f93e073482ab422a3b19bba6c025f097422ec8d303221291db03d
-updated: 2018-04-14T10:56:43.409261+02:00
+hash: f9e1d0f30083e5c241e225d9e9fd41fd4e53292b2b1605962994507b5cf1f093
+updated: 2018-05-01T20:13:11.4205324+02:00
 imports:
+- name: github.com/golang/protobuf
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  subpackages:
+  - protoc-gen-go
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/stretchr/testify

@@ -3,6 +3,7 @@ package recordio
 import (
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"fmt"
+	"github.com/gogo/protobuf/proto"
 )
 
 const Version uint32 = 0x01
@@ -17,26 +18,41 @@ const (
 	CompressionTypeSnappy = iota
 )
 
-type WriterI interface {
-	// Opens this writer
+type OpenClosableI interface {
 	Open() error
+	Close() error
+}
+
+type WriterI interface {
+	OpenClosableI
 	// Appends a record of bytes, returns the current offset this item was written to
 	Write(record []byte) (uint64, error)
 	// Appends a record of bytes and forces a disk sync, returns the current offset this item was written to
 	WriteSync(record []byte) (uint64, error)
-	// Closes this writer
-	Close() error
 }
 
 type ReaderI interface {
-	// Opens this reader, checks version/compression compatibility
-	Open() error
+	OpenClosableI
 	// Reads the next record, EOF error when it reaches the end signalled by (nil, io.EOF)
 	ReadNext() ([]byte, error)
 	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
 	SkipNext() (error)
-	// Closes this reader
-	Close() error
+}
+
+type ProtoReaderI interface {
+	OpenClosableI
+	// Reads the next record into the passed message record, EOF error when it reaches the end signalled by (nil, io.EOF)
+	ReadNext(record proto.Message) (proto.Message, error)
+	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
+	SkipNext() (error)
+}
+
+type ProtoWriterI interface {
+	OpenClosableI
+	// Appends a record, returns the current offset this item was written to
+	Write(record proto.Message) (uint64, error)
+	// Appends a record and forces a disk sync, returns the current offset this item was written to
+	WriteSync(record proto.Message) (uint64, error)
 }
 
 func NewCompressorForType(compType int) (compressor.CompressionI, error) {
