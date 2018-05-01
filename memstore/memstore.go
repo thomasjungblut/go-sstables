@@ -6,19 +6,24 @@ import (
 )
 
 var KeyAlreadyExists = errors.New("key already exists")
+var KeyNotFound = errors.New("key not found")
 
 //noinspection GoNameStartsWithPackageName
 type MemStoreI interface {
-	// inserts when the key does not exist yet, returns an error when the key exists.
+	// inserts when the key does not exist yet, returns a KeyAlreadyExists error when the key exists.
 	Add(key []byte, value []byte) error
 	// returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
 	// inserts when the key does not exist yet, updates the current value if the key exists.
 	Upsert(key []byte, value []byte) error
-	// deletes the key from the MemStore, returns an error if the key does not exist
+	// deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist
 	Delete(key []byte) error
+	// deletes the key from the MemStore
+	DeleteIfExists(key []byte) error
+	// returns a rough estimate of size in bytes of this MemStore
+	EstimatedSizeInBytes() uint64
+
 	// TODO(thomas): flush to an sstable
-	// TODO(thomas): add some notion of memory size to determine when to flush
 }
 
 type ValueStruct struct {
@@ -61,27 +66,45 @@ func upsertInternal(m *MemStore, key []byte, value []byte, errorIfKeyExist bool)
 	}
 
 	element, err := m.skipListMap.Get(key)
-
 	if err != sstables.NotFound {
 		if *element.(ValueStruct).value != nil && errorIfKeyExist {
 			return KeyAlreadyExists
 		}
+		prevLen := len(*element.(ValueStruct).value)
 		*element.(ValueStruct).value = value
+		m.estimatedSize = m.estimatedSize - uint64(prevLen) + uint64(len(value))
 	} else {
 		m.skipListMap.Insert(key, ValueStruct{value: &value})
+		m.estimatedSize += uint64(len(key)) + uint64(len(value))
 	}
 	return nil
 }
 
 func (m *MemStore) Delete(key []byte) error {
+	return deleteInternal(m, key, true)
+}
+
+func (m *MemStore) DeleteIfExists(key []byte) error {
+	return deleteInternal(m, key, false)
+}
+
+func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 	element, err := m.skipListMap.Get(key)
 	if err == sstables.NotFound {
-		return KeyAlreadyExists
+		if errorIfKeyNotFound {
+			return KeyNotFound
+		}
 	} else {
+		m.estimatedSize -= uint64(len(*element.(ValueStruct).value))
 		*element.(ValueStruct).value = nil
 	}
 
 	return nil
+}
+
+func (m *MemStore) EstimatedSizeInBytes() uint64 {
+	// we account for ~15% overhead
+	return uint64(1.15 * float32(m.estimatedSize))
 }
 
 func NewMemStore() (*MemStore) {

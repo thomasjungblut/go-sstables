@@ -89,3 +89,42 @@ func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("aVal2"), *kv.(ValueStruct).value)
 }
+
+func TestMemStoreDeleteSemantics(t *testing.T) {
+	m := NewMemStore()
+	err := m.Upsert([]byte("a"), []byte("aVal"))
+	assert.Nil(t, err)
+	assert.True(t, m.Contains([]byte("a")))
+
+	err = m.Delete([]byte("b"))
+	assert.Equal(t, KeyNotFound, err)
+	err = m.DeleteIfExists([]byte("b"))
+	assert.Nil(t, err)
+	err = m.DeleteIfExists([]byte("a"))
+	assert.Nil(t, err)
+
+	assert.False(t, m.Contains([]byte("a")))
+	// make sure that the value was changed under the hood
+	kv, err := m.skipListMap.Get([]byte("a"))
+	assert.Nil(t, err)
+	assert.Nil(t, *kv.(ValueStruct).value)
+}
+
+func TestMemStoreSizeEstimates(t *testing.T) {
+	m := NewMemStore()
+	err := m.Upsert(make([]byte, 20), make([]byte, 50))
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(80), m.EstimatedSizeInBytes())
+
+	err = m.Upsert(make([]byte, 20), make([]byte, 100))
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(138), m.EstimatedSizeInBytes())
+
+	err = m.Delete(make([]byte, 20))
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(23), m.EstimatedSizeInBytes())
+
+	err = m.Upsert(make([]byte, 20), make([]byte, 200))
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(253), m.EstimatedSizeInBytes())
+}
