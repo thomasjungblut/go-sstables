@@ -19,33 +19,40 @@ coming soon...
 
 ## Using RecordIO
 
-Writing a `recordio` file with snappy compression can be done like this:
+Writing a `recordio` file using Protobuf and snappy compression can be done as follows. Here's the simple proto file we use:
+
+```protobuf
+message HelloWorld {
+    string message = 1;
+}
+```
+
+Writing in Go then becomes this:
 
 ```go
-
-writer, err := recordio.NewCompressedFileWriterWithPath(path, recordio.CompressionTypeSnappy)
+writer, err := recordio.NewCompressedProtoWriterWithPath(path, recordio.CompressionTypeSnappy)
 if err != nil {
     log.Fatalf("error: %v", err)
 }
 if writer.Open() != nil {
     log.Fatalf("error: %v", err)
 }
-recordOffset, err := writer.Write([]byte("Hello World!"))
+record := &proto.HelloWorld{Message: "Hello World"}
+recordOffset, err := writer.Write(record)
 if err != nil {
     log.Fatalf("error: %v", err)
 }
 log.Printf("wrote a record at offset of %d bytes", recordOffset)
+
 if writer.Close() != nil {
     log.Fatalf("error: %v", err)
 }
-
 ```
 
 Reading the same file can be done like this:
 
 ```go
-
-reader, err := recordio.NewFileReaderWithPath(path)
+reader, err := recordio.NewProtoReaderWithPath(path)
 if err != nil {
     log.Fatalf("error: %v", err)
 }
@@ -55,7 +62,8 @@ if reader.Open() != nil {
 }
 
 for {
-    record, err := reader.ReadNext()
+    record := &proto.HelloWorld{}
+    _, err := reader.ReadNext(record)
     // io.EOF signals that no records are left to be read
     if err == io.EOF {
         break
@@ -65,13 +73,12 @@ for {
         log.Fatalf("error: %v", err)
     }
 
-    log.Printf("%s", string(record))
+    log.Printf("%s", record.GetMessage())
 }
 
 if reader.Close() != nil {
     log.Fatalf("error: %v", err)
 }
-
 ```
 
 You can get the full example from [examples/recordio.go](examples/recordio.go).

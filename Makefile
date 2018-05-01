@@ -16,6 +16,7 @@ compile-proto:
 	@echo
 	@echo "==> Compiling Protobuf files <=="
 	protoc --go_out=. recordio/test_files/text_line.proto
+	protoc --go_out=. examples/proto/hello_world.proto
 
 .PHONY: test
 test: TESTFLAGS += -race -v
