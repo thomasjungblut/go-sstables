@@ -4,6 +4,9 @@ import (
 	"testing"
 	"github.com/stretchr/testify/assert"
 	"errors"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"io/ioutil"
+	"os"
 )
 
 func TestMemStoreAddHappyPath(t *testing.T) {
@@ -127,4 +130,21 @@ func TestMemStoreSizeEstimates(t *testing.T) {
 	err = m.Upsert(make([]byte, 20), make([]byte, 200))
 	assert.Nil(t, err)
 	assert.Equal(t, uint64(253), m.EstimatedSizeInBytes())
+}
+
+func TestMemStoreFlush(t *testing.T) {
+	m := NewMemStore()
+	err := m.Upsert([]byte("akey"), []byte("aval"))
+	assert.Nil(t, err)
+	err = m.Upsert([]byte("bkey"), []byte("bval"))
+	assert.Nil(t, err)
+
+	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	assert.Nil(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	err = m.Flush(sstables.WriteBasePath(tmpDir))
+	assert.Nil(t, err)
+
+	// TODO(thomas): read it back and see if it matches
 }

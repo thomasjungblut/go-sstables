@@ -2,6 +2,7 @@ package memstore
 
 import (
 	"github.com/thomasjungblut/go-sstables/sstables"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 	"errors"
 )
 
@@ -22,8 +23,8 @@ type MemStoreI interface {
 	DeleteIfExists(key []byte) error
 	// returns a rough estimate of size in bytes of this MemStore
 	EstimatedSizeInBytes() uint64
-
-	// TODO(thomas): flush to an sstable
+	// flushes the current memstore to disk as an SSTable, error if unsuccessful
+	Flush(opts ...sstables.WriterOption) error
 }
 
 type ValueStruct struct {
@@ -31,8 +32,12 @@ type ValueStruct struct {
 	value *[]byte
 }
 
+func (v ValueStruct) GetValue() []byte {
+	return *v.value
+}
+
 type MemStore struct {
-	skipListMap   *sstables.SkipListMap
+	skipListMap   *skiplist.SkipListMap
 	estimatedSize uint64
 }
 
@@ -43,7 +48,7 @@ func (m *MemStore) Add(key []byte, value []byte) error {
 func (m *MemStore) Contains(key []byte) bool {
 	element, err := m.skipListMap.Get(key)
 	// we can return false if we didn't find it by error, or when the key is tomb-stoned
-	if err == sstables.NotFound {
+	if err == skiplist.NotFound {
 		return false
 	}
 	if *element.(ValueStruct).value == nil {
@@ -66,7 +71,7 @@ func upsertInternal(m *MemStore, key []byte, value []byte, errorIfKeyExist bool)
 	}
 
 	element, err := m.skipListMap.Get(key)
-	if err != sstables.NotFound {
+	if err != skiplist.NotFound {
 		if *element.(ValueStruct).value != nil && errorIfKeyExist {
 			return KeyAlreadyExists
 		}
@@ -90,7 +95,7 @@ func (m *MemStore) DeleteIfExists(key []byte) error {
 
 func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 	element, err := m.skipListMap.Get(key)
-	if err == sstables.NotFound {
+	if err == skiplist.NotFound {
 		if errorIfKeyNotFound {
 			return KeyNotFound
 		}
@@ -107,6 +112,41 @@ func (m *MemStore) EstimatedSizeInBytes() uint64 {
 	return uint64(1.15 * float32(m.estimatedSize))
 }
 
+func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
+	writer := sstables.NewSSTableStreamWriter(writerOptions...)
+
+	err := writer.Open()
+	if err != nil {
+		return err
+	}
+
+	it := m.skipListMap.Iterator()
+	for {
+		k, v, err := it.Next()
+		if err == skiplist.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		kBytes := k.([]byte)
+		vBytes := v.(ValueStruct)
+
+		// do not write tombstones to the final file
+		if vBytes.value != nil {
+			writer.WriteNext(kBytes, *vBytes.value)
+		}
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func NewMemStore() (*MemStore) {
-	return &MemStore{skipListMap: sstables.NewSkipList(sstables.BytesComparator)}
+	return &MemStore{skipListMap: skiplist.NewSkipList(skiplist.BytesComparator)}
 }

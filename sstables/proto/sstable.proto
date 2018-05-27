@@ -1,0 +1,11 @@
+syntax = "proto3";
+package proto;
+
+message IndexEntry {
+    bytes key = 1;
+    uint64 valueOffset = 2;
+}
+
+message DataEntry {
+    bytes value = 1;
+}

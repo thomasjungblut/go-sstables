@@ -100,7 +100,6 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 
 	err = writer.Open()
 	assert.Equal(t, errors.New("file is not empty"), err)
-
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
