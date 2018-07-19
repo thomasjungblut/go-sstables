@@ -20,13 +20,11 @@ type SSTableStreamWriter struct {
 	dataWriter  *recordio.ProtoWriter
 
 	bloomFilter *bloomfilter.Filter
+
+	lastKey []byte
 }
 
 func (writer *SSTableStreamWriter) Open() error {
-	if writer.opts.basePath == "" {
-		return errors.New("basePath was not supplied")
-	}
-
 	writer.indexFilePath = path.Join(writer.opts.basePath, IndexFileName)
 	iWriter, err := recordio.NewCompressedProtoWriterWithPath(writer.indexFilePath, writer.opts.indexCompressionType)
 	if err != nil {
@@ -59,8 +57,24 @@ func (writer *SSTableStreamWriter) Open() error {
 }
 
 func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
-	// TODO(thomas): for safety we need to check keys are actually ascending
-	// for that we would need a comparator as well
+
+	if writer.lastKey != nil {
+		cmpResult := writer.opts.keyComparator(writer.lastKey, key)
+		if cmpResult == 0 {
+			return errors.New("the same key cannot be written more than once")
+		} else if cmpResult > 0 {
+			return errors.New("non-ascending key cannot be written")
+		}
+
+		// the size of the key may be variable, that's why we might allocate a new buffer for the last key
+		if len(writer.lastKey) != len(key) {
+			writer.lastKey = make([]byte, len(key))
+		}
+	} else {
+		writer.lastKey = make([]byte, len(key))
+	}
+
+	copy(writer.lastKey, key)
 
 	if writer.opts.enableBloomFilter {
 		fnvHash := fnv.New64()
@@ -71,6 +85,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 
 		writer.bloomFilter.Add(fnvHash)
 	}
+
 	recordOffset, err := writer.dataWriter.Write(&proto.DataEntry{Value: value})
 	if err != nil {
 		return err
@@ -146,7 +161,7 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipLi
 	return nil
 }
 
-func NewSSTableStreamWriter(writerOptions ...WriterOption) *SSTableStreamWriter {
+func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter, error) {
 	opts := &SSTableWriterOptions{
 		basePath:                      "",
 		enableBloomFilter:             true,
@@ -154,17 +169,30 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) *SSTableStreamWriter 
 		dataCompressionType:           recordio.CompressionTypeSnappy,
 		bloomFpProbability:            0.01,
 		bloomExpectedNumberOfElements: 1000,
+		keyComparator:                 nil,
 	}
 
 	for _, writeOption := range writerOptions {
 		writeOption(opts)
 	}
 
-	return &SSTableStreamWriter{opts: opts}
+	if opts.basePath == "" {
+		return nil, errors.New("basePath was not supplied")
+	}
+
+	if opts.keyComparator == nil {
+		return nil, errors.New("no key comparator supplied")
+	}
+
+	return &SSTableStreamWriter{opts: opts}, nil
 }
 
-func NewSSTableSimpleWriter(writerOptions ...WriterOption) *SSTableSimpleWriter {
-	return &SSTableSimpleWriter{streamWriter: NewSSTableStreamWriter(writerOptions...)}
+func NewSSTableSimpleWriter(writerOptions ...WriterOption) (*SSTableSimpleWriter, error) {
+	writer, err := NewSSTableStreamWriter(writerOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return &SSTableSimpleWriter{streamWriter: writer}, nil
 }
 
 // options
@@ -176,6 +204,7 @@ type SSTableWriterOptions struct {
 	enableBloomFilter             bool
 	bloomExpectedNumberOfElements uint64
 	bloomFpProbability            float64
+	keyComparator                 skiplist.KeyComparator
 }
 
 type WriterOption func(*SSTableWriterOptions)
@@ -213,5 +242,11 @@ func BloomExpectedNumberOfElements(n uint64) WriterOption {
 func BloomFalsePositiveProbability(fpProbability float64) WriterOption {
 	return func(args *SSTableWriterOptions) {
 		args.bloomFpProbability = fpProbability
+	}
+}
+
+func WithKeyComparator(cmp skiplist.KeyComparator) WriterOption {
+	return func(args *SSTableWriterOptions) {
+		args.keyComparator = cmp
 	}
 }

@@ -39,6 +39,7 @@ func (v ValueStruct) GetValue() []byte {
 type MemStore struct {
 	skipListMap   *skiplist.SkipListMap
 	estimatedSize uint64
+	comparator    skiplist.KeyComparator
 }
 
 func (m *MemStore) Add(key []byte, value []byte) error {
@@ -113,9 +114,13 @@ func (m *MemStore) EstimatedSizeInBytes() uint64 {
 }
 
 func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
-	writer := sstables.NewSSTableStreamWriter(writerOptions...)
+	writerOptions = append(writerOptions, sstables.WithKeyComparator(m.comparator))
+	writer, err := sstables.NewSSTableStreamWriter(writerOptions...)
+	if err != nil {
+		return err
+	}
 
-	err := writer.Open()
+	err = writer.Open()
 	if err != nil {
 		return err
 	}
@@ -148,5 +153,6 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 }
 
 func NewMemStore() (*MemStore) {
-	return &MemStore{skipListMap: skiplist.NewSkipList(skiplist.BytesComparator)}
+	cmp := skiplist.BytesComparator
+	return &MemStore{skipListMap: skiplist.NewSkipList(cmp), comparator: cmp}
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
-func TestSkipListWriteHappyPath(t *testing.T) {
+func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 	writer, err := newTestSSTableSimpleWriter()
 	defer os.RemoveAll(writer.streamWriter.opts.basePath)
 	assert.Nil(t, err)
@@ -20,9 +20,61 @@ func TestSkipListWriteHappyPath(t *testing.T) {
 	// TODO read it back and see if it matches
 }
 
+func TestSkipListStreamedWriteFailsOnKeyComparison(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	defer writer.Close()
+	defer os.RemoveAll(writer.opts.basePath)
+	assert.Nil(t, err)
+
+	err = writer.Open()
+	assert.Nil(t, err)
+
+	key := make([]byte, 4)
+	binary.BigEndian.PutUint32(key, uint32(13))
+	err = writer.WriteNext(key, key)
+	assert.Nil(t, err)
+
+	binary.BigEndian.PutUint32(key, uint32(6))
+	err = writer.WriteNext(key, key)
+	assert.Equal(t, errors.New("non-ascending key cannot be written"), err)
+
+	binary.BigEndian.PutUint32(key, uint32(13))
+	err = writer.WriteNext(key, key)
+	assert.Equal(t, errors.New("the same key cannot be written more than once"), err)
+}
+
+func TestSkipListStreamedWriteKeyComparisonAdjustsBufferSize(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	defer writer.Close()
+	defer os.RemoveAll(writer.opts.basePath)
+	assert.Nil(t, err)
+
+	err = writer.Open()
+	assert.Nil(t, err)
+
+	key := make([]byte, 4)
+	binary.BigEndian.PutUint32(key, uint32(13))
+	err = writer.WriteNext(key, key)
+	assert.Nil(t, err)
+
+	key = make([]byte, 5)
+	binary.BigEndian.PutUint32(key, uint32(14))
+	err = writer.WriteNext(key, key)
+	assert.Nil(t, err)
+
+	key = make([]byte, 4)
+	binary.BigEndian.PutUint32(key, uint32(12))
+	err = writer.WriteNext(key, key)
+	assert.Equal(t, errors.New("non-ascending key cannot be written"), err)
+}
+
+func TestComparatorNotSupplied(t *testing.T) {
+	_, err := NewSSTableSimpleWriter(WriteBasePath("abc"))
+	assert.Equal(t, errors.New("no key comparator supplied"), err)
+}
+
 func TestDirectoryDoesNotExist(t *testing.T) {
-	writer := NewSSTableSimpleWriter(WriteBasePath(""))
-	err := writer.WriteSkipListMap(newSkipListMapWithElements([]int{}))
+	_, err := NewSSTableSimpleWriter(WithKeyComparator(skiplist.BytesComparator))
 	assert.Equal(t, errors.New("basePath was not supplied"), err)
 }
 
@@ -30,7 +82,8 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
 	defer os.RemoveAll(tmpDir)
 	assert.Nil(t, err)
-	writer := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25))
+	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
 	err = writer.WriteSkipListMap(newSkipListMapWithElements([]int{}))
 	assert.Equal(t, errors.New("unsupported compression type 25"), err)
 }
@@ -41,7 +94,16 @@ func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
 		return nil, err
 	}
 
-	return NewSSTableSimpleWriter(WriteBasePath(tmpDir)), nil
+	return NewSSTableSimpleWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
+}
+
+func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
+	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
+	if err != nil {
+		return nil, err
+	}
+
+	return NewSSTableStreamWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
 }
 
 func newSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
