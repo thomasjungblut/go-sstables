@@ -14,7 +14,7 @@ While plain `[]byte` are at the core of this library, there are wrappers and bin
 ## Using SkipListMap
 
 Whenever you find yourself in need of a sorted list/map for range scans or ordered iteration, you can resort to a `SkipList`. 
-The `SkipListMap` in this project is based on (LevelDBs skiplist)[(https://github.com/google/leveldb/blob/master/db/skiplist.h)] and super easy to use:
+The `SkipListMap` in this project is based on [LevelDBs skiplist](https://github.com/google/leveldb/blob/master/db/skiplist.h) and super easy to use:
 
 ```go
 skipListMap := skiplist.NewSkipListMap(skiplist.IntComparator)
