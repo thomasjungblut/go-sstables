@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/thomasjungblut/go-sstables.svg?branch=master)](https://travis-ci.org/thomasjungblut/go-sstables)
+
 ## go-sstables
 
 `go-sstables` is a Go library that contains NoSQL database building blocks like a sequential record format (recordio),

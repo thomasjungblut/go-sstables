@@ -6,3 +6,7 @@ go:
   - "1.9.x"
   - "1.10.x"
   - master
+install:
+  - go get -v github.com/Masterminds/glide
+  - cd $GOPATH/src/github.com/Masterminds/glide && git checkout tags/0.10.2 && go install && cd -
+  - glide install
