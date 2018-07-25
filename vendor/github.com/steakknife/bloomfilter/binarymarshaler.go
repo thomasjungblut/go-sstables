@@ -38,7 +38,8 @@ func (f *Filter) MarshalBinary() (data []byte, err error) {
 		return nil, err
 	}
 
-	if err = binary.Write(buf, binary.LittleEndian, f.n); err != nil {
+	// TODO(thomas): monkey patch of https://github.com/steakknife/bloomfilter/pull/8
+	if err = binary.Write(buf, binary.LittleEndian, uint64(len(f.bits))); err != nil {
 		return nil, err
 	}
 

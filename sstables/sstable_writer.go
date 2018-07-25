@@ -78,11 +78,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 
 	if writer.opts.enableBloomFilter {
 		fnvHash := fnv.New64()
-		_, err := fnvHash.Write(key)
-		if err != nil {
-			return err
-		}
-
+		fnvHash.Write(key)
 		writer.bloomFilter.Add(fnvHash)
 	}
 

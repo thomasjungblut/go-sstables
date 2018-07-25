@@ -5,19 +5,15 @@ import (
 	"errors"
 	"strconv"
 	"fmt"
-	"encoding/binary"
-	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
 type FileReader struct {
-	headerBuffer []byte
-
-	open            bool
-	closed          bool
-	file            *os.File
-	currentOffset   uint64
-	compressionType int
-	compressor      compressor.CompressionI
+	recordHeaderBuffer []byte
+	currentOffset      uint64
+	file               *os.File
+	header             *Header
+	open               bool
+	closed             bool
 }
 
 func (r *FileReader) Open() error {
@@ -40,8 +36,7 @@ func (r *FileReader) Open() error {
 	}
 
 	// try to read the file header
-	// 4 byte version number, 4 byte compression code = 8 bytes
-	bytes := make([]byte, 8)
+	bytes := make([]byte, FileHeaderSizeBytes)
 	numRead, err := r.file.Read(bytes)
 	if err != nil {
 		return err
@@ -51,57 +46,16 @@ func (r *FileReader) Open() error {
 		return fmt.Errorf("not enough bytes in the header found, expected %d but were %d", len(bytes), numRead)
 	}
 
-	fileVersion := binary.LittleEndian.Uint32(bytes[0:4])
-	if fileVersion != Version {
-		return fmt.Errorf("version mismatch, expected %d but was %d", Version, fileVersion)
-	}
-
-	compressionType := binary.LittleEndian.Uint32(bytes[4:8])
-	if compressionType > CompressionTypeSnappy {
-		return fmt.Errorf("unknown compression type [%d]", compressionType)
-	}
-
-	r.compressionType = int(compressionType)
-	r.compressor, err = NewCompressorForType(r.compressionType)
+	r.header, err = readFileHeaderFromBuffer(bytes)
 	if err != nil {
 		return err
 	}
 
 	r.currentOffset = uint64(len(bytes))
-	r.headerBuffer = make([]byte, HeaderSizeBytes)
+	r.recordHeaderBuffer = make([]byte, RecordHeaderSizeBytes)
 	r.open = true
 
 	return nil
-}
-
-func readHeader(r *FileReader) (uint64, uint64, error) {
-	numRead, err := r.file.Read(r.headerBuffer)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	if numRead != len(r.headerBuffer) {
-		return 0, 0, fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", len(r.headerBuffer), numRead)
-	}
-
-	r.currentOffset = r.currentOffset + uint64(numRead)
-
-	magicNumber := binary.LittleEndian.Uint32(r.headerBuffer[0:4])
-	if magicNumber != MagicNumberSeparator {
-		return 0, 0, fmt.Errorf("magic number mismatch")
-	}
-
-	payloadSizeUncompressed := binary.LittleEndian.Uint64(r.headerBuffer[4:12])
-	if err != nil {
-		return 0, 0, err
-	}
-
-	payloadSizeCompressed := binary.LittleEndian.Uint64(r.headerBuffer[12:20])
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return payloadSizeUncompressed, payloadSizeCompressed, nil
 }
 
 func (r *FileReader) ReadNext() ([]byte, error) {
@@ -109,18 +63,23 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		return nil, errors.New("reader was either not opened yet or is closed already")
 	}
 
-	payloadSizeUncompressed, payloadSizeCompressed, err := readHeader(r)
+	numRead, err := r.file.Read(r.recordHeaderBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	expectedBytesRead := payloadSizeUncompressed
-	if r.compressor != nil {
-		expectedBytesRead = payloadSizeCompressed
+	if numRead != RecordHeaderSizeBytes {
+		return nil, fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
 	}
 
-	recordBuffer := make([]byte, expectedBytesRead)
-	numRead, err := r.file.Read(recordBuffer)
+	r.currentOffset = r.currentOffset + uint64(numRead)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeader(r.recordHeaderBuffer)
+	if err != nil {
+		return nil, err
+	}
+
+	expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
+	numRead, err = r.file.Read(recordBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -129,8 +88,8 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
 	}
 
-	if r.compressor != nil {
-		recordBuffer, err = r.compressor.Decompress(recordBuffer)
+	if r.header.compressor != nil {
+		recordBuffer, err = r.header.compressor.Decompress(recordBuffer)
 		if err != nil {
 			return nil, err
 		}
@@ -146,13 +105,22 @@ func (r *FileReader) SkipNext() error {
 		return errors.New("reader was either not opened yet or is closed already")
 	}
 
-	payloadSizeUncompressed, payloadSizeCompressed, err := readHeader(r)
+	numRead, err := r.file.Read(r.recordHeaderBuffer)
+	if err != nil {
+		return err
+	}
+
+	if numRead != RecordHeaderSizeBytes {
+		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
+	}
+	r.currentOffset = r.currentOffset + uint64(numRead)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeader(r.recordHeaderBuffer)
 	if err != nil {
 		return nil
 	}
 
 	expectedBytesSkipped := payloadSizeUncompressed
-	if r.compressor != nil {
+	if r.header.compressor != nil {
 		expectedBytesSkipped = payloadSizeCompressed
 	}
 
@@ -193,10 +161,9 @@ func NewFileReaderWithPath(path string) (*FileReader, error) {
 
 func NewFileReaderWithFile(file *os.File) (*FileReader, error) {
 	return &FileReader{
-		file:            file,
-		open:            false,
-		closed:          false,
-		compressionType: CompressionTypeNone,
-		currentOffset:   0,
+		file:          file,
+		open:          false,
+		closed:        false,
+		currentOffset: 0,
 	}, nil
 }

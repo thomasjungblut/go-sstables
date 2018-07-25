@@ -11,3 +11,6 @@ import:
   version: ^1.0.2
 - package: github.com/steakknife/hamming
   version: ^0.2.3
+- package: golang.org/x/exp
+  subpackages:
+  - mmap

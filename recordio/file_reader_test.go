@@ -100,16 +100,12 @@ func TestReaderHappyPathSkipAllMultiRecord(t *testing.T) {
 
 func TestReaderVersionMismatchV0(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord_v0", t)
-	err := reader.Open()
-	defer reader.Close()
-	assert.Equal(t, errors.New("version mismatch, expected 1 but was 0"), err)
+	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected 1 but was 0"))
 }
 
 func TestReaderVersionMismatchV256(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord_v256", t)
-	err := reader.Open()
-	defer reader.Close()
-	assert.Equal(t, errors.New("version mismatch, expected 1 but was 256"), err)
+	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected 1 but was 256"))
 }
 
 func TestReaderCompressionGzipHeader(t *testing.T) {
@@ -117,7 +113,7 @@ func TestReaderCompressionGzipHeader(t *testing.T) {
 	err := reader.Open()
 	assert.Nil(t, err)
 	defer reader.Close()
-	assert.Equal(t, 1, reader.compressionType)
+	assert.Equal(t, 1, reader.header.compressionType)
 }
 
 func TestReaderCompressionSnappyHeader(t *testing.T) {
@@ -125,14 +121,12 @@ func TestReaderCompressionSnappyHeader(t *testing.T) {
 	err := reader.Open()
 	assert.Nil(t, err)
 	defer reader.Close()
-	assert.Equal(t, 2, reader.compressionType)
+	assert.Equal(t, 2, reader.header.compressionType)
 }
 
 func TestReaderCompressionUnknown(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord_comp3", t)
-	err := reader.Open()
-	defer reader.Close()
-	assert.Equal(t, errors.New("unknown compression type [3]"), err)
+	expectErrorOnOpen(t, reader, errors.New("unknown compression type [3]"))
 }
 
 func TestReaderMagicNumberMismatch(t *testing.T) {
@@ -161,8 +155,13 @@ func TestReaderForbidsDoubleOpens(t *testing.T) {
 	reader := newTestReader("test_files/recordio_UncompressedSingleRecord", t)
 	err := reader.Open()
 	assert.Nil(t, err)
-	err = reader.Open()
-	assert.Equal(t, errors.New("already opened"), err)
+	expectErrorOnOpen(t, reader, errors.New("already opened"))
+}
+
+func expectErrorOnOpen(t *testing.T, reader OpenClosableI, expectedError error) {
+	err := reader.Open()
+	defer reader.Close()
+	assert.Equal(t, expectedError, err)
 }
 
 func newOpenedTestReader(t *testing.T, file string) (*FileReader, error) {

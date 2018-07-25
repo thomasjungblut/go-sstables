@@ -14,10 +14,16 @@ func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 	writer, err := newTestSSTableSimpleWriter()
 	defer os.RemoveAll(writer.streamWriter.opts.basePath)
 	assert.Nil(t, err)
-	list := newSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
 	err = writer.WriteSkipListMap(list)
 	assert.Nil(t, err)
-	// TODO read it back and see if it matches
+
+	reader, err := NewSSTableReader(
+		ReadBasePath(writer.streamWriter.opts.basePath),
+		ReadWithKeyComparator(writer.streamWriter.opts.keyComparator))
+	assert.Nil(t, err)
+	defer reader.Close()
+	assertContentMatches(t, reader, list)
 }
 
 func TestSkipListStreamedWriteFailsOnKeyComparison(t *testing.T) {
@@ -84,7 +90,7 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	assert.Nil(t, err)
 	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	err = writer.WriteSkipListMap(newSkipListMapWithElements([]int{}))
+	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{}))
 	assert.Equal(t, errors.New("unsupported compression type 25"), err)
 }
 
@@ -106,7 +112,8 @@ func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
 	return NewSSTableStreamWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
 }
 
-func newSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
+//noinspection GoSnakeCaseUsage
+func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
 	list := skiplist.NewSkipList(skiplist.BytesComparator)
 	for _, e := range toInsert {
 		key := make([]byte, 4)

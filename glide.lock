@@ -1,5 +1,5 @@
-hash: 2ed1880f373dca404982207e7c9c9904a30d1d67c8f8977e165fd14971df7a57
-updated: 2018-05-27T12:12:24.9408696+02:00
+hash: 2712a59c2d2eadda6a98929ce8d26389438d5ef1d7b43e9f2267206d03af3fea
+updated: 2018-07-24T22:38:31.6235999+02:00
 imports:
 - name: github.com/gogo/protobuf
   version: 160de10b2537169b5ae3e7e221d28269ef40d311
@@ -17,9 +17,13 @@ imports:
 - name: github.com/steakknife/hamming
   version: 5ac3f73b8842df21423978fbbeb5166670f6f73e
 - name: github.com/stretchr/testify
-  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
+  version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
   - assert
+- name: golang.org/x/exp
+  version: 14dda7b62fcdb381624aaca63b04df07203856d4
+  subpackages:
+  - mmap
 testImports:
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
