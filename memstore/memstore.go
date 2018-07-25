@@ -154,5 +154,5 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 
 func NewMemStore() (*MemStore) {
 	cmp := skiplist.BytesComparator
-	return &MemStore{skipListMap: skiplist.NewSkipList(cmp), comparator: cmp}
+	return &MemStore{skipListMap: skiplist.NewSkipListMap(cmp), comparator: cmp}
 }

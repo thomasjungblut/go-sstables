@@ -114,7 +114,7 @@ func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
 
 //noinspection GoSnakeCaseUsage
 func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
-	list := skiplist.NewSkipList(skiplist.BytesComparator)
+	list := skiplist.NewSkipListMap(skiplist.BytesComparator)
 	for _, e := range toInsert {
 		key := make([]byte, 4)
 		binary.BigEndian.PutUint32(key, uint32(e))

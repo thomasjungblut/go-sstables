@@ -22,6 +22,20 @@ func BytesComparator(a interface{}, b interface{}) int {
 	return bytes.Compare(a.([]byte), b.([]byte))
 }
 
+// example comparator for plain integers
+func IntComparator(a interface{}, b interface{}) int {
+	aInt := a.(int)
+	bInt := b.(int)
+
+	if aInt > bInt {
+		return 1
+	} else if aInt < bInt {
+		return -1
+	}
+
+	return 0
+}
+
 type SkipListIteratorI interface {
 	// returns the next key, value in sequence
 	// returns Done as the error when the iterator is exhausted
@@ -153,7 +167,7 @@ func (list *SkipListMap) IteratorStartingAt(key interface{}) *SkipListIterator {
 	return &SkipListIterator{node: node}
 }
 
-func NewSkipList(comp KeyComparator) *SkipListMap {
+func NewSkipListMap(comp KeyComparator) *SkipListMap {
 	const maxHeight = 12
 	return &SkipListMap{head: newSkipListNode(nil, nil, maxHeight), comp: comp, maxHeight: maxHeight}
 }

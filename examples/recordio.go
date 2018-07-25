@@ -14,6 +14,8 @@ func main() {
 
 	simpleWrite(path)
 	simpleRead(path)
+
+	simpleReadAtOffset(path)
 }
 
 func simpleRead(path string) {
@@ -22,7 +24,8 @@ func simpleRead(path string) {
 		log.Fatalf("error: %v", err)
 	}
 
-	if reader.Open() != nil {
+	err = reader.Open()
+	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
 
@@ -41,10 +44,10 @@ func simpleRead(path string) {
 		log.Printf("%s", record.GetMessage())
 	}
 
-	if reader.Close() != nil {
+	err = reader.Close()
+	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-
 }
 
 func simpleWrite(path string) {
@@ -52,7 +55,8 @@ func simpleWrite(path string) {
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	if writer.Open() != nil {
+	err = writer.Open()
+	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
 	record := &proto.HelloWorld{Message: "Hello World"}
@@ -62,7 +66,33 @@ func simpleWrite(path string) {
 	}
 	log.Printf("wrote a record at offset of %d bytes", recordOffset)
 
-	if writer.Close() != nil {
+	err = writer.Close()
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+}
+
+func simpleReadAtOffset(path string) {
+	reader, err := recordio.NewMMapProtoReaderWithPath(path)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+
+	err = reader.Open()
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+
+	record := &proto.HelloWorld{}
+	_, err = reader.ReadNextAt(record, 8)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+
+	log.Printf("Reading message at offset 8: %s", record.GetMessage())
+
+	err = reader.Close()
+	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
 }

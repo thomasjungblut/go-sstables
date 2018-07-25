@@ -105,7 +105,7 @@ func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (*skiplis
 		return nil, err
 	}
 
-	indexMap := skiplist.NewSkipList(keyComparator)
+	indexMap := skiplist.NewSkipListMap(keyComparator)
 
 	for {
 		record := &proto.IndexEntry{}

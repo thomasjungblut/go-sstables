@@ -6,19 +6,6 @@ import (
 	"sort"
 )
 
-func IntComp(a interface{}, b interface{}) int {
-	aInt := a.(int)
-	bInt := b.(int)
-
-	if aInt > bInt {
-		return 1
-	} else if aInt < bInt {
-		return -1
-	}
-
-	return 0
-}
-
 func TestSkipListSingleInsertHappyPathIterator(t *testing.T) {
 	list := singleElementSkipList(t)
 
@@ -45,35 +32,35 @@ func TestSkipListSingleElementHappyPathGet(t *testing.T) {
 }
 
 func TestSkipListMultiInsertOrdered(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	batchInsertAndAssertContains(t, []int{1, 2, 3, 4, 5, 6, 7}, list)
 }
 
 func TestSkipListMultiInsertUnordered(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 }
 
 func TestSkipListMultiInsertUnorderedNegatives(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	batchInsertAndAssertContains(t, []int{79, 14, -91, 27, 62, 41, -58, 2, -20, -87, 34}, list)
 }
 
 func TestSkipListMultiInsertZeroRun(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	batchInsertAndAssertContains(t, []int{2, 1, 0, -1, -2}, list)
 }
 
 func TestSkipListDoubleEqualInsert(t *testing.T) {
 	assert.PanicsWithValue(t, "duplicate key insertions are not allowed", func() {
-		list := NewSkipList(IntComp)
+		list := NewSkipListMap(IntComparator)
 		list.Insert(13, 91)
 		list.Insert(13, 1) // should panic on duped key
 	})
 }
 
 func TestSkipListEmptyIterator(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 
 	assert.Equal(t, 0, list.Size())
 	assert.False(t, list.Contains(1))
@@ -87,7 +74,7 @@ func TestSkipListEmptyIterator(t *testing.T) {
 }
 
 func TestSkipListMultiInsertUnorderedStartingIterator(t *testing.T) {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 	expected := []int{2, 14, 20, 27, 34, 41, 58, 62, 79, 87, 91}
 	// a lower key of the sequence should yield the whole sequence
@@ -114,7 +101,7 @@ func TestSkipListMultiInsertUnorderedStartingIterator(t *testing.T) {
 }
 
 func singleElementSkipList(t *testing.T) *SkipListMap {
-	list := NewSkipList(IntComp)
+	list := NewSkipListMap(IntComparator)
 	list.Insert(13, 91)
 	assert.Equal(t, 1, list.Size())
 	assert.True(t, list.Contains(13))

@@ -5,17 +5,52 @@
 `go-sstables` is a Go library that contains NoSQL database building blocks like a sequential record format (recordio),
 a sorted string table (sstable) and a memory store (memstore) that stores key/value pairs in memory using a skip list.
 
-It will come with some protobuf convenience bindings.
+While plain `[]byte` are at the core of this library, there are wrappers and bindings for protobuf to enable more convenient serialization. 
 
 ## Installation
 
 > go get -d github.com/thomasjungblut/go-sstables
 
-## Using SSTables
+## Using SkipListMap
+
+Whenever you find yourself in need of a sorted list/map for range scans or ordered iteration, you can resort to a `SkipList`. 
+The `SkipListMap` in this project is based on (LevelDBs skiplist)[(https://github.com/google/leveldb/blob/master/db/skiplist.h)] and super easy to use:
+
+```go
+skipListMap := skiplist.NewSkipListMap(skiplist.IntComparator)
+skipListMap.Insert(13, 91)
+skipListMap.Insert(3, 1)
+skipListMap.Insert(5, 2)
+log.Printf("size: %d", skipListMap.Size())
+
+it := skipListMap.Iterator()
+for {
+    k, v, err := it.Next()
+    if err == skiplist.Done {
+        break
+    }
+    log.Printf("key: %d, value: %d", k, v)
+}
+
+log.Printf("starting at key: %d", 5)
+it = skipListMap.IteratorStartingAt(5)
+for {
+    k, v, err := it.Next()
+    if err == skiplist.Done {
+        break
+    }
+    log.Printf("key: %d, value: %d", k, v)
+}
+```
+
+You can supply any kind of element and comparator to sort arbitrary structs and primitives. 
+You can get the full example from [examples/skiplist.go](examples/skiplist.go).
+ 
+## Using MemStore
 
 coming soon...
-
-## Using MemStore
+ 
+## Using SSTables
 
 coming soon...
 
@@ -36,7 +71,8 @@ writer, err := recordio.NewCompressedProtoWriterWithPath(path, recordio.Compress
 if err != nil {
     log.Fatalf("error: %v", err)
 }
-if writer.Open() != nil {
+err = writer.Open()
+if err != nil {
     log.Fatalf("error: %v", err)
 }
 record := &proto.HelloWorld{Message: "Hello World"}
@@ -46,7 +82,8 @@ if err != nil {
 }
 log.Printf("wrote a record at offset of %d bytes", recordOffset)
 
-if writer.Close() != nil {
+err = writer.Close()
+if err != nil {
     log.Fatalf("error: %v", err)
 }
 ```
@@ -59,7 +96,8 @@ if err != nil {
     log.Fatalf("error: %v", err)
 }
 
-if reader.Open() != nil {
+err = reader.Open()
+if err != nil {
     log.Fatalf("error: %v", err)
 }
 
@@ -78,10 +116,38 @@ for {
     log.Printf("%s", record.GetMessage())
 }
 
-if reader.Close() != nil {
+err = reader.Close()
+if err != nil {
     log.Fatalf("error: %v", err)
 }
 ```
+
+SSTables support random reads of backing values, thus recordio also supports it using its `mmap` implementation:
+
+```go
+reader, err := recordio.NewMMapProtoReaderWithPath(path)
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+
+err = reader.Open()
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+
+record := &proto.HelloWorld{}
+_, err = reader.ReadNextAt(record, 8)
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+
+log.Printf("Reading message at offset 8: %s", record.GetMessage())
+
+err = reader.Close()
+if err != nil {
+    log.Fatalf("error: %v", err)
+}
+``` 
 
 You can get the full example from [examples/recordio.go](examples/recordio.go).
 
