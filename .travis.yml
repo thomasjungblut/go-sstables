@@ -1,0 +1,8 @@
+language: go
+dist: trusty
+sudo: false
+go:
+  - "1.8.x"
+  - "1.9.x"
+  - "1.10.x"
+  - master
