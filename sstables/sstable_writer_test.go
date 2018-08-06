@@ -23,7 +23,7 @@ func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 		ReadWithKeyComparator(writer.streamWriter.opts.keyComparator))
 	assert.Nil(t, err)
 	defer reader.Close()
-	assertContentMatches(t, reader, list)
+	assertContentMatchesSkipList(t, reader, list)
 }
 
 func TestSkipListStreamedWriteFailsOnKeyComparison(t *testing.T) {
@@ -92,35 +92,4 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	assert.Nil(t, err)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{}))
 	assert.Equal(t, errors.New("unsupported compression type 25"), err)
-}
-
-func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
-	if err != nil {
-		return nil, err
-	}
-
-	return NewSSTableSimpleWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
-}
-
-func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
-	if err != nil {
-		return nil, err
-	}
-
-	return NewSSTableStreamWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
-}
-
-//noinspection GoSnakeCaseUsage
-func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
-	list := skiplist.NewSkipListMap(skiplist.BytesComparator)
-	for _, e := range toInsert {
-		key := make([]byte, 4)
-		binary.BigEndian.PutUint32(key, uint32(e))
-		value := make([]byte, 4)
-		binary.BigEndian.PutUint32(value, uint32(e+1))
-		list.Insert(key, value)
-	}
-	return list
 }
