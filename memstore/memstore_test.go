@@ -12,9 +12,15 @@ import (
 func TestMemStoreAddHappyPath(t *testing.T) {
 	m := NewMemStore()
 	assert.False(t, m.Contains([]byte("a")))
-	err := m.Add([]byte("a"), []byte("aVal"))
+	val, err := m.Get([]byte("a"))
+	assert.Nil(t, val)
+	assert.Equal(t, KeyNotFound, err)
+	err = m.Add([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
+	val, err = m.Get([]byte("a"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("aVal"), val)
 }
 
 func TestMemStoreAddFailOnNilKeyValue(t *testing.T) {
@@ -38,6 +44,9 @@ func TestMemStoreUpsertBehavesLikeAdd(t *testing.T) {
 	err := m.Upsert([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
+	val, err := m.Get([]byte("a"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("aVal"), val)
 }
 
 func TestMemStoreUpsertUpdatesOnExist(t *testing.T) {
@@ -146,5 +155,21 @@ func TestMemStoreFlush(t *testing.T) {
 	err = m.Flush(sstables.WriteBasePath(tmpDir))
 	assert.Nil(t, err)
 
-	// TODO(thomas): read it back and see if it matches
+	reader, err := sstables.NewSSTableReader(
+		sstables.ReadBasePath(tmpDir),
+		sstables.ReadWithKeyComparator(m.comparator))
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	val, err := reader.Get([]byte("akey"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("aval"), val)
+
+	val, err = reader.Get([]byte("bkey"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("bval"), val)
+
+	// negative test
+	_, err = reader.Get([]byte("ckey"))
+	assert.Equal(t, sstables.NotFound, err)
 }

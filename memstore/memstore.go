@@ -15,6 +15,8 @@ type MemStoreI interface {
 	Add(key []byte, value []byte) error
 	// returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
+	// returns the values for the given key, if not exists returns a KeyNotFound error
+	Get(key []byte) ([]byte, error)
 	// inserts when the key does not exist yet, updates the current value if the key exists.
 	Upsert(key []byte, value []byte) error
 	// deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist
@@ -56,6 +58,19 @@ func (m *MemStore) Contains(key []byte) bool {
 		return false
 	}
 	return true
+}
+
+func (m *MemStore) Get(key []byte) ([]byte, error) {
+	element, err := m.skipListMap.Get(key)
+	// we can return false if we didn't find it by error, or when the key is tomb-stoned
+	if err == skiplist.NotFound {
+		return nil, KeyNotFound
+	}
+	val := *element.(ValueStruct).value
+	if val == nil {
+		return nil, KeyNotFound
+	}
+	return val, nil
 }
 
 func (m *MemStore) Upsert(key []byte, value []byte) error {
@@ -140,7 +155,10 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 
 		// do not write tombstones to the final file
 		if vBytes.value != nil {
-			writer.WriteNext(kBytes, *vBytes.value)
+			err = writer.WriteNext(kBytes, *vBytes.value)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
