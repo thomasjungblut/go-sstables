@@ -1,13 +1,12 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 CountBitsBarry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
-// MCountBitsIT license
+// MIT license
 //
-
 // +build amd64 amd64p32 !purego
 
 package hamming
@@ -22,7 +21,7 @@ func TestCountBitsInt8PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -42,7 +41,7 @@ func TestCountBitsInt16PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint16 {
 			continue
 		}
@@ -62,7 +61,7 @@ func TestCountBitsInt32PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint32 {
 			continue
 		}
@@ -82,7 +81,7 @@ func TestCountBitsInt64PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint64 {
 			continue
 		}
@@ -102,7 +101,7 @@ func TestCountBitsIntPopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > maxInt {
 			continue
 		}
@@ -122,7 +121,7 @@ func TestCountBitsUint8PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -142,7 +141,7 @@ func TestCountBitsUint16PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint16 {
 			continue
 		}
@@ -162,7 +161,7 @@ func TestCountBitsUint32PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint32 {
 			continue
 		}
@@ -182,7 +181,7 @@ func TestCountBitsUint64PopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint64 {
 			continue
 		}
@@ -202,7 +201,7 @@ func TestCountBitsUintPopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > maxUint {
 			continue
 		}
@@ -222,7 +221,7 @@ func TestCountBitsBytePopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -242,7 +241,7 @@ func TestCountBitsRunePopCnt(t *testing.T) {
 	if !HasPopCnt() {
 		t.SkipNow()
 	}
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint32 {
 			continue
 		}
@@ -268,7 +267,7 @@ func BenchmarkCountBitsInt8PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt8PopCnt(int8(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt16PopCnt(b *testing.B) {
@@ -279,7 +278,7 @@ func BenchmarkCountBitsInt16PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt16PopCnt(int16(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt32PopCnt(b *testing.B) {
@@ -290,7 +289,7 @@ func BenchmarkCountBitsInt32PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt32PopCnt(int32(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt64PopCnt(b *testing.B) {
@@ -301,7 +300,7 @@ func BenchmarkCountBitsInt64PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt64PopCnt(int64(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsIntPopCnt(b *testing.B) {
@@ -312,7 +311,7 @@ func BenchmarkCountBitsIntPopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsIntPopCnt(i)
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint8PopCnt(b *testing.B) {
@@ -323,7 +322,7 @@ func BenchmarkCountBitsUint8PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint8PopCnt(uint8(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint16PopCnt(b *testing.B) {
@@ -334,7 +333,7 @@ func BenchmarkCountBitsUint16PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint16PopCnt(uint16(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint32PopCnt(b *testing.B) {
@@ -345,7 +344,7 @@ func BenchmarkCountBitsUint32PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint32PopCnt(uint32(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint64PopCnt(b *testing.B) {
@@ -356,7 +355,7 @@ func BenchmarkCountBitsUint64PopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint64PopCnt(uint64(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUintPopCnt(b *testing.B) {
@@ -367,7 +366,7 @@ func BenchmarkCountBitsUintPopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUintPopCnt(uint(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsBytePopCnt(b *testing.B) {
@@ -378,7 +377,7 @@ func BenchmarkCountBitsBytePopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsBytePopCnt(byte(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsRunePopCnt(b *testing.B) {
@@ -389,5 +388,5 @@ func BenchmarkCountBitsRunePopCnt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsRunePopCnt(rune(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }

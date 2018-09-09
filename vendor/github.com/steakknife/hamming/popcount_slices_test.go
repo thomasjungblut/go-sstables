@@ -1,9 +1,9 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 Barry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
 // MIT license
 //
@@ -17,7 +17,7 @@ import (
 )
 
 func TestCountBitsInt8s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 8
@@ -56,7 +56,7 @@ func TestCountBitsInt8s(t *testing.T) {
 }
 
 func TestCountBitsInt16s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 16
@@ -70,7 +70,7 @@ func TestCountBitsInt16s(t *testing.T) {
 }
 
 func TestCountBitsInt32s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 32
@@ -86,7 +86,7 @@ func TestCountBitsInt32s(t *testing.T) {
 }
 
 func TestCountBitsInt64s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		b := *(*[]int64)(unsafe.Pointer(&c.b))
 
@@ -97,7 +97,7 @@ func TestCountBitsInt64s(t *testing.T) {
 }
 
 func TestCountBitsInts(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / strconv.IntSize
@@ -113,7 +113,7 @@ func TestCountBitsInts(t *testing.T) {
 }
 
 func TestCountBitsUint8s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 8
@@ -129,7 +129,7 @@ func TestCountBitsUint8s(t *testing.T) {
 }
 
 func TestCountBitsUint16s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 16
@@ -145,7 +145,7 @@ func TestCountBitsUint16s(t *testing.T) {
 }
 
 func TestCountBitsUint32s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 32
@@ -161,7 +161,7 @@ func TestCountBitsUint32s(t *testing.T) {
 }
 
 func TestCountBitsUint64s(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 		if actualN := CountBitsUint64s(c.b); actualN != c.n {
 			t.Errorf("(%d) -> actual %d != expected %d", c.b, actualN, c.n)
 		} else {
@@ -171,7 +171,7 @@ func TestCountBitsUint64s(t *testing.T) {
 }
 
 func TestCountBitsUints(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / strconv.IntSize
@@ -185,7 +185,7 @@ func TestCountBitsUints(t *testing.T) {
 }
 
 func TestCountBitsBytes(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 8
@@ -199,7 +199,7 @@ func TestCountBitsBytes(t *testing.T) {
 }
 
 func TestCountBitsRunes(t *testing.T) {
-	for _, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
 		bHdr.Len *= 64 / 32
@@ -213,13 +213,15 @@ func TestCountBitsRunes(t *testing.T) {
 }
 
 func TestCountBitsString(t *testing.T) {
-	for i, c := range testSliceCases {
+	for _, c := range testSliceCases() {
 
 		bHdr := *(*reflect.SliceHeader)(unsafe.Pointer(&c.b))
-		b := *(*string)(unsafe.Pointer(&reflect.StringHeader{Data: bHdr.Data, Len: bHdr.Len * 64 / 8}))
+		b := *(*string)(unsafe.Pointer(&reflect.StringHeader{
+			Data: bHdr.Data,
+			Len:  bHdr.Len * 64 / 8}))
 
 		if actualN := CountBitsString(b); actualN != c.n {
-			t.Errorf("(%v) -> %d != %d", i, []byte(b), actualN, c.n)
+			t.Errorf("(%v) -> %d != %d", []byte(b), actualN, c.n)
 		}
 	}
 }

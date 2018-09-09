@@ -1,4 +1,4 @@
-[![GoDoc](https://godoc.org/github.com/steakknife/hamming?status.png)](https://godoc.org/github.com/steakknife/hamming)
+[![GoDoc](https://godoc.org/github.com/steakknife/hamming?status.png)](https://godoc.org/github.com/steakknife/hamming) [![Build Status](https://travis-ci.org/steakknife/hamming.svg?branch=master)](https://travis-ci.org/steakknife/hamming)
 
 
 # hamming distance calculations in Go

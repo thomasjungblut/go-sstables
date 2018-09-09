@@ -1,21 +1,21 @@
-//
-// Face-meltingly fast, thread-safe, marshalable, unionable, probability- and optimal-size-calculating Bloom filter in go
+// Package bloomfilter is face-meltingly fast, thread-safe,
+// marshalable, unionable, probability- and
+// optimal-size-calculating Bloom filter in go
 //
 // https://github.com/steakknife/bloomfilter
 //
-// Copyright © 2014, 2015 Barry Allard
+// Copyright © 2014, 2015, 2018 Barry Allard
 //
 // MIT license
 //
 package bloomfilter
 
 import (
-	"errors"
 	"hash"
 	"sync"
 )
 
-// opaque Bloom filter
+// Filter is an opaque Bloom filter type
 type Filter struct {
 	lock sync.RWMutex
 	bits []uint64
@@ -24,10 +24,8 @@ type Filter struct {
 	n    uint64 // number of inserted elements
 }
 
-var incompatibleBloomFilters = errors.New("Cannot perform union on two incompatible Bloom filters")
-
 // Hashable -> hashes
-func (f Filter) hash(v hash.Hash64) []uint64 {
+func (f *Filter) hash(v hash.Hash64) []uint64 {
 	rawHash := v.Sum64()
 	n := len(f.keys)
 	hashes := make([]uint64, n)
@@ -37,17 +35,17 @@ func (f Filter) hash(v hash.Hash64) []uint64 {
 	return hashes
 }
 
-// return size of Bloom filter, in bits
-func (f Filter) M() uint64 {
+// M is the size of Bloom filter, in bits
+func (f *Filter) M() uint64 {
 	return f.m
 }
 
-// return count of keys
-func (f Filter) K() uint64 {
+// K is the count of keys
+func (f *Filter) K() uint64 {
 	return uint64(len(f.keys))
 }
 
-// add a hashable item, v, to the filter
+// Add a hashable item, v, to the filter
 func (f *Filter) Add(v hash.Hash64) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -60,43 +58,44 @@ func (f *Filter) Add(v hash.Hash64) {
 	f.n++
 }
 
+// Contains tests if f contains v
 // false: f definitely does not contain value v
 // true:  f maybe contains value v
 func (f *Filter) Contains(v hash.Hash64) bool {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
-	r := uint64(0)
+	r := uint64(1)
 	for _, i := range f.hash(v) {
 		// r |= f.getBit(k)
 		i %= f.m
-		r |= (f.bits[i>>6] >> uint(i&0x3f)) & 1
+		r &= (f.bits[i>>6] >> uint(i&0x3f)) & 1
 	}
 	return uint64ToBool(r)
 }
 
-// create a copy of Bloom filter f
-func (f *Filter) Copy() *Filter {
+// Copy f to a new Bloom filter
+func (f *Filter) Copy() (*Filter, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
-	out := f.NewCompatible()
+	out, err := f.NewCompatible()
+	if err != nil {
+		return nil, err
+	}
 	copy(out.bits, f.bits)
 	out.n = f.n
-	return out
+	return out, nil
 }
 
-// merge Bloom filter f2 into f
+// UnionInPlace merges Bloom filter f2 into f
 func (f *Filter) UnionInPlace(f2 *Filter) error {
 	if !f.IsCompatible(f2) {
-		return incompatibleBloomFilters
+		return errIncompatibleBloomFilters()
 	}
 
 	f.lock.Lock()
 	defer f.lock.Unlock()
-
-	f2.lock.RLock()
-	defer f2.lock.RUnlock()
 
 	for i, bitword := range f2.bits {
 		f.bits[i] |= bitword
@@ -104,11 +103,21 @@ func (f *Filter) UnionInPlace(f2 *Filter) error {
 	return nil
 }
 
-// out is a copy of f unioned with f2
-func (f *Filter) Union(f2 *Filter) (*Filter, error) {
-	out := f.Copy()
-	if err := out.UnionInPlace(f2); err != nil {
+// Union merges f2 and f2 into a new Filter out
+func (f *Filter) Union(f2 *Filter) (out *Filter, err error) {
+	if !f.IsCompatible(f2) {
+		return nil, errIncompatibleBloomFilters()
+	}
+
+	f.lock.RLock()
+	defer f.lock.RUnlock()
+
+	out, err = f.NewCompatible()
+	if err != nil {
 		return nil, err
+	}
+	for i, bitword := range f2.bits {
+		out.bits[i] = f.bits[i] | bitword
 	}
 	return out, nil
 }

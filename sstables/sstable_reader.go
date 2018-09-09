@@ -135,7 +135,7 @@ func readFilterIfExists(filterPath string) (*bloomfilter.Filter, error) {
 		return nil, nil
 	}
 
-	filter, err := bloomfilter.ReadFile(filterPath)
+	filter, _, err := bloomfilter.ReadFile(filterPath)
 	if err != nil {
 		return nil, err
 	}

@@ -50,7 +50,11 @@ func (writer *SSTableStreamWriter) Open() error {
 	}
 
 	if writer.opts.enableBloomFilter {
-		writer.bloomFilter = bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
+		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
+		if err != nil {
+			return err
+		}
+		writer.bloomFilter = bf
 	}
 
 	return nil
@@ -107,7 +111,7 @@ func (writer *SSTableStreamWriter) Close() error {
 	}
 
 	if writer.opts.enableBloomFilter {
-		err := writer.bloomFilter.WriteFile(path.Join(writer.opts.basePath, BloomFileName))
+		_, err := writer.bloomFilter.WriteFile(path.Join(writer.opts.basePath, BloomFileName))
 		if err != nil {
 			return err
 		}

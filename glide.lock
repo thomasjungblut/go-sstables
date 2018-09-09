@@ -1,21 +1,21 @@
-hash: 2712a59c2d2eadda6a98929ce8d26389438d5ef1d7b43e9f2267206d03af3fea
-updated: 2018-07-24T22:38:31.6235999+02:00
+hash: c627904e2bcfd9cf144be9e868a98f20580df87591e1dedcb2534b503870eb59
+updated: 2018-09-09T14:13:59.8747927+02:00
 imports:
 - name: github.com/gogo/protobuf
   version: 160de10b2537169b5ae3e7e221d28269ef40d311
   subpackages:
   - proto
 - name: github.com/golang/protobuf
-  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  version: aa810b61a9c79d51363740d207bb46cf8e620ed5
   subpackages:
   - proto
   - protoc-gen-go
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/steakknife/bloomfilter
-  version: d33489d917833dbe7515ddc87ad642098631de99
+  version: 99ee86d9200fcc2ffde62f508329bd6627c0a307
 - name: github.com/steakknife/hamming
-  version: 5ac3f73b8842df21423978fbbeb5166670f6f73e
+  version: 003c143a81c25ea5e263d692919c611c7122ae6b
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
@@ -24,6 +24,7 @@ imports:
   version: 14dda7b62fcdb381624aaca63b04df07203856d4
   subpackages:
   - mmap
+  - rand
 testImports:
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9

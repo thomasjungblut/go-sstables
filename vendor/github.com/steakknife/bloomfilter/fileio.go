@@ -1,9 +1,10 @@
-//
-// Face-meltingly fast, thread-safe, marshalable, unionable, probability- and optimal-size-calculating Bloom filter in go
+// Package bloomfilter is face-meltingly fast, thread-safe,
+// marshalable, unionable, probability- and
+// optimal-size-calculating Bloom filter in go
 //
 // https://github.com/steakknife/bloomfilter
 //
-// Copyright © 2014, 2015 Barry Allard
+// Copyright © 2014, 2015, 2018 Barry Allard
 //
 // MIT license
 //
@@ -11,60 +12,94 @@ package bloomfilter
 
 import (
 	"compress/gzip"
+	"io"
 	"io/ioutil"
 	"os"
 )
 
-// Read a gzip'ed, marshaled Bloom filter
-// Suggested file extension: .bf.gz
-func ReadFile(filename string) (*Filter, error) {
-	fr, err := os.Open(filename)
+// ReadFrom r and overwrite f with new Bloom filter data
+func (f *Filter) ReadFrom(r io.Reader) (n int64, err error) {
+	f2, n, err := ReadFrom(r)
 	if err != nil {
-		return nil, err
+		return -1, err
 	}
-	defer fr.Close()
-
-	r, err := gzip.NewReader(fr)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	content, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-
-	bf := new(Filter)
-	if err = bf.UnmarshalBinary(content); err != nil {
-		return nil, err
-	}
-	return bf, nil
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.m = f2.m
+	f.n = f2.n
+	f.bits = f2.bits
+	f.keys = f2.keys
+	return n, nil
 }
 
-// Write a gzip'ed, marshaled Bloom filter
+// ReadFrom Reader r into a lossless-compressed Bloom filter f
+func ReadFrom(r io.Reader) (f *Filter, n int64, err error) {
+	rawR, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, -1, err
+	}
+	defer func() {
+		err = rawR.Close()
+	}()
+
+	content, err := ioutil.ReadAll(rawR)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	f = new(Filter)
+	n = int64(len(content))
+	err = f.UnmarshalBinary(content)
+	if err != nil {
+		return nil, -1, err
+	}
+	return f, n, nil
+}
+
+// ReadFile from filename into a lossless-compressed Bloom Filter f
 // Suggested file extension: .bf.gz
-func (f *Filter) WriteFile(filename string) error {
+func ReadFile(filename string) (f *Filter, n int64, err error) {
+	r, err := os.Open(filename)
+	if err != nil {
+		return nil, -1, err
+	}
+	defer func() {
+		err = r.Close()
+	}()
+
+	return ReadFrom(r)
+}
+
+// WriteTo a Writer w from lossless-compressed Bloom Filter f
+func (f *Filter) WriteTo(w io.Writer) (n int64, err error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
-	fw, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer fw.Close()
-
-	w := gzip.NewWriter(fw)
-	defer w.Close()
+	rawW := gzip.NewWriter(w)
+	defer func() {
+		err = rawW.Close()
+	}()
 
 	content, err := f.MarshalBinary()
 	if err != nil {
-		return err
+		return -1, err
 	}
 
-	_, err = w.Write(content)
+	intN, err := rawW.Write(content)
+	n = int64(intN)
+	return n, err
+}
+
+// WriteFile filename from a a lossless-compressed Bloom Filter f
+// Suggested file extension: .bf.gz
+func (f *Filter) WriteFile(filename string) (n int64, err error) {
+	w, err := os.Create(filename)
 	if err != nil {
-		return err
+		return -1, err
 	}
-	return nil
+	defer func() {
+		err = w.Close()
+	}()
+
+	return f.WriteTo(w)
 }

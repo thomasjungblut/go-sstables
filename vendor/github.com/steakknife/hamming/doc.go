@@ -1,18 +1,22 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 Barry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
 // MIT license
 //
 //
 // Usage
 //
-// For functions named CountBits.+s?.  The plural forms are for slices.  The CountBits.+ forms are Population Count only, where the bare-type forms are Hamming distance (number of bits different) between two values.
+// For functions named CountBits.+s?.  The plural forms are for slices.
+// The CountBits.+ forms are Population Count only, where the bare-type
+// forms are Hamming distance (number of bits different) between two values.
 //
-// Optimized assembly .+PopCnt forms are availble on amd64, and operate just like the regular forms (Must check and guard on HasPopCnt() first before trying to call .+PopCnt functions).
+// Optimized assembly .+PopCnt forms are available on amd64, and operate just
+// like the regular forms (Must check and guard on HasPopCnt() first before
+// trying to call .+PopCnt functions).
 //
 //    import 'github.com/steakknife/hamming'
 //

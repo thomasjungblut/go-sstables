@@ -8,7 +8,7 @@ import:
   subpackages:
   - protoc-gen-go
 - package: github.com/steakknife/bloomfilter
-  version: ^1.0.2
+  version: ^1.0.4
 - package: github.com/steakknife/hamming
   version: ^0.2.3
 - package: golang.org/x/exp

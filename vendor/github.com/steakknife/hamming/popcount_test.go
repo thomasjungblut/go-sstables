@@ -1,9 +1,9 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 Barry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
 // MIT license
 //
@@ -21,7 +21,7 @@ const (
 )
 
 func TestCountBitsInt8(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -32,7 +32,7 @@ func TestCountBitsInt8(t *testing.T) {
 }
 
 func TestCountBitsInt16(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint16 {
 			continue
 		}
@@ -43,7 +43,7 @@ func TestCountBitsInt16(t *testing.T) {
 }
 
 func TestCountBitsInt32(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint32 {
 			continue
 		}
@@ -54,7 +54,7 @@ func TestCountBitsInt32(t *testing.T) {
 }
 
 func TestCountBitsInt64(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint64 {
 			continue
 		}
@@ -65,7 +65,7 @@ func TestCountBitsInt64(t *testing.T) {
 }
 
 func TestCountBitsInt(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > maxUint {
 			continue
 		}
@@ -76,7 +76,7 @@ func TestCountBitsInt(t *testing.T) {
 }
 
 func TestCountBitsUint8(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -87,7 +87,7 @@ func TestCountBitsUint8(t *testing.T) {
 }
 
 func TestCountBitsUint16(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint16 {
 			continue
 		}
@@ -98,7 +98,7 @@ func TestCountBitsUint16(t *testing.T) {
 }
 
 func TestCountBitsUint32(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint32 {
 			continue
 		}
@@ -109,7 +109,7 @@ func TestCountBitsUint32(t *testing.T) {
 }
 
 func TestCountBitsUint64(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if actualN := CountBitsUint64(c.x); actualN != c.n {
 			t.Errorf("%d -> (actual) %d != %d (expected)", c.x, actualN, c.n)
 		}
@@ -117,7 +117,7 @@ func TestCountBitsUint64(t *testing.T) {
 }
 
 func TestCountBitsUint64Alt(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if actualN := CountBitsUint64Alt(c.x); actualN != c.n {
 			t.Errorf("%d -> (actual) %d != %d (expected)", c.x, actualN, c.n)
 		}
@@ -125,7 +125,7 @@ func TestCountBitsUint64Alt(t *testing.T) {
 }
 
 func TestCountBitsUint(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > maxUint {
 			continue
 		}
@@ -136,7 +136,7 @@ func TestCountBitsUint(t *testing.T) {
 }
 
 func TestCountBitsUintReference(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > maxUint {
 			continue
 		}
@@ -147,7 +147,7 @@ func TestCountBitsUintReference(t *testing.T) {
 }
 
 func TestCountBitsByte(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -158,7 +158,7 @@ func TestCountBitsByte(t *testing.T) {
 }
 
 func TestCountBitsByteAlt(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxUint8 {
 			continue
 		}
@@ -169,7 +169,7 @@ func TestCountBitsByteAlt(t *testing.T) {
 }
 
 func TestCountBitsRune(t *testing.T) {
-	for _, c := range testCountBitsCases {
+	for _, c := range testCountBitsCases() {
 		if c.x > math.MaxInt32 {
 			continue
 		}
@@ -185,7 +185,7 @@ func BenchmarkCountBitsInt8(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt8(int8(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt16(b *testing.B) {
@@ -193,7 +193,7 @@ func BenchmarkCountBitsInt16(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt16(int16(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt32(b *testing.B) {
@@ -201,7 +201,7 @@ func BenchmarkCountBitsInt32(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt32(int32(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt64(b *testing.B) {
@@ -209,7 +209,7 @@ func BenchmarkCountBitsInt64(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt64(int64(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsInt(b *testing.B) {
@@ -217,7 +217,7 @@ func BenchmarkCountBitsInt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsInt(int(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint16(b *testing.B) {
@@ -225,7 +225,7 @@ func BenchmarkCountBitsUint16(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint16(uint16(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint32(b *testing.B) {
@@ -233,7 +233,7 @@ func BenchmarkCountBitsUint32(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint32(uint32(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint64(b *testing.B) {
@@ -241,7 +241,7 @@ func BenchmarkCountBitsUint64(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint64(uint64(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint64Alt(b *testing.B) {
@@ -249,7 +249,7 @@ func BenchmarkCountBitsUint64Alt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint64Alt(uint64(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUint(b *testing.B) {
@@ -257,7 +257,7 @@ func BenchmarkCountBitsUint(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUint(uint(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsUintReference(b *testing.B) {
@@ -265,7 +265,7 @@ func BenchmarkCountBitsUintReference(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsUintReference(uint(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsByte(b *testing.B) {
@@ -273,7 +273,7 @@ func BenchmarkCountBitsByte(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsByte(byte(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsByteAlt(b *testing.B) {
@@ -281,7 +281,7 @@ func BenchmarkCountBitsByteAlt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsByteAlt(byte(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }
 
 func BenchmarkCountBitsRune(b *testing.B) {
@@ -289,5 +289,5 @@ func BenchmarkCountBitsRune(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		stopDeadCodeElimination |= CountBitsRune(rune(i))
 	}
-	nullLog.Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
+	nullLog().Printf("stopDeadCodeElimination: %d", stopDeadCodeElimination)
 }

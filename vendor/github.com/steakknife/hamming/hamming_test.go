@@ -1,13 +1,12 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 Barry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
 // MIT license
 //
-
 package hamming
 
 import (
@@ -21,7 +20,7 @@ func refInt8(x, y int8) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refInt16(x, y int16) (r int) {
 	x ^= y
@@ -29,7 +28,7 @@ func refInt16(x, y int16) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refInt32(x, y int32) (r int) {
 	x ^= y
@@ -37,7 +36,7 @@ func refInt32(x, y int32) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refInt64(x, y int64) (r int) {
 	x ^= y
@@ -45,7 +44,7 @@ func refInt64(x, y int64) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refUint8(x, y uint8) (r int) {
 	x ^= y
@@ -53,7 +52,7 @@ func refUint8(x, y uint8) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refUint16(x, y uint16) (r int) {
 	x ^= y
@@ -61,7 +60,7 @@ func refUint16(x, y uint16) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refUint32(x, y uint32) (r int) {
 	x ^= y
@@ -69,7 +68,7 @@ func refUint32(x, y uint32) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refUint64(x, y uint64) (r int) {
 	x ^= y
@@ -77,7 +76,7 @@ func refUint64(x, y uint64) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refByte(x, y byte) (r int) {
 	x ^= y
@@ -85,7 +84,7 @@ func refByte(x, y byte) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 func refRune(x, y rune) (r int) {
 	x ^= y
@@ -93,7 +92,7 @@ func refRune(x, y rune) (r int) {
 		r++
 		x &= x - 1
 	}
-	return
+	return r
 }
 
 func TestInt8(t *testing.T) {

@@ -6,13 +6,14 @@ import (
 	"os"
 )
 
-var (
-	devNull = func() io.Writer {
-		f, err := os.OpenFile("/dev/null", os.O_WRONLY, 0400)
-		if err != nil {
-			panic(err)
-		}
-		return f
-	}()
-	nullLog = log.New(devNull, log.Prefix(), log.Flags())
-)
+func devNull() io.Writer {
+	f, err := os.OpenFile("/dev/null", os.O_WRONLY, 0400)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
+func nullLog() *log.Logger {
+	return log.New(devNull(), log.Prefix(), log.Flags())
+}

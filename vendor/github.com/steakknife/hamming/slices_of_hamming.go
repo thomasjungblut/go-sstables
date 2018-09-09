@@ -1,15 +1,16 @@
 //
-// hamming distance calculations in Go
+// Package hamming distance calculations in Go
 //
 // https://github.com/steakknife/hamming
 //
-// Copyright © 2014, 2015, 2016 Barry Allard
+// Copyright © 2014, 2015, 2016, 2018 Barry Allard
 //
 // MIT license
 //
 package hamming
 
-// hamming distance of two int8 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Int8s hamming distance of two int8 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Int8s(b0, b1 []int8) int {
 	d := 0
 	for i, x := range b0 {
@@ -18,7 +19,8 @@ func Int8s(b0, b1 []int8) int {
 	return d
 }
 
-// hamming distance of two int16 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Int16s hamming distance of two int16 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Int16s(b0, b1 []int16) int {
 	d := 0
 	for i, x := range b0 {
@@ -27,7 +29,8 @@ func Int16s(b0, b1 []int16) int {
 	return d
 }
 
-// hamming distance of two int32 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Int32s hamming distance of two int32 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Int32s(b0, b1 []int32) int {
 	d := 0
 	for i, x := range b0 {
@@ -36,7 +39,8 @@ func Int32s(b0, b1 []int32) int {
 	return d
 }
 
-// hamming distance of two int64 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Int64s hamming distance of two int64 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Int64s(b0, b1 []int64) int {
 	d := 0
 	for i, x := range b0 {
@@ -45,7 +49,8 @@ func Int64s(b0, b1 []int64) int {
 	return d
 }
 
-// hamming distance of two int buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Ints hamming distance of two int buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Ints(b0, b1 []int) int {
 	d := 0
 	for i, x := range b0 {
@@ -54,7 +59,8 @@ func Ints(b0, b1 []int) int {
 	return d
 }
 
-// hamming distance of two uint8 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Uint8s hamming distance of two uint8 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Uint8s(b0, b1 []uint8) int {
 	d := 0
 	for i, x := range b0 {
@@ -63,7 +69,8 @@ func Uint8s(b0, b1 []uint8) int {
 	return d
 }
 
-// hamming distance of two uint16 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Uint16s hamming distance of two uint16 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Uint16s(b0, b1 []uint16) int {
 	d := 0
 	for i, x := range b0 {
@@ -72,7 +79,8 @@ func Uint16s(b0, b1 []uint16) int {
 	return d
 }
 
-// hamming distance of two uint32 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Uint32s hamming distance of two uint32 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Uint32s(b0, b1 []uint32) int {
 	d := 0
 	for i, x := range b0 {
@@ -81,7 +89,8 @@ func Uint32s(b0, b1 []uint32) int {
 	return d
 }
 
-// hamming distance of two uint64 buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Uint64s hamming distance of two uint64 buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Uint64s(b0, b1 []uint64) int {
 	d := 0
 	for i, x := range b0 {
@@ -90,7 +99,8 @@ func Uint64s(b0, b1 []uint64) int {
 	return d
 }
 
-// hamming distance of two uint buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Uints hamming distance of two uint buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Uints(b0, b1 []uint) int {
 	d := 0
 	for i, x := range b0 {
@@ -99,7 +109,8 @@ func Uints(b0, b1 []uint) int {
 	return d
 }
 
-// hamming distance of two byte buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Bytes hamming distance of two byte buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Bytes(b0, b1 []byte) int {
 	d := 0
 	for i, x := range b0 {
@@ -108,7 +119,8 @@ func Bytes(b0, b1 []byte) int {
 	return d
 }
 
-// hamming distance of two rune buffers, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Runes hamming distance of two rune buffers, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Runes(b0, b1 []rune) int {
 	d := 0
 	for i, x := range b0 {
@@ -117,7 +129,8 @@ func Runes(b0, b1 []rune) int {
 	return d
 }
 
-// hamming distance of two strings, of which the size of the first argument is used for both (panics if b1 is smaller than b0, does not compare b1 beyond length of b0)
+// Strings hamming distance of two strings, of which the size of b0
+// is used for both (panics if b1 < b0, does not compare b1 beyond length of b0)
 func Strings(b0, b1 string) int {
 	return Runes(runes(b0), runes(b1))
 }
