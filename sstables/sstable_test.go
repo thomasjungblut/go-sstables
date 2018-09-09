@@ -215,4 +215,5 @@ func assertRandomAndSequentialRead(err error, sstablePath string, t *testing.T, 
 	assertContentMatchesSlice(t, reader, expectedNumbers)
 	skipList := TEST_ONLY_NewSkipListMapWithElements(expectedNumbers)
 	assertContentMatchesSkipList(t, reader, skipList)
+	assert.Equal(t, len(expectedNumbers), int(reader.metaData.NumRecords))
 }

@@ -4,10 +4,12 @@ import (
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"path"
 	"errors"
+	pb "github.com/gogo/protobuf/proto"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/steakknife/bloomfilter"
 	"hash/fnv"
+	"os"
 )
 
 type SSTableStreamWriter struct {
@@ -15,11 +17,14 @@ type SSTableStreamWriter struct {
 
 	indexFilePath string
 	dataFilePath  string
+	metaFilePath  string
 
-	indexWriter *recordio.ProtoWriter
-	dataWriter  *recordio.ProtoWriter
+	indexWriter  *recordio.ProtoWriter
+	dataWriter   *recordio.ProtoWriter
+	metaDataFile *os.File
 
 	bloomFilter *bloomfilter.Filter
+	metaData    *proto.MetaData
 
 	lastKey []byte
 }
@@ -49,6 +54,14 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 
+	writer.metaFilePath = path.Join(writer.opts.basePath, MetaFileName)
+	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	writer.metaDataFile = metaFile
+	writer.metaData = &proto.MetaData{}
+
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
 		if err != nil {
@@ -61,7 +74,6 @@ func (writer *SSTableStreamWriter) Open() error {
 }
 
 func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
-
 	if writer.lastKey != nil {
 		cmpResult := writer.opts.keyComparator(writer.lastKey, key)
 		if cmpResult == 0 {
@@ -75,7 +87,9 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 			writer.lastKey = make([]byte, len(key))
 		}
 	} else {
+		writer.metaData.MinKey = make([]byte, len(key))
 		writer.lastKey = make([]byte, len(key))
+		copy(writer.metaData.MinKey, key)
 	}
 
 	copy(writer.lastKey, key)
@@ -96,10 +110,13 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		return err
 	}
 
+	writer.metaData.NumRecords += 1
+
 	return nil
 }
 
 func (writer *SSTableStreamWriter) Close() error {
+	writer.metaData.MaxKey = writer.lastKey
 	err := writer.indexWriter.Close()
 	if err != nil {
 		return err
@@ -115,6 +132,21 @@ func (writer *SSTableStreamWriter) Close() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	bytes, err := pb.Marshal(writer.metaData)
+	if err != nil {
+		return err
+	}
+
+	_, err = writer.metaDataFile.Write(bytes)
+	if err != nil {
+		return err
+	}
+
+	err = writer.metaDataFile.Close()
+	if err != nil {
+		return err
 	}
 
 	return nil

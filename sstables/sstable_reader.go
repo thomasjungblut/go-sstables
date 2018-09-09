@@ -10,6 +10,8 @@ import (
 	"io"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"os"
+	"io/ioutil"
+	pb "github.com/gogo/protobuf/proto"
 )
 
 type SSTableReader struct {
@@ -18,6 +20,7 @@ type SSTableReader struct {
 	keyComparator skiplist.KeyComparator
 	index         *skiplist.SkipListMap // key ([]byte) to uint64 value file offset
 	dataReader    *recordio.MMapProtoReader
+	metaData      *proto.MetaData
 }
 
 func (reader *SSTableReader) Contains(key []byte) bool {
@@ -81,6 +84,11 @@ func NewSSTableReader(readerOptions ...ReadOption) (*SSTableReader, error) {
 		return nil, err
 	}
 
+	metaData, err := readMetaDataIfExists(path.Join(opts.basePath, MetaFileName))
+	if err != nil {
+		return nil, err
+	}
+
 	dataReader, err := recordio.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
 	if err != nil {
 		return nil, err
@@ -91,7 +99,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (*SSTableReader, error) {
 		return nil, err
 	}
 
-	return &SSTableReader{opts: opts, bloomFilter: filter, index: index, dataReader: dataReader}, nil
+	return &SSTableReader{opts: opts, bloomFilter: filter, index: index, dataReader: dataReader, metaData: metaData}, nil
 }
 
 func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (*skiplist.SkipListMap, error) {
@@ -141,6 +149,30 @@ func readFilterIfExists(filterPath string) (*bloomfilter.Filter, error) {
 	}
 
 	return filter, nil
+}
+
+func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
+	md := &proto.MetaData{}
+	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
+		return md, nil
+	}
+
+	mpf, err := os.Open(metaPath)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := ioutil.ReadAll(mpf)
+	if err != nil {
+		return nil, err
+	}
+
+	err = pb.Unmarshal(content, md)
+	if err != nil {
+		return nil, err
+	}
+
+	return md, nil
 }
 
 // options

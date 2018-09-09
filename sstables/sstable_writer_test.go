@@ -22,6 +22,7 @@ func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 		ReadBasePath(writer.streamWriter.opts.basePath),
 		ReadWithKeyComparator(writer.streamWriter.opts.keyComparator))
 	assert.Nil(t, err)
+	assert.Equal(t, 7, int(reader.metaData.NumRecords))
 	defer reader.Close()
 	assertContentMatchesSkipList(t, reader, list)
 }

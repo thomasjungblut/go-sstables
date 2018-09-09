@@ -9,3 +9,9 @@ message IndexEntry {
 message DataEntry {
     bytes value = 1;
 }
+
+message MetaData {
+    uint64 numRecords = 1;
+    bytes minKey = 2;
+    bytes maxKey = 3;
+}

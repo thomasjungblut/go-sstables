@@ -8,7 +8,7 @@ import (
 var IndexFileName = "index.rio"
 var DataFileName = "data.rio"
 var BloomFileName = "bloom.bf.gz"
-// TODO(thomas): we need to store metadata too (min key, max key, sequences, num records)
+var MetaFileName = "meta.pb.bin"
 var NotFound = errors.New("key was not found")
 
 type SSTableReaderI interface {
