@@ -5,7 +5,7 @@
 
 # Face-meltingly fast, thread-safe, marshalable, unionable, probability- and optimal-size-calculating Bloom filter in go
 
-Copyright © 2014-2016 Barry Allard
+Copyright © 2014-2016,2018 Barry Allard
 
 [MIT license](MIT-LICENSE.txt)
 
@@ -66,7 +66,10 @@ const (
   probCollide = 0.0000001
 )
 
-bf := bloomfilter.NewOptimal(maxElements, probCollide)
+bf, err := bloomfilter.NewOptimal(maxElements, probCollide)
+if err != nil {
+  panic(err)
+}
 
 someValue := ... // must conform to hash.Hash64
 

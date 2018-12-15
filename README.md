@@ -185,3 +185,15 @@ BenchmarkWriteSyncRecordSize1m-12                      1        10895929300 ns/o
 PASS
 ok      github.com/thomasjungblut/go-sstables/benchmark 75.228s
 ```
+
+
+### Updating dependencies through Go Modules
+
+[General overview of modules](https://github.com/golang/go/wiki/Modules)
+
+One can update dependencies via:
+
+```
+go get -u <repo url>
+go mod vendor
+```

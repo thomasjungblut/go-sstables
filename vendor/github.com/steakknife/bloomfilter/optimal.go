@@ -24,5 +24,5 @@ func OptimalK(m, maxN uint64) uint64 {
 // p is the desired false positive probability
 // optimal m = ceiling( - n * ln(p) / ln(2)**2 )
 func OptimalM(maxN uint64, p float64) uint64 {
-	return uint64(math.Ceil(-float64(maxN) * math.Log(p) / math.Ln2 * math.Ln2))
+	return uint64(math.Ceil(-float64(maxN) * math.Log(p) / (math.Ln2 * math.Ln2)))
 }

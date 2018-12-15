@@ -3,7 +3,7 @@
 
 # hamming distance calculations in Go
 
-Copyright © 2014, 2015, 2016 Barry Allard
+Copyright © 2014, 2015, 2016, 2018 Barry Allard
 
 [MIT license](MIT-LICENSE.txt)
 
