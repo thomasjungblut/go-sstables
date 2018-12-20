@@ -1,8 +1,8 @@
 package sstables
 
 import (
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"errors"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
 var IndexFileName = "index.rio"

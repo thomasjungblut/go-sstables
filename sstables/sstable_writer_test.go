@@ -1,13 +1,13 @@
 package sstables
 
 import (
-	"github.com/stretchr/testify/assert"
-	"testing"
-	"io/ioutil"
-	"os"
 	"encoding/binary"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
+	"io/ioutil"
+	"os"
+	"testing"
 )
 
 func TestSkipListSimpleWriteHappyPath(t *testing.T) {

@@ -1,9 +1,9 @@
 package skiplist
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
 	"sort"
+	"testing"
 )
 
 func TestSkipListSingleInsertHappyPathIterator(t *testing.T) {

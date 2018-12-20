@@ -1,11 +1,11 @@
 package recordio
 
 import (
-	"os"
-	"errors"
 	"encoding/binary"
-	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+	"errors"
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+	"os"
 )
 
 /*

@@ -1,10 +1,10 @@
 package sstables
 
 import (
-	"testing"
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"errors"
+	"testing"
 )
 
 func TestSimpleHappyPathRead(t *testing.T) {

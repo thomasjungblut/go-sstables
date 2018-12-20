@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/thomasjungblut/go-sstables/examples/proto"
 	"github.com/thomasjungblut/go-sstables/recordio"
+	"io"
 	"log"
 	"os"
-	"io"
-	"github.com/thomasjungblut/go-sstables/examples/proto"
 )
 
 func main() {

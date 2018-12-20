@@ -1,9 +1,9 @@
 package recordio
 
 import (
-	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"fmt"
 	"github.com/gogo/protobuf/proto"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
 const Version uint32 = 0x01
@@ -38,7 +38,7 @@ type ReaderI interface {
 	// Reads the next record, EOF error when it reaches the end signalled by (nil, io.EOF)
 	ReadNext() ([]byte, error)
 	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
-	SkipNext() (error)
+	SkipNext() error
 }
 
 // this type is thread-safe
@@ -53,7 +53,7 @@ type ProtoReaderI interface {
 	// Reads the next record into the passed message record, EOF error when it reaches the end signalled by (nil, io.EOF)
 	ReadNext(record proto.Message) (proto.Message, error)
 	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
-	SkipNext() (error)
+	SkipNext() error
 }
 
 // this type is thread-safe

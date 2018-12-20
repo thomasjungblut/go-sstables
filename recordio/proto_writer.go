@@ -1,8 +1,8 @@
 package recordio
 
 import (
-	"os"
 	"github.com/gogo/protobuf/proto"
+	"os"
 )
 
 type ProtoWriter struct {

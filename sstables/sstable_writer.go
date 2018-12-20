@@ -1,15 +1,15 @@
 package sstables
 
 import (
-	"github.com/thomasjungblut/go-sstables/recordio"
-	"path"
 	"errors"
 	pb "github.com/gogo/protobuf/proto"
-	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/steakknife/bloomfilter"
+	"github.com/thomasjungblut/go-sstables/recordio"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"hash/fnv"
 	"os"
+	"path"
 )
 
 type SSTableStreamWriter struct {
@@ -96,7 +96,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 
 	if writer.opts.enableBloomFilter {
 		fnvHash := fnv.New64()
-		fnvHash.Write(key)
+		_, _ = fnvHash.Write(key)
 		writer.bloomFilter.Add(fnvHash)
 	}
 
@@ -182,7 +182,10 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipLi
 			return errors.New("value is not of type []byte")
 		}
 
-		writer.streamWriter.WriteNext(kBytes, vBytes)
+		err = writer.streamWriter.WriteNext(kBytes, vBytes)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = writer.streamWriter.Close()

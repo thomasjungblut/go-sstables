@@ -1,12 +1,12 @@
 package benchmark
 
 import (
-	"testing"
-	"math/rand"
-	"io/ioutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/recordio"
+	"io/ioutil"
+	"math/rand"
 	"os"
+	"testing"
 )
 
 func BenchmarkWriteRecordSize1k(b *testing.B)   { benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeNone, b) }

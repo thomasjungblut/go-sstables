@@ -1,10 +1,10 @@
 package recordio
 
 import (
-	"os"
 	"errors"
-	"strconv"
 	"fmt"
+	"os"
+	"strconv"
 )
 
 type FileReader struct {

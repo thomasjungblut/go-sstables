@@ -2,8 +2,8 @@ package recordio
 
 import (
 	"errors"
-	"golang.org/x/exp/mmap"
 	"fmt"
+	"golang.org/x/exp/mmap"
 )
 
 type MMapReader struct {

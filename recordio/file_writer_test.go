@@ -1,13 +1,13 @@
 package recordio
 
 import (
-	"testing"
-	"io/ioutil"
-	"github.com/stretchr/testify/assert"
-	"os"
 	"errors"
-	"math/rand"
+	"github.com/stretchr/testify/assert"
 	"io"
+	"io/ioutil"
+	"math/rand"
+	"os"
+	"testing"
 )
 
 func TestWriterHappyPathOpenWriteClose(t *testing.T) {

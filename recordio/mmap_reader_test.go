@@ -1,9 +1,9 @@
 package recordio
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"errors"
 )
 
 func TestMMapReaderHappyPathSingleRecord(t *testing.T) {

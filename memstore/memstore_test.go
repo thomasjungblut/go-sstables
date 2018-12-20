@@ -1,12 +1,12 @@
 package memstore
 
 import (
-	"testing"
-	"github.com/stretchr/testify/assert"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"io/ioutil"
 	"os"
+	"testing"
 )
 
 func TestMemStoreAddHappyPath(t *testing.T) {

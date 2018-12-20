@@ -1,13 +1,13 @@
 package recordio
 
 import (
-	"io/ioutil"
-	"github.com/stretchr/testify/assert"
-	"os"
 	"bufio"
-	"testing"
+	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/recordio/test_files"
 	"golang.org/x/exp/rand"
+	"io/ioutil"
+	"os"
+	"testing"
 )
 
 // containing all the end to end tests

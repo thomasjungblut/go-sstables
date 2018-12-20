@@ -1,15 +1,15 @@
 package sstables
 
 import (
-	"io/ioutil"
-	"github.com/stretchr/testify/assert"
-	"os"
-	"testing"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"encoding/binary"
-	"math/rand"
-	"sort"
+	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/recordio"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"io/ioutil"
+	"math/rand"
+	"os"
+	"sort"
+	"testing"
 )
 
 func TestReadSkipListWriteEndToEnd(t *testing.T) {

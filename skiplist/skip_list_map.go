@@ -2,9 +2,9 @@
 package skiplist
 
 import (
-	"math/rand"
-	"errors"
 	"bytes"
+	"errors"
+	"math/rand"
 )
 
 // Typical comparator contract (similar to Java):

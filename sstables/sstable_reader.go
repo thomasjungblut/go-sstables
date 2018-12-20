@@ -1,17 +1,17 @@
 package sstables
 
 import (
-	"github.com/steakknife/bloomfilter"
-	"hash/fnv"
 	"errors"
-	"github.com/thomasjungblut/go-sstables/skiplist"
-	"path"
-	"github.com/thomasjungblut/go-sstables/recordio"
-	"io"
-	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"os"
-	"io/ioutil"
 	pb "github.com/gogo/protobuf/proto"
+	"github.com/steakknife/bloomfilter"
+	"github.com/thomasjungblut/go-sstables/recordio"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	"hash/fnv"
+	"io"
+	"io/ioutil"
+	"os"
+	"path"
 )
 
 type SSTableReader struct {
@@ -27,7 +27,7 @@ func (reader *SSTableReader) Contains(key []byte) bool {
 	// short-cut for the bloom filter to tell whether it's not in the set (if available)
 	if reader.bloomFilter != nil {
 		fnvHash := fnv.New64()
-		fnvHash.Write(key)
+		_, _ = fnvHash.Write(key)
 		if !reader.bloomFilter.Contains(fnvHash) {
 			return false
 		}
