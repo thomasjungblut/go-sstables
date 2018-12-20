@@ -162,7 +162,7 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipLi
 		return err
 	}
 
-	it := skipListMap.Iterator()
+	it, _ := skipListMap.Iterator()
 	for {
 		k, v, err := it.Next()
 		if err == skiplist.Done {

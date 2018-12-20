@@ -23,7 +23,7 @@ skipListMap.Insert(3, 1)
 skipListMap.Insert(5, 2)
 log.Printf("size: %d", skipListMap.Size())
 
-it := skipListMap.Iterator()
+it, _ := skipListMap.Iterator()
 for {
     k, v, err := it.Next()
     if err == skiplist.Done {
@@ -33,7 +33,17 @@ for {
 }
 
 log.Printf("starting at key: %d", 5)
-it = skipListMap.IteratorStartingAt(5)
+it, _ = skipListMap.IteratorStartingAt(5)
+for {
+    k, v, err := it.Next()
+    if err == skiplist.Done {
+        break
+    }
+    log.Printf("key: %d, value: %d", k, v)
+}
+
+log.Printf("between: %d and %d", 8, 50)
+it, _ = skipListMap.IteratorBetween(8, 50)
 for {
     k, v, err := it.Next()
     if err == skiplist.Done {

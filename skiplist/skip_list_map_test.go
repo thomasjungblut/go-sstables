@@ -9,7 +9,8 @@ import (
 func TestSkipListSingleInsertHappyPathIterator(t *testing.T) {
 	list := singleElementSkipList(t)
 
-	it := list.Iterator()
+	it, err := list.Iterator()
+	assert.Nil(t, err)
 	k, v, err := it.Next()
 	assert.Nil(t, err)
 	assert.Equal(t, 13, k.(int))
@@ -66,7 +67,8 @@ func TestSkipListEmptyIterator(t *testing.T) {
 	assert.False(t, list.Contains(1))
 
 	// manually test the iterator
-	it := list.Iterator()
+	it, err := list.Iterator()
+	assert.Nil(t, err)
 	k, v, err := it.Next()
 	assert.Nil(t, k)
 	assert.Nil(t, v)
@@ -78,22 +80,78 @@ func TestSkipListMultiInsertUnorderedStartingIterator(t *testing.T) {
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 	expected := []int{2, 14, 20, 27, 34, 41, 58, 62, 79, 87, 91}
 	// a lower key of the sequence should yield the whole sequence
-	it := list.IteratorStartingAt(1)
+	it, err := list.IteratorStartingAt(1)
+	assert.Nil(t, err)
 	assertIteratorOutputs(t, expected, it)
 
 	// first key should also yield the whole sequence
-	it = list.IteratorStartingAt(2)
+	it, err = list.IteratorStartingAt(2)
+	assert.Nil(t, err)
 	assertIteratorOutputs(t, expected, it)
 
 	// test a staggered range at each index
 	for i, start := range expected {
 		sliced := expected[i:]
-		it = list.IteratorStartingAt(start)
+		it, err = list.IteratorStartingAt(start)
+		assert.Nil(t, err)
 		assertIteratorOutputs(t, sliced, it)
 	}
 
 	// test out of range iteration, which should yield an empty iterator
-	it = list.IteratorStartingAt(100)
+	it, err = list.IteratorStartingAt(100)
+	assert.Nil(t, err)
+	k, v, err := it.Next()
+	assert.Nil(t, k)
+	assert.Nil(t, v)
+	assert.Equal(t, Done, err)
+}
+
+func TestSkipListBetweenIterator(t *testing.T) {
+	list := NewSkipListMap(IntComparator)
+	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
+	expected := []int{2, 14, 20, 27, 34, 41, 58, 62, 79, 87, 91}
+	// a lower/higher key of the sequence should yield the whole sequence
+	it, err := list.IteratorBetween(1, 100)
+	assert.Nil(t, err)
+	assertIteratorOutputs(t, expected, it)
+
+	// from 14 to 14 should only contain 14
+	it, err = list.IteratorBetween(14, 14)
+	assert.Nil(t, err)
+	assertIteratorOutputs(t, []int{14}, it)
+
+	// first/last key should also yield the whole sequence (inclusiveness test)
+	it, err = list.IteratorBetween(2, 91)
+	assert.Nil(t, err)
+	assertIteratorOutputs(t, expected, it)
+
+	// this should give an error
+	it, err = list.IteratorBetween(2, 1)
+	assert.NotNil(t, err)
+
+	// test a staggered range at each index until the end exclusive
+	for i, start := range expected {
+		sliced := expected[i:]
+		it, err = list.IteratorBetween(start, 100)
+		assert.Nil(t, err)
+		assertIteratorOutputs(t, sliced, it)
+	}
+
+	// test a staggered range at each index with crossing (inclusive)
+	for i, start := range expected {
+		it, err = list.IteratorBetween(start, expected[len(expected)-i-1])
+		if i <= (len(expected) / 2) {
+			assert.Nil(t, err)
+			sliced := expected[i : len(expected)-i]
+			assertIteratorOutputs(t, sliced, it)
+		} else {
+			assert.NotNil(t, err)
+		}
+	}
+
+	// test out of range iteration, which should yield an empty iterator
+	it, err = list.IteratorBetween(100, 200)
+	assert.Nil(t, err)
 	k, v, err := it.Next()
 	assert.Nil(t, k)
 	assert.Nil(t, v)
@@ -109,7 +167,7 @@ func singleElementSkipList(t *testing.T) *SkipListMap {
 	return list
 }
 
-func assertIteratorOutputs(t *testing.T, expectedSeq []int, it *SkipListIterator) {
+func assertIteratorOutputs(t *testing.T, expectedSeq []int, it SkipListIteratorI) {
 	currentIndex := 0
 	for {
 		k, v, err := it.Next()
@@ -129,6 +187,8 @@ func assertIteratorOutputs(t *testing.T, expectedSeq []int, it *SkipListIterator
 		currentIndex++
 	}
 
+	// test whether we have actually read that much from the iterator
+	assert.Equal(t, len(expectedSeq), currentIndex)
 }
 
 func batchInsertAndAssertContains(t *testing.T, toInsert []int, list *SkipListMap) {
@@ -144,6 +204,7 @@ func batchInsertAndAssertContains(t *testing.T, toInsert []int, list *SkipListMa
 	}
 
 	sort.Ints(toInsert)
-	it := list.Iterator()
+	it, err := list.Iterator()
+	assert.Nil(t, err)
 	assertIteratorOutputs(t, toInsert, it)
 }

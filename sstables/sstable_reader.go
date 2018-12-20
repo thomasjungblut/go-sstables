@@ -23,6 +23,29 @@ type SSTableReader struct {
 	metaData      *proto.MetaData
 }
 
+type SSTableIterator struct {
+	reader      *SSTableReader
+	keyIterator skiplist.SkipListIteratorI
+}
+
+func (it *SSTableIterator) Next() ([]byte, []byte, error) {
+	key, valueOffset, err := it.keyIterator.Next()
+	if err != nil {
+		if err == skiplist.Done {
+			return nil, nil, Done
+		} else {
+			return nil, nil, err
+		}
+	}
+
+	valBytes, err := it.reader.getValueAtOffset(valueOffset.(uint64))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return key.([]byte), valBytes, nil
+}
+
 func (reader *SSTableReader) Contains(key []byte) bool {
 	// short-cut for the bloom filter to tell whether it's not in the set (if available)
 	if reader.bloomFilter != nil {
@@ -43,13 +66,33 @@ func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 		return nil, NotFound
 	}
 
+	return reader.getValueAtOffset(valOffset.(uint64))
+}
+
+func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) {
 	value := &proto.DataEntry{}
-	_, err = reader.dataReader.ReadNextAt(value, valOffset.(uint64))
+	_, err := reader.dataReader.ReadNextAt(value, valOffset)
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
 
 	return value.Value, nil
+}
+
+func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
+	it, err := reader.index.IteratorStartingAt(key)
+	if err != nil {
+		return nil, err
+	}
+	return &SSTableIterator{reader: reader, keyIterator: it}, nil
+}
+
+func (reader *SSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTableIteratorI, error) {
+	it, err := reader.index.IteratorBetween(keyLower, keyHigher)
+	if err != nil {
+		return nil, err
+	}
+	return &SSTableIterator{reader: reader, keyIterator: it}, nil
 }
 
 func (reader *SSTableReader) Close() error {

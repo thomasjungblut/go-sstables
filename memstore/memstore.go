@@ -140,7 +140,7 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 		return err
 	}
 
-	it := m.skipListMap.Iterator()
+	it, _ := m.skipListMap.Iterator()
 	for {
 		k, v, err := it.Next()
 		if err == skiplist.Done {

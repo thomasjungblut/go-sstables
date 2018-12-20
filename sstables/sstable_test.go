@@ -17,10 +17,11 @@ func TestReadSkipListWriteEndToEnd(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.streamWriter.opts.basePath)
 
-	expectedNumbers := randomIntegerSlice(10000)
-	writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements(expectedNumbers))
+	expectedNumbers := randomIntegerSlice(1000)
+	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements(expectedNumbers))
+	assert.Nil(t, err)
 
-	assertRandomAndSequentialRead(err, writer.streamWriter.opts.basePath, t, expectedNumbers)
+	assertRandomAndSequentialRead(t, writer.streamWriter.opts.basePath, expectedNumbers)
 }
 
 func TestReadStreamedWriteEndToEnd(t *testing.T) {
@@ -28,8 +29,8 @@ func TestReadStreamedWriteEndToEnd(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
 // this is implicitly covered by the above tests already since it's a default
@@ -38,8 +39,8 @@ func TestReadStreamedWriteEndToEndDataCompressionSnappy(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
 func TestReadStreamedWriteEndToEndDataCompressionGzip(t *testing.T) {
@@ -47,8 +48,8 @@ func TestReadStreamedWriteEndToEndDataCompressionGzip(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
 func TestReadStreamedWriteEndToEndDataCompressionNone(t *testing.T) {
@@ -56,8 +57,8 @@ func TestReadStreamedWriteEndToEndDataCompressionNone(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
 func TestReadStreamedWriteEndToEndIndexCompressionSnappy(t *testing.T) {
@@ -65,8 +66,8 @@ func TestReadStreamedWriteEndToEndIndexCompressionSnappy(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
 func TestReadStreamedWriteEndToEndIndexCompressionGzip(t *testing.T) {
@@ -74,14 +75,28 @@ func TestReadStreamedWriteEndToEndIndexCompressionGzip(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.RemoveAll(writer.opts.basePath)
 
-	expectedNumbers := streamedWrite10kElements(t, writer)
-	assertRandomAndSequentialRead(err, writer.opts.basePath, t, expectedNumbers)
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
-func streamedWrite10kElements(t *testing.T, writer *SSTableStreamWriter) []int {
+func TestReadStreamedWriteEndToEndForRangeTesting(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	assert.Nil(t, err)
+	defer os.RemoveAll(writer.opts.basePath)
+
+	expectedNumbers := streamedWriteElements(t, writer, 100)
+	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
+	assertExhaustiveRangeReads(t, writer.opts.basePath, expectedNumbers)
+}
+
+func streamedWrite1kElements(t *testing.T, writer *SSTableStreamWriter) []int {
+	return streamedWriteElements(t, writer, 1000)
+}
+
+func streamedWriteElements(t *testing.T, writer *SSTableStreamWriter, n int) []int {
 	err := writer.Open()
 	assert.Nil(t, err)
-	expectedNumbers := randomIntegerSliceSorted(10000)
+	expectedNumbers := randomIntegerSliceSorted(n)
 	for _, e := range expectedNumbers {
 		key, value := getKeyValueAsBytes(e)
 		err = writer.WriteNext(key, value)
@@ -162,18 +177,15 @@ func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap 
 }
 
 func getKeyValueAsBytes(e int) ([]byte, []byte) {
-	key := make([]byte, 4)
-	binary.BigEndian.PutUint32(key, uint32(e))
-	value := make([]byte, 4)
-	binary.BigEndian.PutUint32(value, uint32(e+1))
+	key := intToByteSlice(e)
+	value := intToByteSlice(e + 1)
 	return key, value
 }
 
 func assertContentMatchesSlice(t *testing.T, reader *SSTableReader, expectedSlice []int) {
 	numRead := 0
 	for _, e := range expectedSlice {
-		key := make([]byte, 4)
-		binary.BigEndian.PutUint32(key, uint32(e))
+		key := intToByteSlice(e)
 
 		assert.True(t, reader.Contains(key))
 		actualValue, err := reader.Get(key)
@@ -185,8 +197,24 @@ func assertContentMatchesSlice(t *testing.T, reader *SSTableReader, expectedSlic
 	assert.Equal(t, len(expectedSlice), numRead)
 }
 
+func assertIteratorMatchesSlice(t *testing.T, it SSTableIteratorI, expectedSlice []int) {
+	numRead := 0
+	for _, e := range expectedSlice {
+		actualKey, actualValue, err := it.Next()
+		assert.Nil(t, err)
+		assert.Equal(t, e, int(binary.BigEndian.Uint32(actualKey)))
+		assert.Equal(t, e+1, int(binary.BigEndian.Uint32(actualValue)))
+		numRead++
+	}
+	// just to prevent that we've read something empty accidentally
+	assert.Equal(t, len(expectedSlice), numRead)
+	// iterator must be in Done state too
+	_, _, err := it.Next()
+	assert.Equal(t, Done, err)
+}
+
 func assertContentMatchesSkipList(t *testing.T, reader *SSTableReader, expectedSkipListMap *skiplist.SkipListMap) {
-	it := expectedSkipListMap.Iterator()
+	it, _ := expectedSkipListMap.Iterator()
 	numRead := 0
 	for {
 		expectedKey, expectedValue, err := it.Next()
@@ -205,15 +233,53 @@ func assertContentMatchesSkipList(t *testing.T, reader *SSTableReader, expectedS
 	assert.Equal(t, expectedSkipListMap.Size(), numRead)
 }
 
-func assertRandomAndSequentialRead(err error, sstablePath string, t *testing.T, expectedNumbers []int) {
+func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNumbers []int) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
 	defer reader.Close()
-	// this tests both the sorted case through a skipList and random read via the shuffled integer slice
-	assertContentMatchesSlice(t, reader, expectedNumbers)
-	skipList := TEST_ONLY_NewSkipListMapWithElements(expectedNumbers)
-	assertContentMatchesSkipList(t, reader, skipList)
+
+	// check the metadata is accurate
 	assert.Equal(t, len(expectedNumbers), int(reader.metaData.NumRecords))
+
+	// test random reads
+	rand.Shuffle(len(expectedNumbers), func(i, j int) {
+		expectedNumbers[i], expectedNumbers[j] = expectedNumbers[j], expectedNumbers[i]
+	})
+	assertContentMatchesSlice(t, reader, expectedNumbers)
+
+	// test ordered reads
+	sort.Ints(expectedNumbers)
+	assertContentMatchesSlice(t, reader, expectedNumbers)
+}
+
+func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumbers []int) {
+	reader, err := NewSSTableReader(
+		ReadBasePath(sstablePath),
+		ReadWithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	// check the metadata is accurate
+	assert.Equal(t, len(expectedNumbers), int(reader.metaData.NumRecords))
+	sort.Ints(expectedNumbers)
+
+	// this is a bit exhaustive at O(n!) but the runtime is fine for up to 100 elements
+	for i := 0; i < len(expectedNumbers); i++ {
+		lowKey := intToByteSlice(expectedNumbers[i])
+		for j := i; j < len(expectedNumbers); j++ {
+			highKey := intToByteSlice(expectedNumbers[j])
+			it, err := reader.ScanRange(lowKey, highKey)
+			assert.Nil(t, err)
+			assertIteratorMatchesSlice(t, it, expectedNumbers[i:j+1])
+		}
+	}
+
+}
+
+func intToByteSlice(e int) []byte {
+	key := make([]byte, 4)
+	binary.BigEndian.PutUint32(key, uint32(e))
+	return key
 }
