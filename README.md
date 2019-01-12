@@ -108,10 +108,10 @@ defer os.RemoveAll(path)
 writer, err := sstables.NewSSTableStreamWriter(
     sstables.WriteBasePath(path),
     sstables.WithKeyComparator(skiplist.BytesComparator))
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 
 err = writer.Open()
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 
 // error checks omitted
 err = writer.WriteNext([]byte{1}, []byte{1})
@@ -119,7 +119,7 @@ err = writer.WriteNext([]byte{2}, []byte{2})
 err = writer.WriteNext([]byte{3}, []byte{3})
 
 err = writer.Close()
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 
 ```
 
@@ -135,7 +135,7 @@ defer os.RemoveAll(path)
 writer, err := sstables.NewSSTableSimpleWriter(
     sstables.WriteBasePath(path),
     sstables.WithKeyComparator(skiplist.BytesComparator))
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 
 skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator)
 skipListMap.Insert([]byte{1}, []byte{1})
@@ -143,7 +143,7 @@ skipListMap.Insert([]byte{2}, []byte{2})
 skipListMap.Insert([]byte{3}, []byte{3})
 
 err = writer.WriteSkipListMap(skipListMap)
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 ```
  
 ### Reading an SSTable
@@ -155,7 +155,7 @@ Below example will show what metadata is available, how to get values and check 
 reader, err := sstables.NewSSTableReader(
     sstables.ReadBasePath("/tmp/sstable_example/"),
     sstables.ReadWithKeyComparator(skiplist.BytesComparator))
-if err != nil { log.Fatalf("error: %v", err)	}
+if err != nil { log.Fatalf("error: %v", err) }
 defer reader.Close()
 
 metadata := reader.MetaData()
@@ -306,4 +306,16 @@ One can update dependencies via:
 ```
 go get -u <repo url>
 go mod vendor
+```
+
+### Releasing the Go Module
+
+[General Guidance](https://github.com/golang/go/wiki/Modules#releasing-modules-all-versions)
+
+In short, run these commands:
+
+```
+make unit-test
+make release
+git push --tags 
 ```
