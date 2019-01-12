@@ -6,7 +6,7 @@ TESTFLAGS := -race
 LDFLAGS   :=
 GOFLAGS   :=
 BINARIES  := sstables
-VERSION   := v1.0.0
+VERSION   := v1.0.1
 
 # Required for globs to work correctly
 SHELL=/bin/bash
