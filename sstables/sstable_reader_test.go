@@ -15,9 +15,9 @@ func TestSimpleHappyPathRead(t *testing.T) {
 	defer reader.Close()
 
 	// 0 because there was no metadata file
-	assert.Equal(t, 0, int(reader.metaData.NumRecords))
-	assert.Equal(t, 0, len(reader.metaData.MinKey))
-	assert.Equal(t, 0, len(reader.metaData.MaxKey))
+	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
+	assert.Equal(t, 0, len(reader.MetaData().MinKey))
+	assert.Equal(t, 0, len(reader.MetaData().MaxKey))
 	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
@@ -30,9 +30,9 @@ func TestSimpleHappyPathBloomRead(t *testing.T) {
 	defer reader.Close()
 
 	// 0 because there was no metadata file
-	assert.Equal(t, 0, int(reader.metaData.NumRecords))
-	assert.Equal(t, 0, len(reader.metaData.MinKey))
-	assert.Equal(t, 0, len(reader.metaData.MaxKey))
+	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
+	assert.Equal(t, 0, len(reader.MetaData().MinKey))
+	assert.Equal(t, 0, len(reader.MetaData().MaxKey))
 	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
@@ -44,9 +44,9 @@ func TestSimpleHappyPathWithMetaData(t *testing.T) {
 	assert.Nil(t, err)
 	defer reader.Close()
 
-	assert.Equal(t, 7, int(reader.metaData.NumRecords))
-	assert.Equal(t, []byte{0, 0, 0, 1}, reader.metaData.MinKey)
-	assert.Equal(t, []byte{0, 0, 0, 7}, reader.metaData.MaxKey)
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
 	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
@@ -158,7 +158,7 @@ func TestScanRange(t *testing.T) {
 	assert.Equal(t, Done, err)
 }
 
-func assertNegativeContains(t *testing.T, reader *SSTableReader) {
+func assertNegativeContains(t *testing.T, reader SSTableReaderI) {
 	assert.False(t, reader.Contains([]byte{}))
 	assert.False(t, reader.Contains([]byte{1}))
 	assert.False(t, reader.Contains([]byte{1, 2, 3}))

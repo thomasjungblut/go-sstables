@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func main() {
+func recordioMain() {
 	path := "/tmp/some_file.snap"
 	defer os.Remove(path)
 

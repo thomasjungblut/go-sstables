@@ -3,6 +3,7 @@ package sstables
 import (
 	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables/proto"
 )
 
 var IndexFileName = "index.rio"
@@ -35,6 +36,8 @@ type SSTableReaderI interface {
 	ScanRange(keyLower []byte, keyHigher []byte) (SSTableIteratorI, error)
 	// closes this sstable reader
 	Close() error
+	// Returns the metadata of this sstable
+   MetaData() *proto.MetaData
 }
 
 type SSTableSimpleWriterI interface {

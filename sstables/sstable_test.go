@@ -182,7 +182,7 @@ func getKeyValueAsBytes(e int) ([]byte, []byte) {
 	return key, value
 }
 
-func assertContentMatchesSlice(t *testing.T, reader *SSTableReader, expectedSlice []int) {
+func assertContentMatchesSlice(t *testing.T, reader SSTableReaderI, expectedSlice []int) {
 	numRead := 0
 	for _, e := range expectedSlice {
 		key := intToByteSlice(e)
@@ -213,7 +213,7 @@ func assertIteratorMatchesSlice(t *testing.T, it SSTableIteratorI, expectedSlice
 	assert.Equal(t, Done, err)
 }
 
-func assertContentMatchesSkipList(t *testing.T, reader *SSTableReader, expectedSkipListMap *skiplist.SkipListMap) {
+func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap *skiplist.SkipListMap) {
 	it, _ := expectedSkipListMap.Iterator()
 	numRead := 0
 	for {
@@ -241,7 +241,7 @@ func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNum
 	defer reader.Close()
 
 	// check the metadata is accurate
-	assert.Equal(t, len(expectedNumbers), int(reader.metaData.NumRecords))
+	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
 
 	// test random reads
 	rand.Shuffle(len(expectedNumbers), func(i, j int) {
@@ -262,7 +262,7 @@ func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumber
 	defer reader.Close()
 
 	// check the metadata is accurate
-	assert.Equal(t, len(expectedNumbers), int(reader.metaData.NumRecords))
+	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
 	sort.Ints(expectedNumbers)
 
 	// this is a bit exhaustive at O(n!) but the runtime is fine for up to 100 elements

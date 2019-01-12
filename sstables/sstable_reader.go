@@ -99,7 +99,11 @@ func (reader *SSTableReader) Close() error {
 	return reader.dataReader.Close()
 }
 
-func NewSSTableReader(readerOptions ...ReadOption) (*SSTableReader, error) {
+func (reader *SSTableReader) MetaData() (*proto.MetaData) {
+	return reader.metaData
+}
+
+func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 	opts := &SSTableReaderOptions{
 		basePath: "",

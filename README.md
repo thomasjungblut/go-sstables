@@ -58,14 +58,133 @@ You can get the full example from [examples/skiplist.go](examples/skiplist.go).
  
 ## Using MemStore
 
-coming soon...
- 
+Memstore acts like a sorted dictionary that can be flushed into an SSTable representation on disk. 
+It allows you to add, update, retrieve and delete elements by their key, of which both are represented by byte slices.
+
+A simple example below illustrates all functionality of the memstore: 
+
+```go
+path := "/tmp/sstable-ms-ex/"
+defer os.RemoveAll(path)
+
+ms := memstore.NewMemStore()
+ms.Add([]byte{1}, []byte{1})
+ms.Add([]byte{2}, []byte{2})
+ms.Upsert([]byte{1}, []byte{2})
+ms.Delete([]byte{2})
+ms.DeleteIfExists([]byte{3})
+value, _ := ms.Get([]byte{1})
+log.Printf("value for key 1: %d", value) // yields 2
+
+size := ms.EstimatedSizeInBytes()
+log.Printf("memstore size in bytes: %d", size) // yields 3
+
+ms.Flush(sstables.WriteBasePath(path))
+``` 
+
+You can get the full example from [examples/memstore.go](examples/memstore.go).
+
 ## Using SSTables
 
-coming soon...
+SSTables allow you to store a large amount of key/value data on disk and query it efficiently by key or by key ranges. Unsurprisingly, this very format is at the heart of many NoSQL databases (i.e. HBase and Cassandra).
+
+The flavor that is implemented in this library favours small keys and large values (eg. images), since it stores the key index in memory and the values remain on disk. 
+A fully out-of-core version or secondary indices are currently not implemented. Features like bloom filter for faster key look-ups are already in place, so it is not too difficult to add later on.
+
+### Writing an SSTable
+
+All files (key index, bloom filter, metadata info) that are necessary to store an SSTable are found under a given `basePath` in your filesystem.
+Which means that we can just start writing by creating a directory and appending some key/value pairs. 
+
+In the previous section we already saw how to transform a `memstore` into an sstable.   
+This example shows how to stream already sorted data into a file:
+
+```go
+
+path := "/tmp/sstable_example/"
+os.MkdirAll(path, 0777)
+defer os.RemoveAll(path)
+
+writer, err := sstables.NewSSTableStreamWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err)	}
+
+err = writer.Open()
+if err != nil { log.Fatalf("error: %v", err)	}
+
+// error checks omitted
+err = writer.WriteNext([]byte{1}, []byte{1})
+err = writer.WriteNext([]byte{2}, []byte{2})
+err = writer.WriteNext([]byte{3}, []byte{3})
+
+err = writer.Close()
+if err != nil { log.Fatalf("error: %v", err)	}
+
+```
+
+Keep in mind that streaming data requires a comparator (for safety), which will error on writes that are out of order.
+
+Since that is somewhat cumbersome, you can also directly write a full skip list using the `SimpleWriter`:
+
+```go
+path := "/tmp/sstable_example/"
+os.MkdirAll(path, 0777)
+defer os.RemoveAll(path)
+
+writer, err := sstables.NewSSTableSimpleWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err)	}
+
+skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator)
+skipListMap.Insert([]byte{1}, []byte{1})
+skipListMap.Insert([]byte{2}, []byte{2})
+skipListMap.Insert([]byte{3}, []byte{3})
+
+err = writer.WriteSkipListMap(skipListMap)
+if err != nil { log.Fatalf("error: %v", err)	}
+```
+ 
+### Reading an SSTable
+
+Reading can be done by using having a path and the respective comparator. 
+Below example will show what metadata is available, how to get values and check if they exist and how to do a range scan.
+
+```go
+reader, err := sstables.NewSSTableReader(
+    sstables.ReadBasePath("/tmp/sstable_example/"),
+    sstables.ReadWithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err)	}
+defer reader.Close()
+
+metadata := reader.MetaData()
+log.Printf("reading table with %d records, minKey %d and maxKey %d", metadata.NumRecords, metadata.MinKey, metadata.MaxKey)
+
+contains := reader.Contains([]byte{1})
+val, err := reader.Get([]byte{1})
+if err != nil { log.Fatalf("error: %v", err) }
+log.Printf("table contains value for key? %t = %d", contains, val)
+
+it, err := reader.ScanRange([]byte{1}, []byte{2})
+for {
+    k, v, err := it.Next()
+    // io.EOF signals that no records are left to be read
+    if err == sstables.Done {
+        break
+    }
+    if err != nil { log.Fatalf("error: %v", err) }
+
+    log.Printf("%d = %d", k, v)
+}
+
+```
+
+You can get the full example from [examples/sstables.go](examples/sstables.go).
 
 ## Using RecordIO
 
+RecordIO allows you to write sequential key/value entities into a flat file and is heavily inspired by [Hadoop's SequenceFile](https://wiki.apache.org/hadoop/SequenceFile). 
 Writing a `recordio` file using Protobuf and snappy compression can be done as follows. Here's the simple proto file we use:
 
 ```protobuf
@@ -78,38 +197,29 @@ Writing in Go then becomes this:
 
 ```go
 writer, err := recordio.NewCompressedProtoWriterWithPath(path, recordio.CompressionTypeSnappy)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 err = writer.Open()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 record := &proto.HelloWorld{Message: "Hello World"}
 recordOffset, err := writer.Write(record)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 log.Printf("wrote a record at offset of %d bytes", recordOffset)
 
 err = writer.Close()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 ```
 
 Reading the same file can be done like this:
 
 ```go
 reader, err := recordio.NewProtoReaderWithPath(path)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 
 err = reader.Open()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 
 for {
     record := &proto.HelloWorld{}
@@ -127,42 +237,32 @@ for {
 }
 
 err = reader.Close()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 ```
 
 SSTables support random reads of backing values, thus recordio also supports it using its `mmap` implementation:
 
 ```go
 reader, err := recordio.NewMMapProtoReaderWithPath(path)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 
 err = reader.Open()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 
 record := &proto.HelloWorld{}
 _, err = reader.ReadNextAt(record, 8)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 
 log.Printf("Reading message at offset 8: %s", record.GetMessage())
 
 err = reader.Close()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
 ``` 
 
 You can get the full example from [examples/recordio.go](examples/recordio.go).
 
 
-### Benchmark 
+### RecordIO Benchmark 
 
 Here's a simple write benchmark on a SSD.
 Basically writing a thousand records of varying sizes, with normal buffered writes and sync writes after each record.
