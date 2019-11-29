@@ -233,6 +233,17 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 	assert.Equal(t, expectedSkipListMap.Size(), numRead)
 }
 
+func getFullScanIterator(t *testing.T, sstablePath string) SSTableIteratorI {
+	reader, err := NewSSTableReader(
+		ReadBasePath(sstablePath),
+		ReadWithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+
+	it, err := reader.Scan()
+	assert.Nil(t, err)
+	return it
+}
+
 func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNumbers []int) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),

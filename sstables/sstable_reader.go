@@ -79,6 +79,14 @@ func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) 
 	return value.Value, nil
 }
 
+func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
+	it, err := reader.index.Iterator()
+	if err != nil {
+		return nil, err
+	}
+	return &SSTableIterator{reader: reader, keyIterator: it}, nil
+}
+
 func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
 	it, err := reader.index.IteratorStartingAt(key)
 	if err != nil {

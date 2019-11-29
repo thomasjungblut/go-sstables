@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"sort"
@@ -16,9 +17,11 @@ func (l *ListSSTableIteratorI) Next() ([]byte, []byte, error) {
 	if l.currentIndex >= len(l.list) {
 		return nil, nil, Done
 	}
-	k := []byte{byte(l.list[l.currentIndex])}
+
+	k := intToByteSlice(l.list[l.currentIndex])
+	v := intToByteSlice(l.list[l.currentIndex] + 1)
 	l.currentIndex++
-	return k, k, nil
+	return k, v, nil
 }
 
 func TestTwoListsHappyPath(t *testing.T) {
@@ -38,7 +41,7 @@ func TestTwoListsSameItems(t *testing.T) {
 }
 
 func TestMultiList(t *testing.T) {
-	assertMergeAndListMatches(t, []int{1, 3}, []int{1, 3})
+	assertMergeAndListMatches(t, []int{1, 2}, []int{4, 6}, []int{0, 9}, []int{5, 8})
 }
 
 func TestTwoListsOneLonger(t *testing.T) {
@@ -55,6 +58,14 @@ func TestMultiListConsecutive(t *testing.T) {
 
 func TestMultiListConsecutiveReversed(t *testing.T) {
 	assertMergeAndListMatches(t, []int{5, 6}, []int{3, 4}, []int{1, 2})
+}
+
+func TestMultiListMixed(t *testing.T) {
+	assertMergeAndListMatches(t, []int{1, 5, 8, 19}, []int{2, 3, 4, 12}, []int{6, 9, 25})
+}
+
+func TestMultiListShortExhaust(t *testing.T) {
+	assertMergeAndListMatches(t, []int{4, 5, 8, 19}, []int{4, 6, 9, 12}, []int{1, 2, 3})
 }
 
 func TestMultiListEmptyMiddle(t *testing.T) {
@@ -81,7 +92,7 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 	pq := NewPriorityQueue(skiplist.BytesComparator)
 	err := pq.Init(input)
 	assert.Nil(t, err)
-	assert.Equal(t, nonEmptyLists, pq.Len())
+	assert.Equal(t, nonEmptyLists, pq.size)
 
 	var actual []int
 	for {
@@ -90,13 +101,15 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 			break
 		}
 
-		assert.Equal(t, 1, len(k))
-		assert.Equal(t, 1, len(v))
-		assert.Equal(t, k[0], v[0])
+		assert.Equal(t, 4, len(k))
+		assert.Equal(t, 4, len(v))
+		kActual := int(binary.BigEndian.Uint32(k))
+		vActual := int(binary.BigEndian.Uint32(v))
+		assert.Equal(t, kActual+1, vActual)
 
-		actual = append(actual, int(k[0]))
+		actual = append(actual, kActual)
 	}
 
 	sort.Ints(expected)
-	assert.ElementsMatch(t, expected, actual)
+	assert.Exactly(t, expected, actual)
 }

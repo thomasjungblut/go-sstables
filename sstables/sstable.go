@@ -26,6 +26,8 @@ type SSTableReaderI interface {
 	Contains(key []byte) bool
 	// returns the value associated with the given key, NotFound as the error otherwise
 	Get(key []byte) ([]byte, error)
+	// Returns an iterator over the whole sorted sequence.
+	Scan() (SSTableIteratorI, error)
 	// Returns an iterator over the sorted sequence starting at the given key (inclusive if key is in the list).
 	// Using a key that is out of the sequence range will result in either an empty iterator or the full sequence.
 	ScanStartingAt(key []byte) (SSTableIteratorI, error)
@@ -37,7 +39,7 @@ type SSTableReaderI interface {
 	// closes this sstable reader
 	Close() error
 	// Returns the metadata of this sstable
-   MetaData() *proto.MetaData
+	MetaData() *proto.MetaData
 }
 
 type SSTableSimpleWriterI interface {
@@ -52,4 +54,9 @@ type SSTableStreamWriterI interface {
 	WriteNext(key []byte, value []byte) error
 	// closes the sstable files.
 	Close() error
+}
+
+type SSTableMergerI interface {
+	// merges/writes the given iterators into a single sorted SSTable
+	Merge(iterators []SSTableIteratorI, writer SSTableStreamWriterI) error
 }

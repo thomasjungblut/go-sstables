@@ -182,6 +182,42 @@ for {
 
 You can get the full example from [examples/sstables.go](examples/sstables.go).
 
+### Merging two (or more) SSTables
+
+One of the great features of SSTables is that you can merge them in linear time and in a sequential fashion, which needs only constant amount of space.  
+
+In this library, this can be easily composed here via full-table scanners and and a writer to output the resulting merged table: 
+
+```go
+var iterators []SSTableIteratorI
+for i := 0; i < numFiles; i++ {
+	reader, err := NewSSTableReader(
+    		ReadBasePath(sstablePath),
+    		ReadWithKeyComparator(skiplist.BytesComparator))
+	if err != nil { log.Fatalf("error: %v", err) }
+    defer reader.Close()
+	
+	it, err := reader.Scan()
+	if err != nil { log.Fatalf("error: %v", err) }
+	
+    iterators = append(iterators, it)   
+}
+
+writer, err := sstables.NewSSTableSimpleWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err) }
+
+merger := NewSSTableMerger(skiplist.BytesComparator)
+// merge takes care of opening/closing itself
+err = merger.Merge(iterators, writer)  
+if err != nil { log.Fatalf("error: %v", err) }
+
+// do something with the merged sstable
+```
+
+The merge logic itself is based on a heap, so it can scale to thousands of files easily.
+
 ## Using RecordIO
 
 RecordIO allows you to write sequential key/value entities into a flat file and is heavily inspired by [Hadoop's SequenceFile](https://wiki.apache.org/hadoop/SequenceFile). 
