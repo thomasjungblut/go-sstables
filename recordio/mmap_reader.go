@@ -1,9 +1,12 @@
 package recordio
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"golang.org/x/exp/mmap"
+	"io"
 )
 
 type MMapReader struct {
@@ -46,6 +49,51 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 		return nil, errors.New("reader was either not opened yet or is closed already")
 	}
 
+	if r.header.fileVersion == Version1 {
+		return readNextAtV1(r, offset)
+	} else {
+		// TODO(thomas): here we can use a bpool of buffers (https://github.com/oxtoacart/bpool)
+		buf := make([]byte, RecordHeaderV2MaxSizeBytes)
+		numRead, err := r.mmapReader.ReadAt(buf, int64(offset))
+		if err != nil {
+			if err == io.EOF {
+				// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
+				// which will return EOF when you have read less than the buffers actual size due to the EOF
+				if numRead == 0 {
+					return nil, io.EOF
+				}
+			} else {
+				return nil, err
+			}
+		}
+
+		headerByteReader := NewCountingByteReader(bufio.NewReader(bytes.NewReader(buf[:numRead])))
+		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(headerByteReader)
+		if err != nil {
+			return nil, err
+		}
+
+		expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
+		numRead, err = r.mmapReader.ReadAt(recordBuffer, int64(offset)+int64(headerByteReader.count))
+		if err != nil {
+			return nil, err
+		}
+
+		if uint64(numRead) != expectedBytesRead {
+			return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
+		}
+
+		if r.header.compressor != nil {
+			recordBuffer, err = r.header.compressor.Decompress(recordBuffer)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return recordBuffer, nil
+	}
+}
+
+func readNextAtV1(r *MMapReader, offset uint64) ([]byte, error) {
 	// TODO(thomas): here we can use a bpool of buffers (https://github.com/oxtoacart/bpool)
 	buf := make([]byte, RecordHeaderSizeBytes)
 	numRead, err := r.mmapReader.ReadAt(buf, int64(offset))
@@ -57,7 +105,7 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 		return nil, fmt.Errorf("not enough bytes in the header found, expected %d but were %d", len(buf), numRead)
 	}
 
-	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeader(buf)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(buf)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +126,6 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 			return nil, err
 		}
 	}
-
 	return recordBuffer, nil
 }
 

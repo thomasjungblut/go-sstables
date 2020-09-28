@@ -52,6 +52,7 @@ func benchmarkWriteRecordSize(recSize int, sync bool, compType int, b *testing.B
 		assert.Nil(b, err)
 		assert.Nil(b, writer.Open())
 
+		b.StartTimer()
 		for i := 0; i < numRecords; i++ {
 			if sync {
 				_, err := writer.WriteSync(bytes)
@@ -61,6 +62,7 @@ func benchmarkWriteRecordSize(recSize int, sync bool, compType int, b *testing.B
 				assert.Nil(b, err)
 			}
 		}
+		b.StopTimer()
 
 		assert.Nil(b, writer.Close())
 

@@ -26,25 +26,25 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	defer os.Remove(writer.file.Name())
 
 	offset, err := writer.Write(randomRecordOfSize(5))
-	assert.Equal(t, uint64(8), offset)
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	assert.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(10))
-	assert.Equal(t, uint64(33), offset)
+	assert.Equal(t, uint64(0x12), offset)
 	assert.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(25))
-	assert.Equal(t, uint64(63), offset)
+	assert.Equal(t, uint64(0x21), offset)
 	assert.Nil(t, err)
 
-	assert.Equal(t, uint64(108), writer.currentOffset)
+	assert.Equal(t, uint64(0x3f), writer.currentOffset)
 
 	err = writer.Close()
 	assert.Nil(t, err)
 
 	stat, err := os.Stat(writer.file.Name())
 	assert.Nil(t, err)
-	assert.Equal(t, int64(108), stat.Size())
+	assert.Equal(t, int64(63), stat.Size())
 
 	reader := newReaderOnTopOfWriter(t, writer)
 	defer reader.Close()
@@ -163,14 +163,14 @@ func ascendingBytes(l int) []byte {
 func simpleWriteBytes(t *testing.T, record []byte) *FileWriter {
 	writer := newOpenedWriter(t)
 	offset, err := writer.Write(record)
-	// first offset should always be 8 bytes (for version and compression type)
-	assert.Equal(t, uint64(8), offset)
+	// first offset should always be 8 bytes (for version and compression type in the file header)
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	assert.Nil(t, err)
 	err = writer.Close()
 	assert.Nil(t, err)
 	return writer
 }
-func newOpenedWriter(t *testing.T) (*FileWriter) {
+func newOpenedWriter(t *testing.T) *FileWriter {
 	writer, err := newUncompressedTestWriter()
 	assert.Nil(t, err)
 	err = writer.Open()

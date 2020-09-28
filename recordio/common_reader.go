@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+	"io"
 )
 
 type Header struct {
@@ -18,8 +19,8 @@ func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	}
 
 	fileVersion := binary.LittleEndian.Uint32(buffer[0:4])
-	if fileVersion != Version {
-		return nil, fmt.Errorf("version mismatch, expected %d but was %d", Version, fileVersion)
+	if fileVersion > CurrentVersion || fileVersion < Version1 {
+		return nil, fmt.Errorf("version mismatch, expected a value from %d to %d but was %d", Version1, CurrentVersion, fileVersion)
 	}
 
 	compressionType := binary.LittleEndian.Uint32(buffer[4:8])
@@ -36,7 +37,7 @@ func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	return header, nil
 }
 
-func readRecordHeader(buffer []byte) (uint64, uint64, error) {
+func readRecordHeaderV1(buffer []byte) (uint64, uint64, error) {
 	if len(buffer) != RecordHeaderSizeBytes {
 		return 0, 0, fmt.Errorf("record header buffer size mismatch, expected %d but was %d", RecordHeaderSizeBytes, len(buffer))
 	}
@@ -48,6 +49,28 @@ func readRecordHeader(buffer []byte) (uint64, uint64, error) {
 
 	payloadSizeUncompressed := binary.LittleEndian.Uint64(buffer[4:12])
 	payloadSizeCompressed := binary.LittleEndian.Uint64(buffer[12:20])
+	return payloadSizeUncompressed, payloadSizeCompressed, nil
+}
+
+func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
+	magicNumber, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, err
+	}
+	if magicNumber != MagicNumberSeparatorLong {
+		return 0, 0, fmt.Errorf("magic number mismatch")
+	}
+
+	payloadSizeUncompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
 	return payloadSizeUncompressed, payloadSizeCompressed, nil
 }
 

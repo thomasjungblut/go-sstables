@@ -7,7 +7,7 @@ import (
 )
 
 func TestMMapReaderHappyPathSingleRecord(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/recordio_UncompressedSingleRecord")
+	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	assert.Nil(t, err)
 	defer reader.Close()
 
@@ -18,7 +18,7 @@ func TestMMapReaderHappyPathSingleRecord(t *testing.T) {
 }
 
 func TestMMapReaderSingleRecordMisalignedOffset(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/recordio_UncompressedSingleRecord")
+	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	assert.Nil(t, err)
 	defer reader.Close()
 
@@ -27,7 +27,7 @@ func TestMMapReaderSingleRecordMisalignedOffset(t *testing.T) {
 }
 
 func TestMMapReaderSingleRecordOffsetBiggerThanFile(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/recordio_UncompressedSingleRecord")
+	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	assert.Nil(t, err)
 	defer reader.Close()
 
@@ -36,17 +36,17 @@ func TestMMapReaderSingleRecordOffsetBiggerThanFile(t *testing.T) {
 }
 
 func TestMMapReaderVersionMismatchV0(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord_v0", t)
-	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected 1 but was 0"))
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v0", t)
+	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected a value from 1 to 2 but was 0"))
 }
 
 func TestMMapReaderVersionMismatchV256(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord_v256", t)
-	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected 1 but was 256"))
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v256", t)
+	expectErrorOnOpen(t, reader, errors.New("version mismatch, expected a value from 1 to 2 but was 256"))
 }
 
 func TestMMapReaderCompressionGzipHeader(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord_comp1", t)
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp1", t)
 	err := reader.Open()
 	assert.Nil(t, err)
 	defer reader.Close()
@@ -54,7 +54,7 @@ func TestMMapReaderCompressionGzipHeader(t *testing.T) {
 }
 
 func TestMMapReaderCompressionSnappyHeader(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord_comp2", t)
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp2", t)
 	err := reader.Open()
 	assert.Nil(t, err)
 	defer reader.Close()
@@ -62,12 +62,12 @@ func TestMMapReaderCompressionSnappyHeader(t *testing.T) {
 }
 
 func TestMMapReaderCompressionUnknown(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord_comp3", t)
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp3", t)
 	expectErrorOnOpen(t, reader, errors.New("unknown compression type [3]"))
 }
 
 func TestMMapReaderForbidsClosedReader(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord", t)
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Close()
 	assert.Nil(t, err)
 	_, err = reader.ReadNextAt(100)
@@ -77,7 +77,7 @@ func TestMMapReaderForbidsClosedReader(t *testing.T) {
 }
 
 func TestMMapReaderForbidsDoubleOpens(t *testing.T) {
-	reader := newTestMMapReader("test_files/recordio_UncompressedSingleRecord", t)
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Open()
 	assert.Nil(t, err)
 	expectErrorOnOpen(t, reader, errors.New("already opened"))

@@ -12,19 +12,19 @@ import (
  * This type defines a binary file format (little endian).
  * The file header has a 32 bit version number and a 32 bit compression type enum according to the table above.
  * Each record written in the file follows the following format (sequentially):
- * TODO(thomas): this can be improved with vint compression
- * - MagicNumber (32 bits) to separate records from each other.
- * - Uncompressed data payload size (64 bits).
- * - Compressed data payload size (64 bits), or 0 if the data is not compressed.
+ * - MagicNumber (encoding/binary/Uvarint) to separate records from each other.
+ * - Uncompressed data payload size (encoding/binary/Uvarint).
+ * - Compressed data payload size (encoding/binary/Uvarint), or 0 if the data is not compressed.
  * - Payload as plain bytes, possibly compressed
  */
 type FileWriter struct {
-	open            bool
-	closed          bool
-	file            *os.File
-	currentOffset   uint64
-	compressionType int
-	compressor      compressor.CompressionI
+	open              bool
+	closed            bool
+	file              *os.File
+	currentOffset     uint64
+	compressionType   int
+	compressor        compressor.CompressionI
+	recordHeaderCache []byte
 }
 
 func (w *FileWriter) Open() error {
@@ -67,15 +67,36 @@ func (w *FileWriter) Open() error {
 
 	w.currentOffset = uint64(offset)
 	w.open = true
+	w.recordHeaderCache = make([]byte, RecordHeaderV2MaxSizeBytes)
 
 	return nil
 }
 
 func writeFileHeader(writer *FileWriter) (int, error) {
+	written, err := writer.file.Write(fileHeaderAsByteSlice(writer))
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
+}
+
+func fileHeaderAsByteSlice(writer *FileWriter) []byte {
 	// 4 byte version number, 4 byte compression code = 8 bytes
 	bytes := make([]byte, 8)
-	binary.LittleEndian.PutUint32(bytes[0:4], Version)
+	binary.LittleEndian.PutUint32(bytes[0:4], CurrentVersion)
 	binary.LittleEndian.PutUint32(bytes[4:8], uint32(writer.compressionType))
+	return bytes
+}
+
+// for legacy reference still around, main paths unused - mostly for tests writing old versions
+//noinspection GoUnusedFunction
+func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
+	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
+	bytes := make([]byte, RecordHeaderSizeBytes)
+	binary.LittleEndian.PutUint32(bytes[0:4], MagicNumberSeparator)
+	binary.LittleEndian.PutUint64(bytes[4:12], payloadSizeUncompressed)
+	binary.LittleEndian.PutUint64(bytes[12:20], payloadSizeCompressed)
 	written, err := writer.file.Write(bytes)
 	if err != nil {
 		return 0, err
@@ -84,13 +105,16 @@ func writeFileHeader(writer *FileWriter) (int, error) {
 	return written, nil
 }
 
-func writeRecordHeader(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
-	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
-	bytes := make([]byte, RecordHeaderSizeBytes)
-	binary.LittleEndian.PutUint32(bytes[0:4], MagicNumberSeparator)
-	binary.LittleEndian.PutUint64(bytes[4:12], payloadSizeUncompressed)
-	binary.LittleEndian.PutUint64(bytes[12:20], payloadSizeCompressed)
-	written, err := writer.file.Write(bytes)
+func fillRecordHeaderV2(bytes []byte, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) []byte {
+	off := binary.PutUvarint(bytes, MagicNumberSeparatorLong)
+	off += binary.PutUvarint(bytes[off:], payloadSizeUncompressed)
+	off += binary.PutUvarint(bytes[off:], payloadSizeCompressed)
+	return bytes[:off]
+}
+
+func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
+	header := fillRecordHeaderV2(writer.recordHeaderCache, payloadSizeUncompressed, payloadSizeCompressed)
+	written, err := writer.file.Write(header)
 	if err != nil {
 		return 0, err
 	}
@@ -127,7 +151,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	}
 
 	prevOffset := w.currentOffset
-	headerBytesWritten, err := writeRecordHeader(w, uncompressedSize, compressedSize)
+	headerBytesWritten, err := writeRecordHeaderV2(w, uncompressedSize, compressedSize)
 	if err != nil {
 		return 0, err
 	}
@@ -152,7 +176,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	return prevOffset, nil
 }
 
-func (w *FileWriter) Close() (error) {
+func (w *FileWriter) Close() error {
 	w.closed = true
 	w.open = false
 	return w.file.Close()
