@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestSimpleHappyPathRead(t *testing.T) {
+func TestSimpleHappyPathReadReadRecordIOV1(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
@@ -18,6 +18,20 @@ func TestSimpleHappyPathRead(t *testing.T) {
 	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
 	assert.Equal(t, 0, len(reader.MetaData().MinKey))
 	assert.Equal(t, 0, len(reader.MetaData().MaxKey))
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	assertContentMatchesSkipList(t, reader, skipListMap)
+}
+
+func TestSimpleHappyPathReadRecordIOV2(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
+		ReadWithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	defer reader.Close()
+
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
 	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }

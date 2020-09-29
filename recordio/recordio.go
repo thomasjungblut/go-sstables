@@ -1,17 +1,25 @@
 package recordio
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/gogo/protobuf/proto"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
-const Version uint32 = 0x01
+const Version1 uint32 = 0x01
+const Version2 uint32 = 0x02
+const CurrentVersion = Version2
 const MagicNumberSeparator uint32 = 0x130691
+const MagicNumberSeparatorLong uint64 = 0x130691
 
 // 4 byte version number, 4 byte compression code = 8 bytes
 const FileHeaderSizeBytes = 8
 const RecordHeaderSizeBytes = 20
+
+// that's the max buffer sizes to prevent PutUvarint to panic:
+// 10 byte magic number, 10 byte uncompressed size, 10 bytes for compressed size = 25 bytes
+const RecordHeaderV2MaxSizeBytes = binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64
 
 const (
 	// never reorder, always append

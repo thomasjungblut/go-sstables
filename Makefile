@@ -37,3 +37,9 @@ unit-test:
 	@echo
 	@echo "==> Running unit tests <=="
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
+
+.PHONY: generate-test-files
+generate-test-files:
+	@echo
+	@echo "==> Generate Test Files <=="
+	export generate_compatfiles=true && $(GO) test $(GOFLAGS) $(TESTS) -run .*TestGenerateTestFiles.*
