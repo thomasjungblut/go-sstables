@@ -1,5 +1,5 @@
 // this does not really test anything, it generates the test_files that can be used to test the file_reader
-// you can switch it on by setting the "recordio_generate_compatfiles" env variable to something non-empty
+// you can switch it on by setting the "generate_compatfiles" env variable to something non-empty
 package recordio
 
 import (
@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-func TestWriteV2CompatFiles(t *testing.T) {
-	if os.Getenv("recordio_generate_compatfiles") == "" {
+func TestGenerateTestFiles(t *testing.T) {
+	if os.Getenv("generate_compatfiles") == "" {
 		t.Skip("not requested to generate compatibility files")
 		return
 	}

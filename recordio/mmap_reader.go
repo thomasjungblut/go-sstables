@@ -58,7 +58,8 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 		if err != nil {
 			if err == io.EOF {
 				// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
-				// which will return EOF when you have read less than the buffers actual size due to the EOF
+				// which will return EOF when you have read less than the buffers actual size due to the EOF.
+				// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
 				if numRead == 0 {
 					return nil, io.EOF
 				}

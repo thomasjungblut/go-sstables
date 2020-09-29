@@ -3,6 +3,7 @@ package recordio
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"testing"
 )
 
@@ -83,6 +84,28 @@ func TestMMapReaderForbidsDoubleOpens(t *testing.T) {
 	expectErrorOnOpen(t, reader, errors.New("already opened"))
 }
 
+// this is explicitly testing the difference in mmap semantics, where we would get an EOF error due to the following:
+// * record header is very small (5 bytes)
+// * record itself is smaller than the remainder of the buffer (RecordHeaderV2MaxSizeBytes - 5 bytes of the header = 15 bytes)
+// * only the EOF follows
+// this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderV2MaxSizeBytes size (up until the EOF) AND return the io.EOF as an error.
+// that caused some failed tests in the sstable reader, so it makes sense to have an explicit test for it
+func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectly(t *testing.T) {
+	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
+	assert.Nil(t, err)
+	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
+	assert.Nil(t, err)
+	assertAscendingBytes(t, bytes, 13)
+	bytes, err = reader.ReadNextAt(uint64(FileHeaderSizeBytes + 5 + len(bytes)))
+	assert.Nil(t, bytes)
+	assert.Equal(t, io.EOF, err)
+
+	// testing the boundaries around, which should give us a magic number mismatch
+	bytes, err = reader.ReadNextAt(uint64(FileHeaderSizeBytes + 4 + len(bytes)))
+	assert.Nil(t, bytes)
+	assert.Equal(t, errors.New("magic number mismatch"), err)
+}
+
 func newOpenedTestMMapReader(t *testing.T, file string) (*MMapReader, error) {
 	reader := newTestMMapReader(file, t)
 	err := reader.Open()
@@ -90,7 +113,7 @@ func newOpenedTestMMapReader(t *testing.T, file string) (*MMapReader, error) {
 	return reader, err
 }
 
-func newTestMMapReader(file string, t *testing.T) (*MMapReader) {
+func newTestMMapReader(file string, t *testing.T) *MMapReader {
 	r, err := NewMemoryMappedReaderWithPath(file)
 	assert.Nil(t, err)
 	return r
