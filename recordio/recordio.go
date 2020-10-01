@@ -18,7 +18,7 @@ const FileHeaderSizeBytes = 8
 const RecordHeaderSizeBytes = 20
 
 // that's the max buffer sizes to prevent PutUvarint to panic:
-// 10 byte magic number, 10 byte uncompressed size, 10 bytes for compressed size = 25 bytes
+// 10 byte magic number, 10 byte uncompressed size, 10 bytes for compressed size = 30 bytes
 const RecordHeaderV2MaxSizeBytes = binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64
 
 const (

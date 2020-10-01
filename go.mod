@@ -12,3 +12,5 @@ require (
 	golang.org/x/exp v0.0.0-20181210123644-7d6377eee41f
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
 )
+
+go 1.15
