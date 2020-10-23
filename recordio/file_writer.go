@@ -182,15 +182,23 @@ func (w *FileWriter) Close() error {
 	return w.file.Close()
 }
 
+func (w *FileWriter) Size() uint64 {
+	return w.currentOffset
+}
+
 // TODO(thomas): use an option pattern instead
+
+// creates a new writer under the given path, without any compression
 func NewFileWriterWithPath(path string) (*FileWriter, error) {
 	return NewCompressedFileWriterWithPath(path, CompressionTypeNone)
 }
 
+// creates a new writer with the given os.File, without any compression
 func NewFileWriterWithFile(file *os.File) (*FileWriter, error) {
 	return NewCompressedFileWriterWithFile(file, CompressionTypeNone)
 }
 
+// creates a new writer under the given path, with the desired compression
 func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
@@ -205,6 +213,7 @@ func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, er
 	return r, nil
 }
 
+// creates a new writer with the given os.File, with the desired compression
 func NewCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, error) {
 	return &FileWriter{
 		file:            file,

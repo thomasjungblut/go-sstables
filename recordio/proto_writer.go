@@ -29,8 +29,12 @@ func (w *ProtoWriter) WriteSync(record proto.Message) (uint64, error) {
 	return w.writer.WriteSync(bytes)
 }
 
-func (w *ProtoWriter) Close() (error) {
+func (w *ProtoWriter) Close() error {
 	return w.writer.Close()
+}
+
+func (w *ProtoWriter) Size() uint64 {
+	return w.writer.Size()
 }
 
 // TODO(thomas): use an option pattern instead

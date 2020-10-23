@@ -1,0 +1,6 @@
+syntax = "proto3";
+package test_files;
+
+message SequenceNumber {
+    uint64 sequenceNumber = 1;
+}

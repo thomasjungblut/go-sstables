@@ -28,13 +28,34 @@ const (
 	CompressionTypeSnappy = iota
 )
 
-type OpenClosableI interface {
-	Open() error
+type SizeI interface {
+	// returns the current size of the file in bytes
+	Size() uint64
+}
+
+type CloseableI interface {
+	// Closes the given file. Errors can happen when:
+	// File was already closed before or is not yet open.
+	// File could not be closed on the filesystem (eg when flushes fail)
 	Close() error
+}
+
+type OpenableI interface {
+	// Opens the given file for reading or writing. Errors can happen in multiple circumstances:
+	// File or directory doesn't exist or are not accessible.
+	// File was already opened or closed before.
+	// File is corrupt, header wasn't readable or versions are incompatible.
+	Open() error
+}
+
+type OpenClosableI interface {
+	CloseableI
+	OpenableI
 }
 
 type WriterI interface {
 	OpenClosableI
+	SizeI
 	// Appends a record of bytes, returns the current offset this item was written to
 	Write(record []byte) (uint64, error)
 	// Appends a record of bytes and forces a disk sync, returns the current offset this item was written to
@@ -73,6 +94,7 @@ type ProtoReadAtI interface {
 
 type ProtoWriterI interface {
 	OpenClosableI
+	SizeI
 	// Appends a record, returns the current offset this item was written to
 	Write(record proto.Message) (uint64, error)
 	// Appends a record and forces a disk sync, returns the current offset this item was written to

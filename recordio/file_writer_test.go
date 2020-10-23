@@ -21,23 +21,39 @@ func TestWriterHappyPathOpenWriteClose(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
+func TestSingleWriteSize(t *testing.T) {
+	writer := singleWrite(t)
+	defer os.Remove(writer.file.Name())
+
+	size := writer.Size()
+	assert.Equal(t, uint64(0x1a), size)
+	stat, err := os.Stat(writer.file.Name())
+	assert.Nil(t, err)
+	assert.Equal(t, int64(0x1a), stat.Size())
+	assert.Equal(t, size, uint64(stat.Size()))
+}
+
 func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	writer := newOpenedWriter(t)
 	defer os.Remove(writer.file.Name())
 
 	offset, err := writer.Write(randomRecordOfSize(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
+	assert.Equal(t, uint64(0x12), writer.Size())
 	assert.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(10))
 	assert.Equal(t, uint64(0x12), offset)
+	assert.Equal(t, uint64(0x21), writer.Size())
 	assert.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(25))
 	assert.Equal(t, uint64(0x21), offset)
+	assert.Equal(t, uint64(0x3f), writer.Size())
 	assert.Nil(t, err)
 
 	assert.Equal(t, uint64(0x3f), writer.currentOffset)
+	assert.Equal(t, uint64(0x3f), writer.Size())
 
 	err = writer.Close()
 	assert.Nil(t, err)

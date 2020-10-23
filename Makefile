@@ -18,6 +18,7 @@ compile-proto:
 	@echo
 	@echo "==> Compiling Protobuf files <=="
 	protoc --go_out=. recordio/test_files/text_line.proto
+	protoc --go_out=. wal/test_files/seq_number.proto
 	protoc --go_out=. examples/proto/hello_world.proto
 	protoc --go_out=. sstables/proto/sstable.proto
 
