@@ -1,0 +1,134 @@
+## Using SSTables
+
+SSTables allow you to store a large amount of key/value data on disk and query it efficiently by key or by key ranges. Unsurprisingly, this very format is at the heart of many NoSQL databases (i.e. HBase and Cassandra).
+
+The flavor that is implemented in this library favours small keys and large values (eg. images), since it stores the key index in memory and the values remain on disk. 
+A fully out-of-core version or secondary indices are currently not implemented. Features like bloom filter for faster key look-ups are already in place, so it is not too difficult to add later on.
+
+### Writing an SSTable
+
+All files (key index, bloom filter, metadata info) that are necessary to store an SSTable are found under a given `basePath` in your filesystem.
+Which means that we can just start writing by creating a directory and appending some key/value pairs. 
+
+In the previous section we already saw how to transform a `memstore` into a sstable.   
+This example shows how to stream already sorted data into a file:
+
+```go
+
+path := "/tmp/sstable_example/"
+os.MkdirAll(path, 0777)
+defer os.RemoveAll(path)
+
+writer, err := sstables.NewSSTableStreamWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err) }
+
+err = writer.Open()
+if err != nil { log.Fatalf("error: %v", err) }
+
+// error checks omitted
+err = writer.WriteNext([]byte{1}, []byte{1})
+err = writer.WriteNext([]byte{2}, []byte{2})
+err = writer.WriteNext([]byte{3}, []byte{3})
+
+err = writer.Close()
+if err != nil { log.Fatalf("error: %v", err) }
+
+```
+
+Keep in mind that streaming data requires a comparator (for safety), which will error on writes that are out of order.
+
+Since that is somewhat cumbersome, you can also directly write a full skip list using the `SimpleWriter`:
+
+```go
+path := "/tmp/sstable_example/"
+os.MkdirAll(path, 0777)
+defer os.RemoveAll(path)
+
+writer, err := sstables.NewSSTableSimpleWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err) }
+
+skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator)
+skipListMap.Insert([]byte{1}, []byte{1})
+skipListMap.Insert([]byte{2}, []byte{2})
+skipListMap.Insert([]byte{3}, []byte{3})
+
+err = writer.WriteSkipListMap(skipListMap)
+if err != nil { log.Fatalf("error: %v", err) }
+```
+ 
+### Reading an SSTable
+
+Reading can be done by using having a path and the respective comparator. 
+Below example will show what metadata is available, how to get values and check if they exist and how to do a range scan.
+
+```go
+reader, err := sstables.NewSSTableReader(
+    sstables.ReadBasePath("/tmp/sstable_example/"),
+    sstables.ReadWithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err) }
+defer reader.Close()
+
+metadata := reader.MetaData()
+log.Printf("reading table with %d records, minKey %d and maxKey %d", metadata.NumRecords, metadata.MinKey, metadata.MaxKey)
+
+contains := reader.Contains([]byte{1})
+val, err := reader.Get([]byte{1})
+if err != nil { log.Fatalf("error: %v", err) }
+log.Printf("table contains value for key? %t = %d", contains, val)
+
+it, err := reader.ScanRange([]byte{1}, []byte{2})
+for {
+    k, v, err := it.Next()
+    // io.EOF signals that no records are left to be read
+    if err == sstables.Done {
+        break
+    }
+    if err != nil { log.Fatalf("error: %v", err) }
+
+    log.Printf("%d = %d", k, v)
+}
+
+```
+
+You can get the full example from [examples/sstables.go](/examples/sstables.go).
+
+### Merging two (or more) SSTables
+
+One of the great features of SSTables is that you can merge them in linear time and in a sequential fashion, which needs only constant amount of space.  
+
+In this library, this can be easily composed here via full-table scanners and and a writer to output the resulting merged table: 
+
+```go
+var iterators []SSTableIteratorI
+for i := 0; i < numFiles; i++ {
+	reader, err := NewSSTableReader(
+    		ReadBasePath(sstablePath),
+    		ReadWithKeyComparator(skiplist.BytesComparator))
+	if err != nil { log.Fatalf("error: %v", err) }
+    defer reader.Close()
+	
+	it, err := reader.Scan()
+	if err != nil { log.Fatalf("error: %v", err) }
+	
+    iterators = append(iterators, it)   
+}
+
+writer, err := sstables.NewSSTableSimpleWriter(
+    sstables.WriteBasePath(path),
+    sstables.WithKeyComparator(skiplist.BytesComparator))
+if err != nil { log.Fatalf("error: %v", err) }
+
+merger := NewSSTableMerger(skiplist.BytesComparator)
+// merge takes care of opening/closing itself
+err = merger.Merge(iterators, writer)  
+if err != nil { log.Fatalf("error: %v", err) }
+
+// do something with the merged sstable
+```
+
+The merge logic itself is based on a heap, so it can scale to thousands of files easily.
+

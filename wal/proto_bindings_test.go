@@ -40,7 +40,7 @@ func newTestProtoWal(t *testing.T, tmpDirName string) *ProtoWriteAheadLog {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
 	assert.Nil(t, err)
 
-	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSize(TestMaxWalFileSize))
+	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))
 	assert.Nil(t, err)
 
 	wal, err := NewProtoWriteAheadLog(opts)

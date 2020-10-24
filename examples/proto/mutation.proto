@@ -1,0 +1,19 @@
+syntax = "proto3";
+package proto;
+
+message UpdateMutation {
+    string columnName = 1;
+    string columnValue = 2;
+}
+
+message DeleteMutation {
+    string columnName = 1;
+}
+
+message Mutation {
+    uint64 seqNumber = 1;
+    oneof mutation {
+        UpdateMutation update = 2;
+        DeleteMutation delete = 3;
+    }
+}

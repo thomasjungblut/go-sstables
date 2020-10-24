@@ -78,7 +78,7 @@ func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
 	assert.Nil(t, err)
 
-	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSize(TestMaxWalFileSize))
+	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))
 	assert.Nil(t, err)
 
 	t.Cleanup(func() {

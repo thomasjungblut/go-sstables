@@ -100,7 +100,7 @@ func BasePath(p string) Option {
 	}
 }
 
-func MaximumWalFileSize(p uint64) Option {
+func MaximumWalFileSizeBytes(p uint64) Option {
 	return func(args *Options) {
 		args.maxWalFileSize = p
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/recordio"
 	"io/ioutil"
 	"testing"
 )
@@ -61,7 +62,7 @@ func TestWALCrashRecovery(t *testing.T) {
 }
 
 func TestOptionMissingBasePath(t *testing.T) {
-	_, err := NewWriteAheadLogOptions(MaximumWalFileSize(TestMaxWalFileSize))
+	_, err := NewWriteAheadLogOptions(MaximumWalFileSizeBytes(TestMaxWalFileSize))
 	assert.Equal(t, errors.New("basePath was not supplied"), err)
 }
 
@@ -69,7 +70,15 @@ func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
 	assert.Nil(t, err)
 
-	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSize(TestMaxWalFileSize))
+	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir),
+		MaximumWalFileSizeBytes(TestMaxWalFileSize),
+		WriterFactory(func(path string) (recordio.WriterI, error) {
+			return recordio.NewCompressedFileWriterWithPath(path, recordio.CompressionTypeSnappy)
+		}),
+		ReaderFactory(func(path string) (recordio.ReaderI, error) {
+			return recordio.NewFileReaderWithPath(path)
+		}),
+	)
 	assert.Nil(t, err)
 
 	wal, err := NewWriteAheadLog(opts)

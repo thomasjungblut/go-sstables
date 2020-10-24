@@ -6,7 +6,7 @@ TESTFLAGS := -race
 LDFLAGS   :=
 GOFLAGS   :=
 BINARIES  := sstables
-VERSION   := v1.0.1
+VERSION   := v1.1.0
 
 # Required for globs to work correctly
 SHELL=/bin/bash
@@ -20,6 +20,7 @@ compile-proto:
 	protoc --go_out=. recordio/test_files/text_line.proto
 	protoc --go_out=. wal/test_files/seq_number.proto
 	protoc --go_out=. examples/proto/hello_world.proto
+	protoc --go_out=. examples/proto/mutation.proto
 	protoc --go_out=. sstables/proto/sstable.proto
 
 .PHONY: release
