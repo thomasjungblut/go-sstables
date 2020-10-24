@@ -34,7 +34,6 @@ One can update dependencies via:
 
 ```
 go get -u <repo url>
-go mod vendor
 ```
 
 ### Releasing the Go Module
