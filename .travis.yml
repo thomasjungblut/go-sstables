@@ -1,5 +1,5 @@
 language: go
-dist: trusty
+dist: focal
 sudo: false
 go:
   - "1.14.x"
