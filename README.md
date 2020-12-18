@@ -15,7 +15,7 @@ This is a library as it does not contain any installable binary, which means you
 
 ## Documentation
 
-Since this README was becoming quite large, the documentation is now separated by package. There you'll find more information on how to use each individual package.
+This README became quite large, thus the documentation is now separated by package. There you'll find more information on how to use each individual package.
 
 * [RecordIO](recordio/README.md)
   * [Benchmark](benchmark/README.md)
@@ -23,6 +23,16 @@ Since this README was becoming quite large, the documentation is now separated b
 * [sstables](sstables/README.md)
 * [SkipList](skiplist/README.md)
 * [WriteAheadLog](wal/README.md)
+
+## Kaitai Support
+
+As you might want to read the data and files in other languages, I've added support for [Kaitai](https://kaitai.io/).  
+Kaitai is a declarative schema file to define a binary format. From that `ksy` file you can generate code for a lot of other languages and read the data.
+
+Currently, there is support for:
+* [RecordIO (v2)](kaitai/recordio_v2.ksy)
+
+You can find more information on how to generate Kaitai readers in [kaitai/README.md](kaitai/README.md).
 
 ## Development on go-sstables
 

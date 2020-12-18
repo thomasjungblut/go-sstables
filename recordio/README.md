@@ -76,5 +76,3 @@ if err != nil { log.Fatalf("error: %v", err) }
 ``` 
 
 You can get the full example from [examples/recordio.go](/examples/recordio.go).
-
-
