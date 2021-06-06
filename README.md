@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/thomasjungblut/go-sstables.svg?branch=master)](https://travis-ci.org/thomasjungblut/go-sstables)
+[![Go](https://github.com/thomasjungblut/go-sstables/actions/workflows/go.yml/badge.svg)](https://github.com/thomasjungblut/go-sstables/actions/workflows/go.yml)
 
 ## go-sstables
 
