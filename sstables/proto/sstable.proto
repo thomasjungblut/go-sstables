@@ -1,5 +1,6 @@
 syntax = "proto3";
 package proto;
+option go_package = "github.com/thomasjungblut/go-sstables/sstables/proto";
 
 message IndexEntry {
     bytes key = 1;

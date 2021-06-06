@@ -2,11 +2,12 @@ package sstables
 
 import (
 	"errors"
-	pb "github.com/gogo/protobuf/proto"
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	sProto "github.com/thomasjungblut/go-sstables/sstables/proto"
+	proto "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"os"
 	"path"
@@ -19,19 +20,21 @@ type SSTableStreamWriter struct {
 	dataFilePath  string
 	metaFilePath  string
 
-	indexWriter  *recordio.ProtoWriter
-	dataWriter   *recordio.ProtoWriter
+	indexWriter  *rProto.Writer
+	dataWriter   *rProto.Writer
 	metaDataFile *os.File
 
 	bloomFilter *bloomfilter.Filter
-	metaData    *proto.MetaData
+	metaData    *sProto.MetaData
 
 	lastKey []byte
 }
 
 func (writer *SSTableStreamWriter) Open() error {
 	writer.indexFilePath = path.Join(writer.opts.basePath, IndexFileName)
-	iWriter, err := recordio.NewCompressedProtoWriterWithPath(writer.indexFilePath, writer.opts.indexCompressionType)
+	iWriter, err := rProto.NewWriter(
+		rProto.Path(writer.indexFilePath),
+		rProto.CompressionType(writer.opts.indexCompressionType))
 	if err != nil {
 		return err
 	}
@@ -43,7 +46,9 @@ func (writer *SSTableStreamWriter) Open() error {
 	}
 
 	writer.dataFilePath = path.Join(writer.opts.basePath, DataFileName)
-	dWriter, err := recordio.NewCompressedProtoWriterWithPath(writer.dataFilePath, writer.opts.dataCompressionType)
+	dWriter, err := rProto.NewWriter(
+		rProto.Path(writer.dataFilePath),
+		rProto.CompressionType(writer.opts.dataCompressionType))
 	if err != nil {
 		return err
 	}
@@ -60,7 +65,7 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 	writer.metaDataFile = metaFile
-	writer.metaData = &proto.MetaData{}
+	writer.metaData = &sProto.MetaData{}
 
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
@@ -100,12 +105,12 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		writer.bloomFilter.Add(fnvHash)
 	}
 
-	recordOffset, err := writer.dataWriter.Write(&proto.DataEntry{Value: value})
+	recordOffset, err := writer.dataWriter.Write(&sProto.DataEntry{Value: value})
 	if err != nil {
 		return err
 	}
 
-	_, err = writer.indexWriter.Write(&proto.IndexEntry{Key: key, ValueOffset: recordOffset})
+	_, err = writer.indexWriter.Write(&sProto.IndexEntry{Key: key, ValueOffset: recordOffset})
 	if err != nil {
 		return err
 	}
@@ -134,7 +139,7 @@ func (writer *SSTableStreamWriter) Close() error {
 		}
 	}
 
-	bytes, err := pb.Marshal(writer.metaData)
+	bytes, err := proto.Marshal(writer.metaData)
 	if err != nil {
 		return err
 	}

@@ -28,7 +28,7 @@ opts, err := NewWriteAheadLogOptions(
     MaximumWalFileSizeBytes(1024 * 1024 * 10), 
     // customization to the recordio writer, for example compression for the records:
     WriterFactory(func(path string) (recordio.WriterI, error) {
-        return recordio.NewCompressedFileWriterWithPath(path, recordio.CompressionTypeSnappy)
+        return recordio.NewFileWriter(recordio.WriteBasePath(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
     })),
     // readers can be customized in similar fashion (if necessary)
     ReaderFactory(func(path string) (recordio.ReaderI, error) {
@@ -80,6 +80,8 @@ err := wal.Clean()
 As with the other packages, there are also some proto bindings around the raw byte slices APIs. Let's say you have a mutation defined as such:
 
 ```protobuf
+package proto;
+
 message Mutation {
     uint64 seqNumber  = 1;
     // imagine a oneof CREATE/UPDATE/INSERT/DELETE mutation types below  
@@ -106,9 +108,8 @@ mutation := proto.Mutation{
 }
 
 err = wal.AppendSync(&mutation)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 
 deleteMutation := proto.DeleteMutation{
     ColumnName: "some_col",
@@ -119,14 +120,12 @@ mutation = proto.Mutation{
 }
 
 err = wal.AppendSync(&mutation)
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 
 err = wal.Close()
-if err != nil {
-    log.Fatalf("error: %v", err)
-}
+if err != nil { log.Fatalf("error: %v", err) }
+
 
 err = wal.Replay(func() pb.Message {
     return &proto.Mutation{}

@@ -1,12 +1,15 @@
-package wal
+package proto
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	w "github.com/thomasjungblut/go-sstables/wal"
 	"github.com/thomasjungblut/go-sstables/wal/test_files"
+	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"testing"
 )
+
+const TestMaxWalFileSize uint64 = 8 * 1024 // 8k
 
 func TestProtoWALEndToEndHappyPath(t *testing.T) {
 	wal := newTestProtoWal(t, "wal_proto_e2e_happy_path")
@@ -36,11 +39,13 @@ func TestProtoWALEndToEndHappyPath(t *testing.T) {
 	assert.Equal(t, maxNum, expected)
 }
 
-func newTestProtoWal(t *testing.T, tmpDirName string) *ProtoWriteAheadLog {
+func newTestProtoWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
 	assert.Nil(t, err)
 
-	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))
+	opts, err := w.NewWriteAheadLogOptions(
+		w.BasePath(tmpDir),
+		w.MaximumWalFileSizeBytes(TestMaxWalFileSize))
 	assert.Nil(t, err)
 
 	wal, err := NewProtoWriteAheadLog(opts)

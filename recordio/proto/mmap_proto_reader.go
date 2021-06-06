@@ -1,11 +1,12 @@
-package recordio
+package proto
 
 import (
-	"github.com/gogo/protobuf/proto"
+	"github.com/thomasjungblut/go-sstables/recordio"
+	"google.golang.org/protobuf/proto"
 )
 
 type MMapProtoReader struct {
-	reader *MMapReader
+	reader *recordio.MMapReader
 }
 
 func (r *MMapProtoReader) Open() error {
@@ -31,7 +32,7 @@ func (r *MMapProtoReader) Close() error {
 }
 
 func NewMMapProtoReaderWithPath(path string) (*MMapProtoReader, error) {
-	r, err := NewMemoryMappedReaderWithPath(path)
+	r, err := recordio.NewMemoryMappedReaderWithPath(path)
 	if err != nil {
 		return nil, err
 	}

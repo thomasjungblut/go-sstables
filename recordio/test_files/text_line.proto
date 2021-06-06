@@ -1,5 +1,6 @@
 syntax = "proto3";
 package test_files;
+option go_package = "github.com/thomasjungblut/go-sstables/recordio/test_files";
 
 message TextLine {
     int32 lineNumber = 1;

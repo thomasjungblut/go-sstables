@@ -111,11 +111,25 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 	assert.NotEqual(t, 8, stat.Size())
 	defer os.Remove(writer.file.Name())
 
-	writer, err = NewFileWriterWithPath(writer.file.Name())
+	writer, err = NewFileWriter(Path(writer.file.Name()))
 	assert.Nil(t, err)
 
 	err = writer.Open()
 	assert.Equal(t, errors.New("file is not empty"), err)
+}
+
+func TestWriterDoublePathFileInit(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
+	assert.Nil(t, err)
+
+	defer os.Remove(tmpFile.Name())
+	_, err = NewFileWriter(Path("/tmp/abc"), File(tmpFile))
+	assert.Equal(t, errors.New("either os.File or string path must be supplied, never both"), err)
+}
+
+func TestWriterInitNoPath(t *testing.T) {
+	_, err := NewFileWriter()
+	assert.Equal(t, errors.New("path was not supplied"), err)
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
@@ -124,7 +138,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewFileWriterWithFile(tmpFile)
+	r, err := NewFileWriter(File(tmpFile))
 
 	if err != nil {
 		return nil, err
@@ -139,7 +153,7 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewCompressedFileWriterWithFile(tmpFile, compType)
+	r, err := NewFileWriter(File(tmpFile), CompressionType(compType))
 
 	if err != nil {
 		return nil, err

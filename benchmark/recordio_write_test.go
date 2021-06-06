@@ -9,25 +9,57 @@ import (
 	"testing"
 )
 
-func BenchmarkWriteRecordSize1k(b *testing.B)   { benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteRecordSize10k(b *testing.B)  { benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteRecordSize100k(b *testing.B) { benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteRecordSize1m(b *testing.B)   { benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeNone, b) }
+func BenchmarkWriteRecordSize1k(b *testing.B) {
+	benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteRecordSize10k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteRecordSize100k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteRecordSize1m(b *testing.B) {
+	benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeNone, b)
+}
 
-func BenchmarkWriteGzipRecordSize1k(b *testing.B)   { benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeGZIP, b) }
-func BenchmarkWriteGzipRecordSize10k(b *testing.B)  { benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeGZIP, b) }
-func BenchmarkWriteGzipRecordSize100k(b *testing.B) { benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeGZIP, b) }
-func BenchmarkWriteGzipRecordSize1m(b *testing.B)   { benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeGZIP, b) }
+func BenchmarkWriteGzipRecordSize1k(b *testing.B) {
+	benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeGZIP, b)
+}
+func BenchmarkWriteGzipRecordSize10k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeGZIP, b)
+}
+func BenchmarkWriteGzipRecordSize100k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeGZIP, b)
+}
+func BenchmarkWriteGzipRecordSize1m(b *testing.B) {
+	benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeGZIP, b)
+}
 
-func BenchmarkWriteSnappyRecordSize1k(b *testing.B)   { benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeSnappy, b) }
-func BenchmarkWriteSnappyRecordSize10k(b *testing.B)  { benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeSnappy, b) }
-func BenchmarkWriteSnappyRecordSize100k(b *testing.B) { benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeSnappy, b) }
-func BenchmarkWriteSnappyRecordSize1m(b *testing.B)   { benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeSnappy, b) }
+func BenchmarkWriteSnappyRecordSize1k(b *testing.B) {
+	benchmarkWriteRecordSize(1024, false, recordio.CompressionTypeSnappy, b)
+}
+func BenchmarkWriteSnappyRecordSize10k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*10, false, recordio.CompressionTypeSnappy, b)
+}
+func BenchmarkWriteSnappyRecordSize100k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*100, false, recordio.CompressionTypeSnappy, b)
+}
+func BenchmarkWriteSnappyRecordSize1m(b *testing.B) {
+	benchmarkWriteRecordSize(1024*1024, false, recordio.CompressionTypeSnappy, b)
+}
 
-func BenchmarkWriteSyncRecordSize1k(b *testing.B)   { benchmarkWriteRecordSize(1024, true, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteSyncRecordSize10k(b *testing.B)  { benchmarkWriteRecordSize(1024*10, true, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteSyncRecordSize100k(b *testing.B) { benchmarkWriteRecordSize(1024*100, true, recordio.CompressionTypeNone, b) }
-func BenchmarkWriteSyncRecordSize1m(b *testing.B)   { benchmarkWriteRecordSize(1024*1024, true, recordio.CompressionTypeNone, b) }
+func BenchmarkWriteSyncRecordSize1k(b *testing.B) {
+	benchmarkWriteRecordSize(1024, true, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteSyncRecordSize10k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*10, true, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteSyncRecordSize100k(b *testing.B) {
+	benchmarkWriteRecordSize(1024*100, true, recordio.CompressionTypeNone, b)
+}
+func BenchmarkWriteSyncRecordSize1m(b *testing.B) {
+	benchmarkWriteRecordSize(1024*1024, true, recordio.CompressionTypeNone, b)
+}
 
 func randomRecordOfSize(l int) []byte {
 	bytes := make([]byte, l)
@@ -48,7 +80,7 @@ func benchmarkWriteRecordSize(recSize int, sync bool, compType int, b *testing.B
 		assert.Nil(b, err)
 		defer os.Remove(tmpFile.Name())
 
-		writer, err := recordio.NewCompressedFileWriterWithFile(tmpFile, compType)
+		writer, err := recordio.NewFileWriter(recordio.File(tmpFile), recordio.CompressionType(compType))
 		assert.Nil(b, err)
 		assert.Nil(b, writer.Open())
 

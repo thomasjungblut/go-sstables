@@ -3,7 +3,6 @@ package recordio
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/gogo/protobuf/proto"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
@@ -75,30 +74,6 @@ type ReadAtI interface {
 	OpenClosableI
 	// Reads the next record at the given offset, EOF error when it reaches the end signalled by (nil, io.EOF), implementation must be thread-safe
 	ReadNextAt(offset uint64) ([]byte, error)
-}
-
-type ProtoReaderI interface {
-	OpenClosableI
-	// Reads the next record into the passed message record, EOF error when it reaches the end signalled by (nil, io.EOF)
-	ReadNext(record proto.Message) (proto.Message, error)
-	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
-	SkipNext() error
-}
-
-// this type is thread-safe
-type ProtoReadAtI interface {
-	OpenClosableI
-	// Reads the next record at the given offset into the passed message record, EOF error when it reaches the end signalled by (nil, io.EOF), implementation must be thread-safe
-	ReadNextAt(record proto.Message, offset uint64) (proto.Message, error)
-}
-
-type ProtoWriterI interface {
-	OpenClosableI
-	SizeI
-	// Appends a record, returns the current offset this item was written to
-	Write(record proto.Message) (uint64, error)
-	// Appends a record and forces a disk sync, returns the current offset this item was written to
-	WriteSync(record proto.Message) (uint64, error)
 }
 
 func NewCompressorForType(compType int) (compressor.CompressionI, error) {

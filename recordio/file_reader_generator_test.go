@@ -101,7 +101,7 @@ func writeUncompressedSingleRecord(t *testing.T, path string) {
 
 func newUncompressedOpenedWriterAtPath(path string) (*FileWriter, error) {
 	_ = os.Remove(path)
-	r, err := NewFileWriterWithPath(path)
+	r, err := NewFileWriter(Path(path))
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func newUncompressedOpenedWriterAtPath(path string) (*FileWriter, error) {
 
 func newCompressedOpenedWriterAtPath(path string, compType int) (*FileWriter, error) {
 	_ = os.Remove(path)
-	r, err := NewCompressedFileWriterWithPath(path, compType)
+	r, err := NewFileWriter(Path(path), CompressionType(compType))
 	if err != nil {
 		return nil, err
 	}

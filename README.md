@@ -46,6 +46,22 @@ One can update dependencies via:
 go get -u <repo url>
 ```
 
+### Generating protobufs
+
+This needs some pre-requisites installed, namely the [protobuf compiler](https://github.com/protocolbuffers/protobuf/releases) and the go generator plugin. The latter can be installed as a go package:
+
+```
+go install google.golang.org/protobuf/cmd/protoc-gen-go
+```
+
+Full installation details can be found in the [protobuf dev documentation](https://developers.google.com/protocol-buffers/docs/gotutorial#compiling-your-protocol-buffers).
+
+Once installed, one can generate the protobuf structs using:
+
+```
+make compile-proto
+```
+
 ### Releasing the Go Module
 
 [General Guidance](https://github.com/golang/go/wiki/Modules#releasing-modules-all-versions)

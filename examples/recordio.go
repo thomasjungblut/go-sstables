@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/thomasjungblut/go-sstables/examples/proto"
 	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"io"
 	"log"
 	"os"
@@ -19,7 +20,7 @@ func recordioMain() {
 }
 
 func simpleRead(path string) {
-	reader, err := recordio.NewProtoReaderWithPath(path)
+	reader, err := rProto.NewProtoReaderWithPath(path)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -51,7 +52,7 @@ func simpleRead(path string) {
 }
 
 func simpleWrite(path string) {
-	writer, err := recordio.NewCompressedProtoWriterWithPath(path, recordio.CompressionTypeSnappy)
+	writer, err := rProto.NewWriter(rProto.Path(path), rProto.CompressionType(recordio.CompressionTypeSnappy))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -73,7 +74,7 @@ func simpleWrite(path string) {
 }
 
 func simpleReadAtOffset(path string) {
-	reader, err := recordio.NewMMapProtoReaderWithPath(path)
+	reader, err := rProto.NewMMapProtoReaderWithPath(path)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

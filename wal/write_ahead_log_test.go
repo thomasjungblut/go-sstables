@@ -73,7 +73,7 @@ func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir),
 		MaximumWalFileSizeBytes(TestMaxWalFileSize),
 		WriterFactory(func(path string) (recordio.WriterI, error) {
-			return recordio.NewCompressedFileWriterWithPath(path, recordio.CompressionTypeSnappy)
+			return recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
 		}),
 		ReaderFactory(func(path string) (recordio.ReaderI, error) {
 			return recordio.NewFileReaderWithPath(path)

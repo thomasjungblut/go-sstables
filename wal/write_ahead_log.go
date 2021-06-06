@@ -63,7 +63,7 @@ func NewWriteAheadLogOptions(walOptions ...Option) (*Options, error) {
 		basePath:       "",
 		maxWalFileSize: DefaultMaxWalSize,
 		writerFactory: func(path string) (recordio.WriterI, error) {
-			return recordio.NewFileWriterWithPath(path)
+			return recordio.NewFileWriter(recordio.Path(path))
 		},
 		readerFactory: func(path string) (recordio.ReaderI, error) {
 			return recordio.NewFileReaderWithPath(path)

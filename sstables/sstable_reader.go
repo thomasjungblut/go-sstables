@@ -2,11 +2,11 @@ package sstables
 
 import (
 	"errors"
-	pb "github.com/gogo/protobuf/proto"
 	"github.com/steakknife/bloomfilter"
-	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	pb "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"io"
 	"io/ioutil"
@@ -19,7 +19,7 @@ type SSTableReader struct {
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.KeyComparator
 	index         *skiplist.SkipListMap // key ([]byte) to uint64 value file offset
-	dataReader    *recordio.MMapProtoReader
+	dataReader    *rProto.MMapProtoReader
 	metaData      *proto.MetaData
 }
 
@@ -107,7 +107,7 @@ func (reader *SSTableReader) Close() error {
 	return reader.dataReader.Close()
 }
 
-func (reader *SSTableReader) MetaData() (*proto.MetaData) {
+func (reader *SSTableReader) MetaData() *proto.MetaData {
 	return reader.metaData
 }
 
@@ -144,7 +144,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		return nil, err
 	}
 
-	dataReader, err := recordio.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
+	dataReader, err := rProto.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 }
 
 func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (*skiplist.SkipListMap, error) {
-	reader, err := recordio.NewProtoReaderWithPath(indexPath)
+	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
 		return nil, err
 	}

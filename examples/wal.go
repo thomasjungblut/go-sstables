@@ -2,34 +2,36 @@ package main
 
 import (
 	"fmt"
-	pb "github.com/gogo/protobuf/proto"
-	"github.com/thomasjungblut/go-sstables/examples/proto"
+
+	exProto "github.com/thomasjungblut/go-sstables/examples/proto"
 	. "github.com/thomasjungblut/go-sstables/wal"
+	wProto "github.com/thomasjungblut/go-sstables/wal/proto"
+	pb "google.golang.org/protobuf/proto"
 	"log"
 	"os"
 )
 
 func main() {
 	path := "/tmp/wal_example/"
-	os.MkdirAll(path, 0777)
+	_ = os.MkdirAll(path, 0777)
 	defer os.RemoveAll(path)
 
 	opts, err := NewWriteAheadLogOptions(BasePath(path))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
-	wal, err := NewProtoWriteAheadLog(opts)
+	wal, err := wProto.NewProtoWriteAheadLog(opts)
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
 
-	updateMutation := proto.UpdateMutation{
+	updateMutation := exProto.UpdateMutation{
 		ColumnName:  "some_col",
 		ColumnValue: "some_val",
 	}
-	mutation := proto.Mutation{
+	mutation := exProto.Mutation{
 		SeqNumber: 1,
-		Mutation:  &proto.Mutation_Update{Update: &updateMutation},
+		Mutation:  &exProto.Mutation_Update{Update: &updateMutation},
 	}
 
 	err = wal.AppendSync(&mutation)
@@ -37,12 +39,12 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 
-	deleteMutation := proto.DeleteMutation{
+	deleteMutation := exProto.DeleteMutation{
 		ColumnName: "some_col",
 	}
-	mutation = proto.Mutation{
+	mutation = exProto.Mutation{
 		SeqNumber: 2,
-		Mutation:  &proto.Mutation_Delete{Delete: &deleteMutation},
+		Mutation:  &exProto.Mutation_Delete{Delete: &deleteMutation},
 	}
 
 	err = wal.AppendSync(&mutation)
@@ -56,14 +58,14 @@ func main() {
 	}
 
 	err = wal.Replay(func() pb.Message {
-		return &proto.Mutation{}
+		return &exProto.Mutation{}
 	}, func(record pb.Message) error {
-		mutation := record.(*proto.Mutation)
+		mutation := record.(*exProto.Mutation)
 		fmt.Printf("seq no: %d\n", mutation.SeqNumber)
 		switch x := mutation.Mutation.(type) {
-		case *proto.Mutation_Update:
+		case *exProto.Mutation_Update:
 			fmt.Printf("update with colname %s and val %s\n", x.Update.ColumnName, x.Update.ColumnValue)
-		case *proto.Mutation_Delete:
+		case *exProto.Mutation_Delete:
 			fmt.Printf("delete with colname %s\n", x.Delete.ColumnName)
 		default:
 			return fmt.Errorf("proto.Mutation has unexpected oneof type %T", x)

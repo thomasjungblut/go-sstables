@@ -122,10 +122,12 @@ func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, pay
 	return written, nil
 }
 
+// Appends a record of bytes, returns the current offset this item was written to
 func (w *FileWriter) Write(record []byte) (uint64, error) {
 	return writeInternal(w, record, false)
 }
 
+// Appends a record of bytes and forces a disk sync, returns the current offset this item was written to
 func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
 	return writeInternal(w, record, true)
 }
@@ -186,35 +188,66 @@ func (w *FileWriter) Size() uint64 {
 	return w.currentOffset
 }
 
-// TODO(thomas): use an option pattern instead
+// options
 
-// creates a new writer under the given path, without any compression
-func NewFileWriterWithPath(path string) (*FileWriter, error) {
-	return NewCompressedFileWriterWithPath(path, CompressionTypeNone)
+type FileWriterOptions struct {
+	path            string
+	file            *os.File
+	compressionType int
 }
 
-// creates a new writer with the given os.File, without any compression
-func NewFileWriterWithFile(file *os.File) (*FileWriter, error) {
-	return NewCompressedFileWriterWithFile(file, CompressionTypeNone)
+type FileWriterOption func(*FileWriterOptions)
+
+func Path(p string) FileWriterOption {
+	return func(args *FileWriterOptions) {
+		args.path = p
+	}
 }
 
-// creates a new writer under the given path, with the desired compression
-func NewCompressedFileWriterWithPath(path string, compType int) (*FileWriter, error) {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return nil, err
+func File(p *os.File) FileWriterOption {
+	return func(args *FileWriterOptions) {
+		args.file = p
+	}
+}
+
+func CompressionType(p int) FileWriterOption {
+	return func(args *FileWriterOptions) {
+		args.compressionType = p
+	}
+}
+
+// creates a new writer with the given options, either Path or File must be supplied, compression is optional.
+func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
+	opts := &FileWriterOptions{
+		path:            "",
+		file:            nil,
+		compressionType: CompressionTypeNone,
 	}
 
-	r, err := NewCompressedFileWriterWithFile(f, compType)
-	if err != nil {
-		return nil, err
+	for _, writeOption := range writerOptions {
+		writeOption(opts)
 	}
 
-	return r, nil
+	if (opts.file != nil) && (opts.path != "") {
+		return nil, errors.New("either os.File or string path must be supplied, never both")
+	}
+
+	if opts.file == nil {
+		if opts.path == "" {
+			return nil, errors.New("path was not supplied")
+		}
+		f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+		if err != nil {
+			return nil, err
+		}
+		opts.file = f
+	}
+
+	return newCompressedFileWriterWithFile(opts.file, opts.compressionType)
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func NewCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, error) {
+func newCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, error) {
 	return &FileWriter{
 		file:            file,
 		open:            false,
