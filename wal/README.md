@@ -28,7 +28,7 @@ opts, err := NewWriteAheadLogOptions(
     MaximumWalFileSizeBytes(1024 * 1024 * 10), 
     // customization to the recordio writer, for example compression for the records:
     WriterFactory(func(path string) (recordio.WriterI, error) {
-        return recordio.NewFileWriter(recordio.WriteBasePath(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
+        return recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
     })),
     // readers can be customized in similar fashion (if necessary)
     ReaderFactory(func(path string) (recordio.ReaderI, error) {
