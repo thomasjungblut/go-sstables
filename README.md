@@ -5,6 +5,8 @@
 `go-sstables` is a Go library that contains NoSQL database building blocks like a sequential record format (recordio),
 a sorted string table (sstable), a write-ahead-log (WAL), and a memory store (memstore) that stores key/value pairs in memory using a skip list.
 
+You can frequently find those in embedded databases as well, notable examples are [RocksDB](https://github.com/facebook/rocksdb) or [LevelDB](https://github.com/google/leveldb).
+
 While plain `[]byte` are at the core of this library, there are wrappers and bindings for protobuf to enable more convenient serialization. 
 
 ## Installation
@@ -16,6 +18,10 @@ This is a library as it does not contain any installable binary, which means you
 ## Documentation
 
 This README became quite large, thus the documentation is now separated by package. There you'll find more information on how to use each individual package.
+
+[RocksDB has a great overview](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview#3-high-level-architecture) of how the components usually play together to get an idea:
+
+![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
 
 * [RecordIO](recordio/README.md)
   * [Benchmark](benchmark/README.md)
