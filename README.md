@@ -17,11 +17,11 @@ This is a library as it does not contain any installable binary, which means you
 
 ## Documentation
 
-This README became quite large, thus the documentation is now separated by package. There you'll find more information on how to use each individual package.
-
 [RocksDB has a great overview](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview#3-high-level-architecture) of how the components usually play together to get an idea:
 
 ![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
+
+This README became quite large, thus the documentation is now separated by package. There you'll find more information on how to use each individual package:
 
 * [RecordIO](recordio/README.md)
   * [Benchmark](benchmark/README.md)
