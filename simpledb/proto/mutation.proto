@@ -1,0 +1,26 @@
+syntax = "proto3";
+package proto;
+option go_package = "github.com/thomasjungblut/simpledb/proto";
+
+message AddMutation {
+    string columnName = 1;
+    string columnValue = 2;
+}
+
+message UpdateMutation {
+    string columnName = 1;
+    string columnValue = 2;
+}
+
+message DeleteMutation {
+    string columnName = 1;
+}
+
+message Mutation {
+    uint64 seqNumber = 1;
+    oneof mutation {
+        AddMutation addition = 2;
+        UpdateMutation update = 3;
+        DeleteMutation delete = 4;
+    }
+}
