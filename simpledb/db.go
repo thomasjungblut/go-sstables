@@ -4,6 +4,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
@@ -13,10 +14,11 @@ import (
 )
 
 type DB struct {
-	basePath string
-	memStore *memstore.MemStore
-	rwLock   *sync.RWMutex
-	wal      *wal.WriteAheadLog
+	basePath          string
+	memStore          memstore.MemStoreI
+	rwLock            *sync.RWMutex
+	wal               wal.WriteAheadLogI
+	mainSSTableReader sstables.SSTableReaderI
 }
 
 func (db *DB) Open() error {
@@ -30,23 +32,48 @@ func (db *DB) Close() error {
 }
 
 func (db *DB) Get(key string) (string, error) {
+	keyBytes := []byte(key)
+
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	// TODO we also need to include the sstable
 
-	val, err := db.memStore.Get([]byte(key))
+	// we have to read the sstable first and then augment it with
+	// any changes that were reflected in the memstore
+	var sstableNotFound bool
+	ssTableVal, err := db.mainSSTableReader.Get(keyBytes)
 	if err != nil {
-		if err == memstore.KeyNotFound {
-			return "", NotFound
+		if err == sstables.NotFound {
+			sstableNotFound = true
+		} else {
+			return "", err
 		}
-		return "", err
 	}
 
-	return string(val), nil
+	memStoreVal, err := db.memStore.Get(keyBytes)
+	if err != nil {
+		if err == memstore.KeyNotFound {
+			if sstableNotFound {
+				return "", NotFound
+			} else {
+				return string(ssTableVal), nil
+			}
+		} else if err == memstore.KeyTombstoned {
+			// regardless of what we found on the sstable:
+			// if the memstore says it's tombstoned it's considered deleted
+			return "", NotFound
+		} else {
+			return "", err
+		}
+	}
+
+	// memstore always wins if there is a value available
+	return string(memStoreVal), nil
 }
 
 func (db *DB) Put(key, value string) error {
-	bytes, err := proto.Marshal(&dbproto.WalMutation{
+	keyBytes := []byte(key)
+	valBytes := []byte(value)
+	walBytes, err := proto.Marshal(&dbproto.WalMutation{
 		Mutation: &dbproto.WalMutation_Addition{
 			Addition: &dbproto.UpsertMutation{
 				Key:   key,
@@ -61,14 +88,27 @@ func (db *DB) Put(key, value string) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	err = db.wal.Appender.AppendSync(bytes)
+	err = db.wal.Append(walBytes)
 	if err != nil {
 		return err
 	}
 
-	err = db.memStore.Upsert([]byte(key), []byte(value))
+	err = db.memStore.Upsert(keyBytes, valBytes)
 	if err != nil {
 		return err
+	}
+
+	// TODO below should be done in a goroutine to not affect write latency
+	if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
+		err = db.memStore.Flush(sstables.WriteBasePath(path.Join(db.basePath, "sstable_next")))
+		if err != nil {
+			return err
+		}
+
+		// TODO here we should already merge both sstables for ease of use
+		// have a channel with capacity 1 block on this operation if the existing didn't finish yet
+
+		db.memStore = memstore.NewMemStore()
 	}
 
 	return nil
@@ -89,11 +129,18 @@ func (db *DB) Delete(key string) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	err = db.wal.Appender.AppendSync(bytes)
+	err = db.wal.Append(bytes)
 	if err != nil {
 		return err
 	}
 
+	err = db.memStore.Delete([]byte(key))
+	if err != nil {
+		if err == memstore.KeyNotFound {
+			return NotFound
+		}
+		return err
+	}
 	return nil
 }
 
@@ -131,9 +178,10 @@ func NewSimpleDB(basePath string) (*DB, error) {
 	rwLock := &sync.RWMutex{}
 
 	return &DB{
-		basePath: basePath,
-		memStore: memStore,
-		rwLock:   rwLock,
-		wal:      writeAheadLog,
+		basePath:          basePath,
+		memStore:          memStore,
+		rwLock:            rwLock,
+		wal:               writeAheadLog,
+		mainSSTableReader: sstables.EmptySStableReader{},
 	}, nil
 }

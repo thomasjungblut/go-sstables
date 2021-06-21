@@ -8,6 +8,7 @@ import (
 
 var KeyAlreadyExists = errors.New("key already exists")
 var KeyNotFound = errors.New("key not found")
+var KeyTombstoned = errors.New("key was tombstoned")
 
 //noinspection GoNameStartsWithPackageName
 type MemStoreI interface {
@@ -16,6 +17,7 @@ type MemStoreI interface {
 	// returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
 	// returns the values for the given key, if not exists returns a KeyNotFound error
+	// if the key exists (meaning it was added and deleted) it will return KeyTombstoned as an error
 	Get(key []byte) ([]byte, error)
 	// inserts when the key does not exist yet, updates the current value if the key exists.
 	Upsert(key []byte, value []byte) error
@@ -68,7 +70,7 @@ func (m *MemStore) Get(key []byte) ([]byte, error) {
 	}
 	val := *element.(ValueStruct).value
 	if val == nil {
-		return nil, KeyNotFound
+		return nil, KeyTombstoned
 	}
 	return val, nil
 }
@@ -170,7 +172,7 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 	return nil
 }
 
-func NewMemStore() (*MemStore) {
+func NewMemStore() *MemStore {
 	cmp := skiplist.BytesComparator
 	return &MemStore{skipListMap: skiplist.NewSkipListMap(cmp), comparator: cmp}
 }

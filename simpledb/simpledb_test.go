@@ -26,6 +26,8 @@ func TestPutAndGetsEndToEnd(t *testing.T) {
 	assert.Equal(t, "c", val)
 }
 
+// TODO think of a good end2end test that will write sufficient amount of data in a pattern and delete/query accordingly
+
 func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
 	assert.Nil(t, err)

@@ -83,7 +83,11 @@ func TestMemStoreDeleteTombstones(t *testing.T) {
 	// make sure that the value was changed under the hood
 	kv, err = m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
+
+	// make sure that Get will return the new error message
 	assert.Nil(t, *kv.(ValueStruct).value)
+	_, err = m.Get([]byte("a"))
+	assert.Equal(t, KeyTombstoned, err)
 }
 
 func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {

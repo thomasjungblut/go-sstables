@@ -15,6 +15,8 @@ type WriteAheadLogReplayI interface {
 
 type WriteAheadLogAppendI interface {
 	recordio.CloseableI
+	// Appends a given record and does NOT execute fsync to guarantee the persistence of the record.
+	Append(record []byte) error
 	// Appends a given record and execute fsync to guarantee the persistence of the record.
 	// Has considerably less throughput than Append.
 	AppendSync(record []byte) error
