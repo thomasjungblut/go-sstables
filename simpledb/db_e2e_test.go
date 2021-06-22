@@ -37,8 +37,17 @@ func TestPutAndGetsEndToEndLargerData(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 		assert.Nil(t, db.Put(strconv.Itoa(i), randomRecordWithPrefix(i)))
+		// try to scan each of the previous elements, including the current
+		for j := 0; j <= i; j++ {
+			key := strconv.Itoa(j)
+
+			val, err := db.Get(key)
+			assert.Nil(t, err)
+			assert.Truef(t, strings.HasPrefix(val, key),
+				"expected key %s as prefix, but was %s", key, val[:len(key)])
+		}
 	}
 }
 
@@ -52,8 +61,6 @@ func randomRecordWithPrefix(prefix int) string {
 
 	return builder.String()
 }
-
-// TODO think of a good end2end test that will write sufficient amount of data in a pattern and delete/query accordingly
 
 func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
