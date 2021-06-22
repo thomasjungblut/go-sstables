@@ -3,7 +3,6 @@ package sstables
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"os"
 	"sort"
 	"testing"
 )
@@ -38,14 +37,14 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
 		assert.Nil(t, err)
-		defer os.RemoveAll(writer.opts.basePath)
+		defer cleanWriterDir(t, writer)
 		expectedNumbers = append(expectedNumbers, streamedWriteElements(t, writer, numElementsPerFile)...)
 		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
 	assert.Nil(t, err)
-	defer os.RemoveAll(outWriter.opts.basePath)
+	defer cleanWriterDir(t, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator)
 	err = merger.Merge(iterators, outWriter)

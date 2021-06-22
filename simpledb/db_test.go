@@ -14,22 +14,20 @@ func TestCreationWhenDirNotAvailable(t *testing.T) {
 
 func TestSimplePutAndGet(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGet")
-	defer os.RemoveAll(db.basePath)
-	defer assert.Nil(t, db.Close())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
 
 	assert.Nil(t, db.Put("a", "b"))
 
 	val, err := db.Get("a")
 	assert.Nil(t, err)
 	assert.Equal(t, "b", val)
-
-	assert.Nil(t, db.Close())
 }
 
 func TestGetNotFound(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testGetNotFound")
-	defer os.RemoveAll(db.basePath)
-	defer assert.Nil(t, db.Close())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
 
 	_, err := db.Get("a")
 	assert.Equal(t, NotFound, err)
@@ -37,8 +35,8 @@ func TestGetNotFound(t *testing.T) {
 
 func TestDeleteNotFound(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testDeleteNotFound")
-	defer os.RemoveAll(db.basePath)
-	defer assert.Nil(t, db.Close())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
 
 	err := db.Delete("a")
 	assert.Equal(t, NotFound, err)
@@ -46,8 +44,8 @@ func TestDeleteNotFound(t *testing.T) {
 
 func TestSimplePutAndGetAndDelete(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGetAndDelete")
-	defer os.RemoveAll(db.basePath)
-	defer assert.Nil(t, db.Close())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
 
 	_, err := db.Get("a")
 	assert.Equal(t, NotFound, err)
@@ -62,6 +60,4 @@ func TestSimplePutAndGetAndDelete(t *testing.T) {
 
 	_, err = db.Get("a")
 	assert.Equal(t, NotFound, err)
-
-	assert.Nil(t, db.Close())
 }

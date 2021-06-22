@@ -15,7 +15,7 @@ import (
 func TestReadSkipListWriteEndToEnd(t *testing.T) {
 	writer, err := newTestSSTableSimpleWriter()
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.streamWriter.opts.basePath)
+	defer cleanWriterDir(t, writer.streamWriter)
 
 	expectedNumbers := randomIntegerSlice(1000)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements(expectedNumbers))
@@ -27,7 +27,7 @@ func TestReadSkipListWriteEndToEnd(t *testing.T) {
 func TestReadStreamedWriteEndToEnd(t *testing.T) {
 	writer, err := newTestSSTableStreamWriter()
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -37,7 +37,7 @@ func TestReadStreamedWriteEndToEnd(t *testing.T) {
 func TestReadStreamedWriteEndToEndDataCompressionSnappy(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithDataCompression(recordio.CompressionTypeSnappy)
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -46,7 +46,7 @@ func TestReadStreamedWriteEndToEndDataCompressionSnappy(t *testing.T) {
 func TestReadStreamedWriteEndToEndDataCompressionGzip(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithDataCompression(recordio.CompressionTypeGZIP)
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -55,7 +55,7 @@ func TestReadStreamedWriteEndToEndDataCompressionGzip(t *testing.T) {
 func TestReadStreamedWriteEndToEndDataCompressionNone(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithDataCompression(recordio.CompressionTypeNone)
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -64,7 +64,7 @@ func TestReadStreamedWriteEndToEndDataCompressionNone(t *testing.T) {
 func TestReadStreamedWriteEndToEndIndexCompressionSnappy(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithIndexCompression(recordio.CompressionTypeSnappy)
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -73,7 +73,7 @@ func TestReadStreamedWriteEndToEndIndexCompressionSnappy(t *testing.T) {
 func TestReadStreamedWriteEndToEndIndexCompressionGzip(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithIndexCompression(recordio.CompressionTypeGZIP)
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -82,7 +82,7 @@ func TestReadStreamedWriteEndToEndIndexCompressionGzip(t *testing.T) {
 func TestReadStreamedWriteEndToEndForRangeTesting(t *testing.T) {
 	writer, err := newTestSSTableStreamWriter()
 	assert.Nil(t, err)
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
 
 	expectedNumbers := streamedWriteElements(t, writer, 100)
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
@@ -249,7 +249,7 @@ func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNum
 		ReadBasePath(sstablePath),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	// check the metadata is accurate
 	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
@@ -270,7 +270,7 @@ func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumber
 		ReadBasePath(sstablePath),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	// check the metadata is accurate
 	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
@@ -287,6 +287,18 @@ func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumber
 		}
 	}
 
+}
+
+func closeWriter(t *testing.T, writer *SSTableStreamWriter) {
+	func() { assert.Nil(t, writer.Close()) }()
+}
+
+func closeReader(t *testing.T, reader SSTableReaderI) {
+	func() { assert.Nil(t, reader.Close()) }()
+}
+
+func cleanWriterDir(t *testing.T, writer *SSTableStreamWriter) {
+	func() { assert.Nil(t, os.RemoveAll(writer.opts.basePath)) }()
 }
 
 func intToByteSlice(e int) []byte {

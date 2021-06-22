@@ -4,12 +4,14 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"sync"
 )
 
@@ -19,6 +21,8 @@ type DB struct {
 	rwLock            *sync.RWMutex
 	wal               wal.WriteAheadLogI
 	mainSSTableReader sstables.SSTableReaderI
+	// this path is a child to the basePath, currently encodes an increasing number
+	currentSSTablePath string
 }
 
 func (db *DB) Open() error {
@@ -27,7 +31,17 @@ func (db *DB) Open() error {
 }
 
 func (db *DB) Close() error {
-	// this should close all files properly, flush the memstore and merge all sstables
+	// this should close all files properly, TODO flush the memstore and merge all sstables
+	err := db.wal.Close()
+	if err != nil {
+		return err
+	}
+
+	err = db.mainSSTableReader.Close()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -99,15 +113,61 @@ func (db *DB) Put(key, value string) error {
 	}
 
 	// TODO below should be done in a goroutine to not affect write latency
+	// TODO here we should already merge both sstables for ease of use
+	// TODO some of the parts can be atomic swaps instead of being under the rwLock
+	// have a channel with capacity 1 block on this operation if the existing didn't finish yet
 	if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
-		err = db.memStore.Flush(sstables.WriteBasePath(path.Join(db.basePath, "sstable_next")))
+		// normally we would flush the memstore to disk, for simplicity sake we can directly merge it with the
+		// sstable that we already have and swap the reader out.
+		memStoreIterator := db.memStore.SStableIterator()
+		sstableIterator, err := db.mainSSTableReader.Scan()
 		if err != nil {
 			return err
 		}
 
-		// TODO here we should already merge both sstables for ease of use
-		// have a channel with capacity 1 block on this operation if the existing didn't finish yet
+		readPath := path.Join(db.basePath, db.currentSSTablePath)
+		i, _ := strconv.Atoi(db.currentSSTablePath)
+		db.currentSSTablePath = strconv.Itoa(i + 1)
+		writePath := path.Join(db.basePath, db.currentSSTablePath)
+		err = os.MkdirAll(writePath, os.ModeDir)
+		if err != nil {
+			return err
+		}
 
+		writer, err := sstables.NewSSTableStreamWriter(
+			sstables.WriteBasePath(writePath),
+			sstables.WithKeyComparator(skiplist.BytesComparator),
+			sstables.BloomExpectedNumberOfElements(uint64(db.memStore.Size())))
+		if err != nil {
+			return err
+		}
+
+		err = sstables.NewSSTableMerger(skiplist.BytesComparator).Merge([]sstables.SSTableIteratorI{
+			memStoreIterator,
+			sstableIterator,
+		}, writer)
+		if err != nil {
+			return err
+		}
+
+		reader, err := sstables.NewSSTableReader(
+			sstables.ReadBasePath(writePath),
+			sstables.ReadWithKeyComparator(skiplist.BytesComparator),
+		)
+		if err != nil {
+			return err
+		}
+
+		err = db.mainSSTableReader.Close()
+		if err != nil {
+			return err
+		}
+		err = os.RemoveAll(readPath)
+		if err != nil {
+			return err
+		}
+
+		db.mainSSTableReader = reader
 		db.memStore = memstore.NewMemStore()
 	}
 
@@ -178,10 +238,11 @@ func NewSimpleDB(basePath string) (*DB, error) {
 	rwLock := &sync.RWMutex{}
 
 	return &DB{
-		basePath:          basePath,
-		memStore:          memStore,
-		rwLock:            rwLock,
-		wal:               writeAheadLog,
-		mainSSTableReader: sstables.EmptySStableReader{},
+		basePath:           basePath,
+		memStore:           memStore,
+		rwLock:             rwLock,
+		wal:                writeAheadLog,
+		mainSSTableReader:  sstables.EmptySStableReader{},
+		currentSSTablePath: "0",
 	}, nil
 }

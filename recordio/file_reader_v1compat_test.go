@@ -11,7 +11,7 @@ import (
 func TestReaderHappyPathSingleRecordV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	// should contain an ascending 13 byte buffer
 	buf, err := reader.ReadNext()
@@ -24,7 +24,7 @@ func TestReaderHappyPathSingleRecordV1(t *testing.T) {
 func TestReaderHappyPathMultiRecordV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_UncompressedWriterMultiRecord_asc")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		buf, err := reader.ReadNext()
@@ -38,7 +38,7 @@ func TestReaderHappyPathMultiRecordV1(t *testing.T) {
 func TestReaderHappyPathMultiRecordSnappyCompressedV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_SnappyWriterMultiRecord_asc")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		buf, err := reader.ReadNext()
@@ -52,7 +52,7 @@ func TestReaderHappyPathMultiRecordSnappyCompressedV1(t *testing.T) {
 func TestReaderHappyPathSkipMultiRecordV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_UncompressedWriterMultiRecord_asc")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		if expectedLen%2 == 0 {
@@ -71,7 +71,7 @@ func TestReaderHappyPathSkipMultiRecordV1(t *testing.T) {
 func TestReaderHappyPathSkipMultiRecordCompressedV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_SnappyWriterMultiRecord_asc")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		if expectedLen%2 == 0 {
@@ -90,7 +90,7 @@ func TestReaderHappyPathSkipMultiRecordCompressedV1(t *testing.T) {
 func TestReaderHappyPathSkipAllMultiRecordV1(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v1_compat/recordio_UncompressedWriterMultiRecord_asc")
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		err = reader.SkipNext()
@@ -114,7 +114,7 @@ func TestReaderCompressionGzipHeaderV1(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_comp1", t)
 	err := reader.Open()
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 	assert.Equal(t, 1, reader.header.compressionType)
 }
 
@@ -122,7 +122,7 @@ func TestReaderCompressionSnappyHeaderV1(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_comp2", t)
 	err := reader.Open()
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 	assert.Equal(t, 2, reader.header.compressionType)
 }
 
@@ -134,7 +134,7 @@ func TestReaderCompressionUnknownV1(t *testing.T) {
 func TestReaderMagicNumberMismatchV1(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_mnm", t)
 	err := reader.Open()
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 	assert.Nil(t, err)
 
 	_, err = reader.ReadNext()

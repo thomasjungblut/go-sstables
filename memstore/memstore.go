@@ -9,10 +9,13 @@ import (
 var KeyAlreadyExists = errors.New("key already exists")
 var KeyNotFound = errors.New("key not found")
 var KeyTombstoned = errors.New("key was tombstoned")
+var KeyNil = errors.New("key was nil")
+var ValueNil = errors.New("value was nil")
 
 //noinspection GoNameStartsWithPackageName
 type MemStoreI interface {
 	// inserts when the key does not exist yet, returns a KeyAlreadyExists error when the key exists.
+	// Neither nil key nor values are allowed, KeyNil and ValueNil will be returned accordingly.
 	Add(key []byte, value []byte) error
 	// returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
@@ -20,15 +23,24 @@ type MemStoreI interface {
 	// if the key exists (meaning it was added and deleted) it will return KeyTombstoned as an error
 	Get(key []byte) ([]byte, error)
 	// inserts when the key does not exist yet, updates the current value if the key exists.
+	// Neither nil key nor values are allowed, KeyNil and ValueNil will be returned accordingly.
 	Upsert(key []byte, value []byte) error
-	// deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist
+	// deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist.
+	// Effectively this will set a tombstone for the given key and set its value to be nil.
 	Delete(key []byte) error
-	// deletes the key from the MemStore
+	// deletes the key from the MemStore. The semantic is the same as in Delete, however when there is no
+	// key in the memstore it will also not set a tombstone for it and there will be no error when the key isn't there.
 	DeleteIfExists(key []byte) error
 	// returns a rough estimate of size in bytes of this MemStore
 	EstimatedSizeInBytes() uint64
 	// flushes the current memstore to disk as an SSTable, error if unsuccessful
 	Flush(opts ...sstables.WriterOption) error
+	// returns the current memstore as an sstables.SStableIteratorI to iterate the table in memory.
+	// if there is a tombstoned record, the key will be returned but the value will be nil.
+	// this is especially useful when you want to merge on-disk sstables with in memory memstores
+	SStableIterator() sstables.SSTableIteratorI
+	// Returns how many elements are in this memstore. This also includes tombstoned keys.
+	Size() int
 }
 
 type ValueStruct struct {
@@ -81,11 +93,11 @@ func (m *MemStore) Upsert(key []byte, value []byte) error {
 
 func upsertInternal(m *MemStore, key []byte, value []byte, errorIfKeyExist bool) error {
 	if key == nil {
-		return errors.New("key was nil")
+		return KeyNil
 	}
 
 	if value == nil {
-		return errors.New("value was nil")
+		return ValueNil
 	}
 
 	element, err := m.skipListMap.Get(key)
@@ -130,6 +142,10 @@ func (m *MemStore) EstimatedSizeInBytes() uint64 {
 	return uint64(1.15 * float32(m.estimatedSize))
 }
 
+func (m *MemStore) Size() int {
+	return m.skipListMap.Size()
+}
+
 func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 	writerOptions = append(writerOptions, sstables.WithKeyComparator(m.comparator))
 	writer, err := sstables.NewSSTableStreamWriter(writerOptions...)
@@ -170,6 +186,28 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 	}
 
 	return nil
+}
+
+type SkipListSStableIterator struct {
+	iterator skiplist.SkipListIteratorI
+}
+
+func (s SkipListSStableIterator) Next() ([]byte, []byte, error) {
+	key, val, err := s.iterator.Next()
+	if err != nil {
+		if err == skiplist.Done {
+			return nil, nil, sstables.Done
+		} else {
+			return nil, nil, err
+		}
+	}
+	valStruct := val.(ValueStruct)
+	return key.([]byte), *valStruct.value, nil
+}
+
+func (m *MemStore) SStableIterator() sstables.SSTableIteratorI {
+	it, _ := m.skipListMap.Iterator()
+	return &SkipListSStableIterator{iterator: it}
 }
 
 func NewMemStore() *MemStore {

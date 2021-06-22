@@ -6,7 +6,7 @@ import (
 )
 
 const WriteAheadFolder = "wal"
-const MemStoreMaxSizeBytes uint64 = 16 * 1024 * 1024   // 16mb
+const MemStoreMaxSizeBytes uint64 = 64 * 1024 * 1024   // 64mb
 const WriteAheadMaxSizeBytes uint64 = 32 * 1024 * 1024 // 32mb
 
 var NotFound = errors.New("NotFound")

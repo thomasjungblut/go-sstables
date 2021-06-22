@@ -13,7 +13,7 @@ import (
 func TestReadWriteEndToEnd(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile))
 	assert.Nil(t, err)
 
@@ -23,7 +23,7 @@ func TestReadWriteEndToEnd(t *testing.T) {
 func TestReadWriteEndToEndGzip(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzip")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeGZIP))
 	assert.Nil(t, err)
 
@@ -33,7 +33,7 @@ func TestReadWriteEndToEndGzip(t *testing.T) {
 func TestReadWriteEndToEndSnappy(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappy")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeSnappy))
 	assert.Nil(t, err)
 
@@ -76,4 +76,24 @@ func endToEndReadWrite(writer *FileWriter, t *testing.T, tmpFile *os.File) {
 	assert.Equal(t, 59, numRead)
 	assert.Nil(t, reader.Close())
 	assert.Nil(t, inFile.Close())
+}
+
+func closeFileWriter(t *testing.T, writer *FileWriter) {
+	func() { assert.Nil(t, writer.Close()) }()
+}
+
+func closeOpenClosable(t *testing.T, oc OpenClosableI) {
+	func() { assert.Nil(t, oc.Close()) }()
+}
+
+func closeFileReader(t *testing.T, reader *FileReader) {
+	func() { assert.Nil(t, reader.Close()) }()
+}
+
+func closeMMapReader(t *testing.T, reader *MMapReader) {
+	func() { assert.Nil(t, reader.Close()) }()
+}
+
+func removeFileWriterFile(t *testing.T, writer *FileWriter) {
+	func() { assert.Nil(t, os.Remove(writer.file.Name())) }()
 }

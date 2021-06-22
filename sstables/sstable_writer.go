@@ -121,7 +121,6 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 }
 
 func (writer *SSTableStreamWriter) Close() error {
-	writer.metaData.MaxKey = writer.lastKey
 	err := writer.indexWriter.Close()
 	if err != nil {
 		return err
@@ -132,28 +131,30 @@ func (writer *SSTableStreamWriter) Close() error {
 		return err
 	}
 
-	if writer.opts.enableBloomFilter {
+	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
 		_, err := writer.bloomFilter.WriteFile(path.Join(writer.opts.basePath, BloomFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	bytes, err := proto.Marshal(writer.metaData)
-	if err != nil {
-		return err
-	}
+	if writer.metaData != nil {
+		writer.metaData.MaxKey = writer.lastKey
+		bytes, err := proto.Marshal(writer.metaData)
+		if err != nil {
+			return err
+		}
 
-	_, err = writer.metaDataFile.Write(bytes)
-	if err != nil {
-		return err
-	}
+		_, err = writer.metaDataFile.Write(bytes)
+		if err != nil {
+			return err
+		}
 
-	err = writer.metaDataFile.Close()
-	if err != nil {
-		return err
+		err = writer.metaDataFile.Close()
+		if err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 

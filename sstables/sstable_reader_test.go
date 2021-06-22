@@ -12,13 +12,13 @@ func TestSimpleHappyPathReadReadRecordIOV1(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	// 0 because there was no metadata file
 	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
 	assert.Equal(t, 0, len(reader.MetaData().MinKey))
 	assert.Equal(t, 0, len(reader.MetaData().MaxKey))
-	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
@@ -27,12 +27,12 @@ func TestSimpleHappyPathReadRecordIOV2(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
 	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
 	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
-	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
@@ -41,13 +41,13 @@ func TestSimpleHappyPathBloomRead(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	// 0 because there was no metadata file
 	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
 	assert.Equal(t, 0, len(reader.MetaData().MinKey))
 	assert.Equal(t, 0, len(reader.MetaData().MaxKey))
-	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
@@ -56,12 +56,12 @@ func TestSimpleHappyPathWithMetaData(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
 	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
 	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
-	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
@@ -70,7 +70,7 @@ func TestNegativeContainsHappyPath(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	assertNegativeContains(t, reader)
 }
@@ -80,7 +80,7 @@ func TestNegativeContainsHappyPathBloom(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
 	assertNegativeContains(t, reader)
 }
@@ -90,9 +90,9 @@ func TestScanStartingAt(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
-	expected := []int{1, 2, 3, 4, 5, 6, 7,}
+	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	// whole sequence when out of bounds to the left
 	it, err := reader.ScanStartingAt(intToByteSlice(0))
 	assert.Nil(t, err)
@@ -120,9 +120,9 @@ func TestScanRange(t *testing.T) {
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
-	defer reader.Close()
+	defer closeReader(t, reader)
 
-	expected := []int{1, 2, 3, 4, 5, 6, 7,}
+	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	// whole sequence when out of bounds to the left and right
 	it, err := reader.ScanRange(intToByteSlice(0), intToByteSlice(10))
 	assert.Nil(t, err)

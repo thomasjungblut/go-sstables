@@ -227,6 +227,11 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 		return nil, err
 	}
 
+	err = mpf.Close()
+	if err != nil {
+		return nil, err
+	}
+	
 	return md, nil
 }
 
