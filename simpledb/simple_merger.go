@@ -1,0 +1,77 @@
+package simpledb
+
+import (
+	"github.com/thomasjungblut/go-sstables/memstore"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"os"
+	"path"
+	"strconv"
+)
+
+func compactionFunc(key []byte, values [][]byte) ([]byte, []byte) {
+	// TODO I'm making some incorrect assumption here on the ordering
+	// last write wins, but we don't know here what was written last :)
+	return key, values[len(values)-1]
+}
+
+// TODO below should be done in a goroutine to not affect write latency
+// TODO here we should already merge both sstables for ease of use
+// TODO some of the parts can be atomic swaps instead of being under the rwLock
+// have a channel with capacity 1 block on this operation if the existing didn't finish yet
+func flushMemstoreAndMergeSStables(db *DB) error {
+	// normally we would flush the memstore to disk, for simplicity sake we can directly merge it with the
+	// sstable that we already have and swap the reader out.
+	memStoreIterator := db.memStore.SStableIterator()
+	sstableIterator, err := db.mainSSTableReader.Scan()
+	if err != nil {
+		return err
+	}
+
+	readPath := path.Join(db.basePath, db.currentSSTablePath)
+	i, _ := strconv.Atoi(db.currentSSTablePath)
+	db.currentSSTablePath = strconv.Itoa(i + 1)
+	writePath := path.Join(db.basePath, db.currentSSTablePath)
+	err = os.MkdirAll(writePath, os.ModeDir)
+	if err != nil {
+		return err
+	}
+
+	writer, err := sstables.NewSSTableStreamWriter(
+		sstables.WriteBasePath(writePath),
+		sstables.WithKeyComparator(skiplist.BytesComparator),
+		sstables.BloomExpectedNumberOfElements(uint64(db.memStore.Size())))
+	if err != nil {
+		return err
+	}
+
+	err = sstables.NewSSTableMerger(skiplist.BytesComparator).
+		MergeCompact([]sstables.SSTableIteratorI{
+			memStoreIterator,
+			sstableIterator,
+		}, writer, compactionFunc)
+	if err != nil {
+		return err
+	}
+
+	reader, err := sstables.NewSSTableReader(
+		sstables.ReadBasePath(writePath),
+		sstables.ReadWithKeyComparator(skiplist.BytesComparator),
+	)
+	if err != nil {
+		return err
+	}
+
+	err = db.mainSSTableReader.Close()
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(readPath)
+	if err != nil {
+		return err
+	}
+
+	db.mainSSTableReader = reader
+	db.memStore = memstore.NewMemStore()
+	return nil
+}

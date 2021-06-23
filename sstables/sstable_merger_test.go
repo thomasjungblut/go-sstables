@@ -52,3 +52,93 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
+
+func TestSSTableMergeAndCompactSingleFileEndToEnd(t *testing.T) {
+	writeMergeCompactAndCheck(t, 1, 1000)
+}
+
+func TestSSTableMergeAndCompactTwoFilesEndToEnd(t *testing.T) {
+	writeMergeCompactAndCheck(t, 2, 500)
+}
+
+func TestSSTableMergeAndCompactThreeFilesEndToEnd(t *testing.T) {
+	writeMergeCompactAndCheck(t, 3, 300)
+}
+
+func TestSSTableMergeAndCompactFourFilesEndToEnd(t *testing.T) {
+	writeMergeCompactAndCheck(t, 4, 250)
+}
+
+func TestSSTableMergeAndCompactFiveFilesEndToEnd(t *testing.T) {
+	writeMergeCompactAndCheck(t, 5, 200)
+}
+
+func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile int) {
+	var expectedNumbers []int
+	var iterators []SSTableIteratorI
+
+	for i := 0; i < numFiles; i++ {
+		writer, err := newTestSSTableStreamWriter()
+		assert.Nil(t, err)
+		defer cleanWriterDir(t, writer)
+
+		// all numbers returned here should be the exact same
+		expectedNumbers = streamedWriteAscendingIntegers(t, writer, numElementsPerFile)
+		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+	}
+
+	outWriter, err := newTestSSTableStreamWriter()
+	assert.Nil(t, err)
+	defer cleanWriterDir(t, outWriter)
+
+	merger := NewSSTableMerger(skiplist.BytesComparator)
+	err = merger.MergeCompact(iterators, outWriter,
+		func(key []byte, values [][]byte) ([]byte, []byte) {
+			// there should be as many values as we have files
+			assert.Equal(t, numFiles, len(values))
+			// always pick the first one
+			return key, values[0]
+		})
+	assert.Nil(t, err)
+	sort.Ints(expectedNumbers)
+	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
+}
+
+func TestOverlappingMergeAndCompact(t *testing.T) {
+	expectedNumbersUnique := make(map[int]interface{})
+	var expectedNumbers []int
+	var iterators []SSTableIteratorI
+
+	numFiles := 5
+	numElementsPerFile := 250
+
+	for i := 0; i < numFiles; i++ {
+		writer, err := newTestSSTableStreamWriter()
+		assert.Nil(t, err)
+		defer cleanWriterDir(t, writer)
+
+		// since the ranges overlap we have to make them unique to get our final expected set of numbers
+		currentNumbers := streamedWriteAscendingIntegersWithStart(t, writer, i*25, numElementsPerFile)
+		for _, e := range currentNumbers {
+			if _, ok := expectedNumbersUnique[e]; !ok {
+				expectedNumbers = append(expectedNumbers, e)
+				expectedNumbersUnique[e] = e
+			}
+		}
+		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+	}
+
+	outWriter, err := newTestSSTableStreamWriter()
+	assert.Nil(t, err)
+	defer cleanWriterDir(t, outWriter)
+
+	merger := NewSSTableMerger(skiplist.BytesComparator)
+	err = merger.MergeCompact(iterators, outWriter,
+		func(key []byte, values [][]byte) ([]byte, []byte) {
+			// always pick the first one
+			return key, values[0]
+		})
+	assert.Nil(t, err)
+	sort.Ints(expectedNumbers)
+	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
+}

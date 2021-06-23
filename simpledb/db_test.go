@@ -39,10 +39,25 @@ func TestDeleteNotFound(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	err := db.Delete("a")
+	assert.Nil(t, err)
+}
+
+func TestPutDeleteGetNotFound(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpleDB_testDeleteNotFound")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+	assert.Nil(t, db.Put("a", "b"))
+
+	val, err := db.Get("a")
+	assert.Nil(t, err)
+	assert.Equal(t, "b", val)
+	assert.Nil(t, db.Delete("a"))
+
+	_, err = db.Get("a")
 	assert.Equal(t, NotFound, err)
 }
 
-func TestSimplePutAndGetAndDelete(t *testing.T) {
+func TestPutAndGetAndDelete(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGetAndDelete")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)

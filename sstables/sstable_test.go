@@ -107,6 +107,25 @@ func streamedWriteElements(t *testing.T, writer *SSTableStreamWriter, n int) []i
 	return expectedNumbers
 }
 
+func streamedWriteAscendingIntegersWithStart(t *testing.T, writer *SSTableStreamWriter, start int, n int) []int {
+	err := writer.Open()
+	assert.Nil(t, err)
+	var expectedNumbers []int
+	for i := start; i < n; i++ {
+		key, value := getKeyValueAsBytes(i)
+		err = writer.WriteNext(key, value)
+		assert.Nil(t, err)
+		expectedNumbers = append(expectedNumbers, i)
+	}
+	err = writer.Close()
+	assert.Nil(t, err)
+	return expectedNumbers
+}
+
+func streamedWriteAscendingIntegers(t *testing.T, writer *SSTableStreamWriter, n int) []int {
+	return streamedWriteAscendingIntegersWithStart(t, writer, 0, n)
+}
+
 func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
 	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
 	if err != nil {

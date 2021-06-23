@@ -30,7 +30,11 @@ type MemStoreI interface {
 	Delete(key []byte) error
 	// deletes the key from the MemStore. The semantic is the same as in Delete, however when there is no
 	// key in the memstore it will also not set a tombstone for it and there will be no error when the key isn't there.
+	// That can be problematic in several database constellation, where you can use Tombstone.
 	DeleteIfExists(key []byte) error
+	// Tombstone records the given key as if it were deleted. When a given key does not exist it will insert it,
+	// when it does it will do a Delete
+	Tombstone(key []byte) error
 	// returns a rough estimate of size in bytes of this MemStore
 	EstimatedSizeInBytes() uint64
 	// flushes the current memstore to disk as an SSTable, error if unsuccessful
@@ -134,6 +138,21 @@ func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 		*element.(ValueStruct).value = nil
 	}
 
+	return nil
+}
+
+func (m *MemStore) Tombstone(key []byte) error {
+	element, err := m.skipListMap.Get(key)
+	if err != skiplist.NotFound {
+		prevLen := len(*element.(ValueStruct).value)
+		*element.(ValueStruct).value = nil
+		m.estimatedSize = m.estimatedSize - uint64(prevLen)
+	} else {
+		var vByte []byte
+		v := ValueStruct{value: &vByte}
+		m.skipListMap.Insert(key, v)
+		m.estimatedSize += uint64(len(key))
+	}
 	return nil
 }
 

@@ -5,14 +5,12 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"os"
 	"path"
-	"strconv"
 	"sync"
 )
 
@@ -34,8 +32,8 @@ type DatabaseI interface {
 	// overwrite the already existing value with the given one.
 	Put(key, value string) error
 
-	// Delete will delete the value for the given key.
-	// It will return NotFound if the key does not exist.
+	// Delete will delete the value for the given key. It will ignore when a key does not exist in the database.
+	// Underneath it will be tombstoned, which still store it and make it not retrievable through this interface.
 	Delete(key string) error
 }
 
@@ -56,6 +54,9 @@ func (db *DB) Open() error {
 
 func (db *DB) Close() error {
 	// this should close all files properly, TODO flush the memstore and merge all sstables
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+
 	err := db.wal.Close()
 	if err != nil {
 		return err
@@ -85,6 +86,8 @@ func (db *DB) Get(key string) (string, error) {
 		} else {
 			return "", err
 		}
+	} else if ssTableVal == nil {
+		sstableNotFound = true
 	}
 
 	memStoreVal, err := db.memStore.Get(keyBytes)
@@ -137,69 +140,18 @@ func (db *DB) Put(key, value string) error {
 		return err
 	}
 
-	// TODO below should be done in a goroutine to not affect write latency
-	// TODO here we should already merge both sstables for ease of use
-	// TODO some of the parts can be atomic swaps instead of being under the rwLock
-	// have a channel with capacity 1 block on this operation if the existing didn't finish yet
 	if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
-		// normally we would flush the memstore to disk, for simplicity sake we can directly merge it with the
-		// sstable that we already have and swap the reader out.
-		memStoreIterator := db.memStore.SStableIterator()
-		sstableIterator, err := db.mainSSTableReader.Scan()
+		err = flushMemstoreAndMergeSStables(db)
 		if err != nil {
 			return err
 		}
-
-		readPath := path.Join(db.basePath, db.currentSSTablePath)
-		i, _ := strconv.Atoi(db.currentSSTablePath)
-		db.currentSSTablePath = strconv.Itoa(i + 1)
-		writePath := path.Join(db.basePath, db.currentSSTablePath)
-		err = os.MkdirAll(writePath, os.ModeDir)
-		if err != nil {
-			return err
-		}
-
-		writer, err := sstables.NewSSTableStreamWriter(
-			sstables.WriteBasePath(writePath),
-			sstables.WithKeyComparator(skiplist.BytesComparator),
-			sstables.BloomExpectedNumberOfElements(uint64(db.memStore.Size())))
-		if err != nil {
-			return err
-		}
-
-		err = sstables.NewSSTableMerger(skiplist.BytesComparator).Merge([]sstables.SSTableIteratorI{
-			memStoreIterator,
-			sstableIterator,
-		}, writer)
-		if err != nil {
-			return err
-		}
-
-		reader, err := sstables.NewSSTableReader(
-			sstables.ReadBasePath(writePath),
-			sstables.ReadWithKeyComparator(skiplist.BytesComparator),
-		)
-		if err != nil {
-			return err
-		}
-
-		err = db.mainSSTableReader.Close()
-		if err != nil {
-			return err
-		}
-		err = os.RemoveAll(readPath)
-		if err != nil {
-			return err
-		}
-
-		db.mainSSTableReader = reader
-		db.memStore = memstore.NewMemStore()
 	}
 
 	return nil
 }
 
 func (db *DB) Delete(key string) error {
+	byteKey := []byte(key)
 	bytes, err := proto.Marshal(&dbproto.WalMutation{
 		Mutation: &dbproto.WalMutation_DeleteTombStone{
 			DeleteTombStone: &dbproto.DeleteTombstoneMutation{
@@ -219,10 +171,13 @@ func (db *DB) Delete(key string) error {
 		return err
 	}
 
-	err = db.memStore.Delete([]byte(key))
+	err = db.memStore.Delete(byteKey)
 	if err != nil {
+		// we deliberately ignore not found errors, there might be a key to delete in the sstable
+		// seeking into the sstable might be quite expensive, it will be dropped by the next merge anyway.
+		// To record that this is actually being deleted we have to tombstone it:
 		if err == memstore.KeyNotFound {
-			return NotFound
+			return db.memStore.Tombstone(byteKey)
 		}
 		return err
 	}

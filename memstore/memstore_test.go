@@ -112,20 +112,24 @@ func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {
 
 func TestMemStoreDeleteSemantics(t *testing.T) {
 	m := NewMemStore()
-	err := m.Upsert([]byte("a"), []byte("aVal"))
+	keyA := []byte("a")
+	err := m.Upsert(keyA, []byte("aVal"))
 	assert.Nil(t, err)
-	assert.True(t, m.Contains([]byte("a")))
+	assert.True(t, m.Contains(keyA))
 
 	err = m.Delete([]byte("b"))
 	assert.Equal(t, KeyNotFound, err)
 	err = m.DeleteIfExists([]byte("b"))
 	assert.Nil(t, err)
-	err = m.DeleteIfExists([]byte("a"))
+	err = m.DeleteIfExists(keyA)
 	assert.Nil(t, err)
 
-	assert.False(t, m.Contains([]byte("a")))
+	assert.False(t, m.Contains(keyA))
+	v, err := m.Get(keyA)
+	assert.Nil(t, v)
+	assert.Equal(t, KeyTombstoned, err)
 	// make sure that the value was changed under the hood
-	kv, err := m.skipListMap.Get([]byte("a"))
+	kv, err := m.skipListMap.Get(keyA)
 	assert.Nil(t, err)
 	assert.Nil(t, *kv.(ValueStruct).value)
 }
@@ -240,6 +244,35 @@ func TestMemStoreSStableIteratorWithTombstones(t *testing.T) {
 	// iterator must be in Done state too
 	_, _, err := it.Next()
 	assert.Equal(t, sstables.Done, err)
+}
+
+func TestMemStoreTombstoneExistingKey(t *testing.T) {
+	m := NewMemStore()
+	assert.Equal(t, 0, m.Size())
+	key := make([]byte, 20)
+	err := m.Upsert(key, make([]byte, 50))
+	assert.Nil(t, err)
+	assert.Equal(t, uint64(80), m.EstimatedSizeInBytes())
+	assert.Equal(t, 1, m.Size())
+
+	assert.Nil(t, m.Tombstone(key))
+	assert.Equal(t, uint64(23), m.EstimatedSizeInBytes())
+	assert.Equal(t, 1, m.Size())
+	v, err := m.Get(key)
+	assert.Nil(t, v)
+	assert.Equal(t, KeyTombstoned, err)
+}
+
+func TestMemStoreTombstoneNotExistingKey(t *testing.T) {
+	m := NewMemStore()
+	assert.Equal(t, 0, m.Size())
+	key := make([]byte, 20)
+	assert.Nil(t, m.Tombstone(key))
+	assert.Equal(t, uint64(23), m.EstimatedSizeInBytes())
+	assert.Equal(t, 1, m.Size())
+	v, err := m.Get(key)
+	assert.Nil(t, v)
+	assert.Equal(t, KeyTombstoned, err)
 }
 
 func closeReader(t *testing.T, reader sstables.SSTableReaderI) {
