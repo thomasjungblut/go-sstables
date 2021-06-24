@@ -1,13 +1,12 @@
+// +build !race
+
 package simpledb
 
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"math/rand"
-	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 )
@@ -15,6 +14,7 @@ import (
 // those are end2end tests for the whole package
 
 func TestPutAndGetsEndToEnd(t *testing.T) {
+	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEnd")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
@@ -32,6 +32,7 @@ func TestPutAndGetsEndToEnd(t *testing.T) {
 }
 
 func TestPutOverlappingRangesEndToEnd(t *testing.T) {
+	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndOverlap")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
@@ -66,6 +67,7 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 }
 
 func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
+	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndMixedDeletes")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
@@ -97,6 +99,7 @@ func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
 // to trigger the memstore flushes/table merges
 // the test here roughly produces 143MB in WAL and a final sstable of 114mb
 func TestPutAndGetsEndToEndLargerData(t *testing.T) {
+	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndLargerData")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
@@ -115,6 +118,7 @@ func TestPutAndGetsEndToEndLargerData(t *testing.T) {
 }
 
 func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
+	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndMixedDeletesConcurrent")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
@@ -123,7 +127,7 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 
 	maxRoutines := 50
 	rangeOverlap := 2
-	multiplier := 1000
+	multiplier := 250
 
 	for numRoutines := 0; numRoutines < maxRoutines; numRoutines++ {
 		go func(start, end int) {
@@ -154,65 +158,4 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 			assertGet(t, db, key)
 		}
 	}
-}
-
-func assertGet(t *testing.T, db *DB, key string) {
-	val, err := db.Get(key)
-	assert.Nil(t, err)
-	if len(val) > 2 {
-		val = val[:len(key)]
-	}
-	assert.Truef(t, strings.HasPrefix(val, key),
-		"expected key %s as prefix, but was %s", key, val)
-}
-
-func recordWithSuffix(prefix int, suffix string) string {
-	builder := strings.Builder{}
-	builder.WriteString(strconv.Itoa(prefix))
-	builder.WriteString("_")
-	builder.WriteString(suffix)
-
-	return builder.String()
-}
-
-func randomRecord(size int) string {
-	builder := strings.Builder{}
-	for i := 0; i < size; i++ {
-		builder.WriteRune(rand.Int31n(255))
-	}
-
-	return builder.String()
-}
-
-func randomRecordWithPrefixWithSize(prefix, size int) string {
-	builder := strings.Builder{}
-	builder.WriteString(strconv.Itoa(prefix))
-	builder.WriteString("_")
-	for i := 0; i < size; i++ {
-		builder.WriteRune(rand.Int31n(255))
-	}
-
-	return builder.String()
-}
-
-func randomRecordWithPrefix(prefix int) string {
-	return randomRecordWithPrefixWithSize(prefix, 10000)
-}
-
-func newOpenedSimpleDB(t *testing.T, name string) *DB {
-	tmpDir, err := ioutil.TempDir("", name)
-	assert.Nil(t, err)
-
-	db, err := NewSimpleDB(tmpDir)
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
-	return db
-}
-
-func closeDatabase(t *testing.T, db *DB) {
-	func() { assert.Nil(t, db.Close()) }()
-}
-
-func cleanDatabaseFolder(t *testing.T, db *DB) {
-	func() { assert.Nil(t, os.RemoveAll(db.basePath)) }()
 }

@@ -2,7 +2,11 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"math/rand"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -75,4 +79,65 @@ func TestPutAndGetAndDelete(t *testing.T) {
 
 	_, err = db.Get("a")
 	assert.Equal(t, NotFound, err)
+}
+
+func assertGet(t *testing.T, db *DB, key string) {
+	val, err := db.Get(key)
+	assert.Nil(t, err)
+	if len(val) > 2 {
+		val = val[:len(key)]
+	}
+	assert.Truef(t, strings.HasPrefix(val, key),
+		"expected key %s as prefix, but was %s", key, val)
+}
+
+func recordWithSuffix(prefix int, suffix string) string {
+	builder := strings.Builder{}
+	builder.WriteString(strconv.Itoa(prefix))
+	builder.WriteString("_")
+	builder.WriteString(suffix)
+
+	return builder.String()
+}
+
+func randomRecord(size int) string {
+	builder := strings.Builder{}
+	for i := 0; i < size; i++ {
+		builder.WriteRune(rand.Int31n(255))
+	}
+
+	return builder.String()
+}
+
+func randomRecordWithPrefixWithSize(prefix, size int) string {
+	builder := strings.Builder{}
+	builder.WriteString(strconv.Itoa(prefix))
+	builder.WriteString("_")
+	for i := 0; i < size; i++ {
+		builder.WriteRune(rand.Int31n(255))
+	}
+
+	return builder.String()
+}
+
+func randomRecordWithPrefix(prefix int) string {
+	return randomRecordWithPrefixWithSize(prefix, 10000)
+}
+
+func newOpenedSimpleDB(t *testing.T, name string) *DB {
+	tmpDir, err := ioutil.TempDir("", name)
+	assert.Nil(t, err)
+
+	db, err := NewSimpleDB(tmpDir)
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	return db
+}
+
+func closeDatabase(t *testing.T, db *DB) {
+	func() { assert.Nil(t, db.Close()) }()
+}
+
+func cleanDatabaseFolder(t *testing.T, db *DB) {
+	func() { assert.Nil(t, os.RemoveAll(db.basePath)) }()
 }

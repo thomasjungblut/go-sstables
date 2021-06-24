@@ -40,6 +40,9 @@ unit-test:
 	@echo
 	@echo "==> Running unit tests <=="
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
+    # separately test simpledb, because the race detector
+    # increases the runtime of the end2end tests too much
+	$(GO) test $(GOFLAGS) ./simpledb
 
 .PHONY: generate-test-files
 generate-test-files:
