@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"encoding/binary"
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"sort"
@@ -76,13 +77,24 @@ func TestMultiListAllEmpty(t *testing.T) {
 	assertMergeAndListMatches(t, []int{}, []int{}, []int{})
 }
 
+func TestInitContextFail(t *testing.T) {
+	pq := NewPriorityQueue(skiplist.BytesComparator)
+	err := pq.Init(MergeContext{
+		Iterators:       []SSTableIteratorI{},
+		IteratorContext: []interface{}{"a", "b"},
+	})
+	assert.Equal(t, errors.New("merge context iterator length does not equal iterator context length"), err)
+}
+
 func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 	var input []SSTableIteratorI
+	var context []interface{}
 	var expected []int
 
 	nonEmptyLists := 0
 	for _, v := range lists {
 		input = append(input, &ListSSTableIteratorI{list: v})
+		context = append(context, len(v))
 		expected = append(expected, v...)
 		if len(v) > 0 {
 			nonEmptyLists++
@@ -90,13 +102,16 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 	}
 
 	pq := NewPriorityQueue(skiplist.BytesComparator)
-	err := pq.Init(input)
+	err := pq.Init(MergeContext{
+		Iterators:       input,
+		IteratorContext: context,
+	})
 	assert.Nil(t, err)
 	assert.Equal(t, nonEmptyLists, pq.size)
 
 	var actual []int
 	for {
-		k, v, err := pq.Next()
+		k, v, _, err := pq.Next()
 		if err == Done {
 			break
 		}

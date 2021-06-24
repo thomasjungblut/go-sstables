@@ -33,6 +33,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 
 	var expectedNumbers []int
 	var iterators []SSTableIteratorI
+	var iteratorContext []interface{}
 
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
@@ -40,6 +41,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 		defer cleanWriterDir(t, writer)
 		expectedNumbers = append(expectedNumbers, streamedWriteElements(t, writer, numElementsPerFile)...)
 		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		iteratorContext = append(iteratorContext, i)
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
@@ -47,7 +49,10 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 	defer cleanWriterDir(t, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator)
-	err = merger.Merge(iterators, outWriter)
+	err = merger.Merge(MergeContext{
+		Iterators:       iterators,
+		IteratorContext: iteratorContext,
+	}, outWriter)
 	assert.Nil(t, err)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
@@ -74,28 +79,36 @@ func TestSSTableMergeAndCompactFiveFilesEndToEnd(t *testing.T) {
 }
 
 func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile int) {
+	var writersToClean []*SSTableStreamWriter
+	defer cleanWriterDirs(t, writersToClean)
 	var expectedNumbers []int
 	var iterators []SSTableIteratorI
+	var iteratorContext []interface{}
 
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
 		assert.Nil(t, err)
-		defer cleanWriterDir(t, writer)
+		writersToClean = append(writersToClean, writer)
 
 		// all numbers returned here should be the exact same
 		expectedNumbers = streamedWriteAscendingIntegers(t, writer, numElementsPerFile)
 		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		iteratorContext = append(iteratorContext, i)
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
 	assert.Nil(t, err)
-	defer cleanWriterDir(t, outWriter)
+	writersToClean = append(writersToClean, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator)
-	err = merger.MergeCompact(iterators, outWriter,
-		func(key []byte, values [][]byte) ([]byte, []byte) {
+	err = merger.MergeCompact(MergeContext{
+		Iterators:       iterators,
+		IteratorContext: iteratorContext,
+	}, outWriter,
+		func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
 			// there should be as many values as we have files
 			assert.Equal(t, numFiles, len(values))
+			assert.Equal(t, numFiles, len(context))
 			// always pick the first one
 			return key, values[0]
 		})
@@ -108,6 +121,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 	expectedNumbersUnique := make(map[int]interface{})
 	var expectedNumbers []int
 	var iterators []SSTableIteratorI
+	var iteratorContext []interface{}
 
 	numFiles := 5
 	numElementsPerFile := 250
@@ -126,18 +140,23 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 			}
 		}
 		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		iteratorContext = append(iteratorContext, i)
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
 	assert.Nil(t, err)
 	defer cleanWriterDir(t, outWriter)
 
+	reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+		// always pick the first one
+		return key, values[0]
+	}
+
 	merger := NewSSTableMerger(skiplist.BytesComparator)
-	err = merger.MergeCompact(iterators, outWriter,
-		func(key []byte, values [][]byte) ([]byte, []byte) {
-			// always pick the first one
-			return key, values[0]
-		})
+	err = merger.MergeCompact(MergeContext{
+		Iterators:       iterators,
+		IteratorContext: iteratorContext,
+	}, outWriter, reduceFunc)
 	assert.Nil(t, err)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)

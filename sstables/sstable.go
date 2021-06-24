@@ -57,7 +57,7 @@ type SSTableStreamWriterI interface {
 }
 
 type SSTableMergerI interface {
-	// Merge merges/writes the given iterators into a single sorted SSTable
+	// Merge merges/writes the given Iterators into a single sorted SSTable
 	Merge(iterators []SSTableIteratorI, writer SSTableStreamWriterI) error
 	// MergeCompact is like merge, but accumulates values for the same key and presents it as a
 	// "reduction" function to compact values for the same key.

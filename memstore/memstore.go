@@ -207,23 +207,6 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 	return nil
 }
 
-type SkipListSStableIterator struct {
-	iterator skiplist.SkipListIteratorI
-}
-
-func (s SkipListSStableIterator) Next() ([]byte, []byte, error) {
-	key, val, err := s.iterator.Next()
-	if err != nil {
-		if err == skiplist.Done {
-			return nil, nil, sstables.Done
-		} else {
-			return nil, nil, err
-		}
-	}
-	valStruct := val.(ValueStruct)
-	return key.([]byte), *valStruct.value, nil
-}
-
 func (m *MemStore) SStableIterator() sstables.SSTableIteratorI {
 	it, _ := m.skipListMap.Iterator()
 	return &SkipListSStableIterator{iterator: it}

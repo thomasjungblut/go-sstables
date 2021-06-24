@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math/rand"
@@ -38,7 +39,8 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	// writing the same set of keys with a static 5mb record value
 	r := randomRecord(5 * 1024 * 1024)
 	numKeys := 100
-	for n := 0; n < 50; n++ {
+	for n := 0; n < 5; n++ {
+		fmt.Printf("iteration %d\n", n)
 		for i := 0; i < numKeys; i++ {
 			is := strconv.Itoa(i)
 			assert.Nil(t, db.Put(is, recordWithSuffix(i, r)))

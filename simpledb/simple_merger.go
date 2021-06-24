@@ -4,15 +4,28 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
+	"log"
 	"os"
 	"path"
 	"strconv"
 )
 
-func compactionFunc(key []byte, values [][]byte) ([]byte, []byte) {
-	// TODO I'm making some incorrect assumption here on the ordering
-	// last write wins, but we don't know here what was written last :)
-	return key, values[len(values)-1]
+const (
+	sstableIteratorId  = iota
+	memstoreIteratorId = iota
+)
+
+func compactionFunc(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+	l := len(values)
+	if l == 0 || l > 2 {
+		log.Panicf("unexpected number of values getting merged, len=%d", l)
+	}
+
+	// the larger value of the context wins, that would be the memstore write
+	if len(values) == 1 || context[0].(int) > context[1].(int) {
+		return key, values[0]
+	}
+	return key, values[1]
 }
 
 // TODO below should be done in a goroutine to not affect write latency
@@ -46,9 +59,14 @@ func flushMemstoreAndMergeSStables(db *DB) error {
 	}
 
 	err = sstables.NewSSTableMerger(skiplist.BytesComparator).
-		MergeCompact([]sstables.SSTableIteratorI{
-			memStoreIterator,
-			sstableIterator,
+		MergeCompact(sstables.MergeContext{
+			Iterators: []sstables.SSTableIteratorI{
+				memStoreIterator,
+				sstableIterator,
+			}, IteratorContext: []interface{}{
+				memstoreIteratorId,
+				sstableIteratorId,
+			},
 		}, writer, compactionFunc)
 	if err != nil {
 		return err

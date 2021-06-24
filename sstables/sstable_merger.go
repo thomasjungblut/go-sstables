@@ -6,9 +6,14 @@ type SSTableMerger struct {
 	comp skiplist.KeyComparator
 }
 
-func (m SSTableMerger) Merge(iterators []SSTableIteratorI, writer SSTableStreamWriterI) error {
+type MergeContext struct {
+	Iterators       []SSTableIteratorI
+	IteratorContext []interface{}
+}
+
+func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) error {
 	pq := NewPriorityQueue(m.comp)
-	err := pq.Init(iterators)
+	err := pq.Init(ctx)
 	if err != nil {
 		return err
 	}
@@ -19,7 +24,7 @@ func (m SSTableMerger) Merge(iterators []SSTableIteratorI, writer SSTableStreamW
 	}
 
 	for {
-		k, v, err := pq.Next()
+		k, v, _, err := pq.Next()
 		if err == Done {
 			break
 		}
@@ -38,11 +43,11 @@ func (m SSTableMerger) Merge(iterators []SSTableIteratorI, writer SSTableStreamW
 	return nil
 }
 
-func (m SSTableMerger) MergeCompact(iterators []SSTableIteratorI, writer SSTableStreamWriterI,
-	reduce func([]byte, [][]byte) ([]byte, []byte)) error {
+func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriterI,
+	reduce func([]byte, [][]byte, []interface{}) ([]byte, []byte)) error {
 
 	pq := NewPriorityQueue(m.comp)
-	err := pq.Init(iterators)
+	err := pq.Init(ctx)
 	if err != nil {
 		return err
 	}
@@ -54,28 +59,31 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableIteratorI, writer SSTable
 
 	var prevKey []byte
 	valBuf := make([][]byte, 0)
+	ctxBuf := make([]interface{}, 0)
 
 	for {
-		k, v, err := pq.Next()
+		k, v, c, err := pq.Next()
 		if err == Done {
 			break
 		}
 
 		if prevKey != nil && m.comp(k, prevKey) != 0 {
-			kReduced, vReduced := reduce(prevKey, valBuf)
+			kReduced, vReduced := reduce(prevKey, valBuf, ctxBuf)
 			err = writer.WriteNext(kReduced, vReduced)
 			if err != nil {
 				return err
 			}
 			valBuf = make([][]byte, 0)
+			ctxBuf = make([]interface{}, 0)
 		}
 
 		prevKey = k
 		valBuf = append(valBuf, v)
+		ctxBuf = append(ctxBuf, c)
 	}
 
 	if len(valBuf) > 0 {
-		kReduced, vReduced := reduce(prevKey, valBuf)
+		kReduced, vReduced := reduce(prevKey, valBuf, ctxBuf)
 		err = writer.WriteNext(kReduced, vReduced)
 		if err != nil {
 			return err

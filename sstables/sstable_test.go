@@ -320,6 +320,12 @@ func cleanWriterDir(t *testing.T, writer *SSTableStreamWriter) {
 	func() { assert.Nil(t, os.RemoveAll(writer.opts.basePath)) }()
 }
 
+func cleanWriterDirs(t *testing.T, writers []*SSTableStreamWriter) {
+	for _, w := range writers {
+		cleanWriterDir(t, w)
+	}
+}
+
 func intToByteSlice(e int) []byte {
 	key := make([]byte, 4)
 	binary.BigEndian.PutUint32(key, uint32(e))
