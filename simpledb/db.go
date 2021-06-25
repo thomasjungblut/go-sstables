@@ -194,7 +194,7 @@ func NewSimpleDB(basePath string) (*DB, error) {
 	}
 
 	walBasePath := path.Join(basePath, WriteAheadFolder)
-	err = os.MkdirAll(walBasePath, os.ModeDir)
+	err = os.MkdirAll(walBasePath, 0700)
 	if err != nil {
 		return nil, err
 	}

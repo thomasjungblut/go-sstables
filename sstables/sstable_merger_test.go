@@ -161,3 +161,37 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
+
+func TestMergeAndCompactEmptyResult(t *testing.T) {
+	var iterators []SSTableIteratorI
+	var iteratorContext []interface{}
+
+	numFiles := 5
+	numElementsPerFile := 250
+	for i := 0; i < numFiles; i++ {
+		writer, err := newTestSSTableStreamWriter()
+		assert.Nil(t, err)
+		defer cleanWriterDir(t, writer)
+
+		streamedWriteAscendingIntegersWithStart(t, writer, i*25, numElementsPerFile)
+		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		iteratorContext = append(iteratorContext, i)
+	}
+
+	outWriter, err := newTestSSTableStreamWriter()
+	assert.Nil(t, err)
+	defer cleanWriterDir(t, outWriter)
+
+	reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+		// ignoring all, should result in an empty merged file
+		return nil, nil
+	}
+
+	merger := NewSSTableMerger(skiplist.BytesComparator)
+	err = merger.MergeCompact(MergeContext{
+		Iterators:       iterators,
+		IteratorContext: iteratorContext,
+	}, outWriter, reduceFunc)
+	assert.Nil(t, err)
+	assertRandomAndSequentialRead(t, outWriter.opts.basePath, []int{})
+}

@@ -1,5 +1,6 @@
 // +build !race
 
+// disabling the race detector as this is a 10-20 minute thing for the below tests
 package simpledb
 
 import (
@@ -130,8 +131,8 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 	multiplier := 250
 
 	for numRoutines := 0; numRoutines < maxRoutines; numRoutines++ {
+		wg.Add(1)
 		go func(start, end int) {
-			wg.Add(1)
 			for i := start; i < end; i++ {
 				is := strconv.Itoa(i)
 				assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))

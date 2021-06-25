@@ -69,9 +69,11 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 
 		if prevKey != nil && m.comp(k, prevKey) != 0 {
 			kReduced, vReduced := reduce(prevKey, valBuf, ctxBuf)
-			err = writer.WriteNext(kReduced, vReduced)
-			if err != nil {
-				return err
+			if kReduced != nil && vReduced != nil {
+				err = writer.WriteNext(kReduced, vReduced)
+				if err != nil {
+					return err
+				}
 			}
 			valBuf = make([][]byte, 0)
 			ctxBuf = make([]interface{}, 0)
@@ -84,9 +86,11 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 
 	if len(valBuf) > 0 {
 		kReduced, vReduced := reduce(prevKey, valBuf, ctxBuf)
-		err = writer.WriteNext(kReduced, vReduced)
-		if err != nil {
-			return err
+		if kReduced != nil && vReduced != nil {
+			err = writer.WriteNext(kReduced, vReduced)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

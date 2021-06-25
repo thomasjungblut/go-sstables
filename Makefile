@@ -38,7 +38,10 @@ bench:
 .PHONY: unit-test
 unit-test:
 	@echo
+	@echo "==> Building <=="
+	$(GO) build -race
 	@echo "==> Running unit tests <=="
+	$(GO) clean -testcache
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
     # separately test simpledb, because the race detector
     # increases the runtime of the end2end tests too much

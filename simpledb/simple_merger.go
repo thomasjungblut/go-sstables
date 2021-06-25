@@ -21,11 +21,18 @@ func compactionFunc(key []byte, values [][]byte, context []interface{}) ([]byte,
 		log.Panicf("unexpected number of values getting merged, len=%d", l)
 	}
 
+	valToWrite := values[0]
 	// the larger value of the context wins, that would be the memstore write
-	if len(values) == 1 || context[0].(int) > context[1].(int) {
-		return key, values[0]
+	if l == 2 && context[1].(int) > context[0].(int) {
+		valToWrite = values[1]
 	}
-	return key, values[1]
+
+	// if the winning value is a tombstone (nil), then we will tell the merger to ignore it altogether
+	// this is the actual compaction of the merged sstable
+	if valToWrite == nil {
+		return nil, nil
+	}
+	return key, valToWrite
 }
 
 // TODO below should be done in a goroutine to not affect write latency
@@ -45,7 +52,7 @@ func flushMemstoreAndMergeSStables(db *DB) error {
 	i, _ := strconv.Atoi(db.currentSSTablePath)
 	db.currentSSTablePath = strconv.Itoa(i + 1)
 	writePath := path.Join(db.basePath, db.currentSSTablePath)
-	err = os.MkdirAll(writePath, os.ModeDir)
+	err = os.MkdirAll(writePath, 0700)
 	if err != nil {
 		return err
 	}
