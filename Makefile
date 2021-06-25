@@ -39,7 +39,7 @@ bench:
 unit-test:
 	@echo
 	@echo "==> Building <=="
-	$(GO) build -race
+	$(GO) build -race $(TESTS)
 	@echo "==> Running unit tests <=="
 	$(GO) clean -testcache
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
