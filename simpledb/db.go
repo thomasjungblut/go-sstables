@@ -7,6 +7,7 @@ import (
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"os"
@@ -19,6 +20,7 @@ const MemStoreMaxSizeBytes uint64 = 64 * 1024 * 1024   // 64mb
 const WriteAheadMaxSizeBytes uint64 = 32 * 1024 * 1024 // 32mb
 
 var NotFound = errors.New("NotFound")
+var Async = false // async experimental
 
 type DatabaseI interface {
 	recordio.OpenClosableI
@@ -39,16 +41,18 @@ type DatabaseI interface {
 
 type DB struct {
 	basePath          string
-	memStore          memstore.MemStoreI
 	rwLock            *sync.RWMutex
+	mergeSemaphore    *semaphore.Weighted
 	wal               wal.WriteAheadLogI
 	mainSSTableReader sstables.SSTableReaderI
+	memStore          *RWMemstore
 	// this path is a child to the basePath, currently encodes an increasing number
 	currentSSTablePath string
 }
 
 func (db *DB) Open() error {
 	// TODO if files already exist we need to reconstruct from the WAL
+	// TODO we need to prune the WALs based on a watermark (run some GC)
 	return nil
 }
 
@@ -127,25 +131,35 @@ func (db *DB) Put(key, value string) error {
 	}
 
 	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
-
-	// we deliberately do not append with fsync here, it's a simple db :)
-	err = db.wal.Append(walBytes)
-	if err != nil {
-		return err
-	}
-
-	err = db.memStore.Upsert(keyBytes, valBytes)
-	if err != nil {
-		return err
-	}
-
-	if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
-		err = flushMemstoreAndMergeSStables(db)
+	err = func() error {
+		defer db.rwLock.Unlock()
+		// we deliberately do not append with fsync here, it's a simple db :)
+		err = db.wal.Append(walBytes)
 		if err != nil {
 			return err
 		}
-	}
+
+		err = db.memStore.Upsert(keyBytes, valBytes)
+		if err != nil {
+			return err
+		}
+
+		if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
+			if Async {
+				storeToFlush := swapMemstore(db)
+				// async start the flushing here to not block the rwLock anymore
+				go func(store *memstore.MemStoreI) {
+					flushMemstoreAndMergeSSTablesAsync(db, store)
+				}(storeToFlush)
+			} else {
+				err = simpleSyncMergeCompaction(db)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}()
 
 	return nil
 }
@@ -214,15 +228,16 @@ func NewSimpleDB(basePath string) (*DB, error) {
 		return nil, err
 	}
 
-	memStore := memstore.NewMemStore()
+	mStore := memstore.NewMemStore()
 	rwLock := &sync.RWMutex{}
 
 	return &DB{
 		basePath:           basePath,
-		memStore:           memStore,
+		memStore:           &RWMemstore{mStore, mStore},
 		rwLock:             rwLock,
 		wal:                writeAheadLog,
 		mainSSTableReader:  sstables.EmptySStableReader{},
+		mergeSemaphore:     semaphore.NewWeighted(1),
 		currentSSTablePath: "0",
 	}, nil
 }

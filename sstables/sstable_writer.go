@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"errors"
+	"fmt"
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
@@ -223,6 +224,11 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 
 	if opts.keyComparator == nil {
 		return nil, errors.New("no key comparator supplied")
+	}
+
+	if opts.bloomExpectedNumberOfElements <= 0 {
+		return nil, fmt.Errorf("unexpected number of bloom filter elements, was: %d",
+			opts.bloomExpectedNumberOfElements)
 	}
 
 	return &SSTableStreamWriter{opts: opts}, nil

@@ -96,3 +96,11 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	assert.Equal(t, errors.New("unsupported compression type 25"), err)
 	assert.Nil(t, writer.streamWriter.Close())
 }
+
+func TestEmptyBloomFilter(t *testing.T) {
+	_, err := NewSSTableSimpleWriter(
+		WriteBasePath("abc"),
+		WithKeyComparator(skiplist.BytesComparator),
+		BloomExpectedNumberOfElements(0))
+	assert.Equal(t, errors.New("unexpected number of bloom filter elements, was: 0"), err)
+}

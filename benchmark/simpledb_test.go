@@ -13,33 +13,33 @@ import (
 
 // write
 
-func BenchmarkWriteLatency100(b *testing.B) {
+func BenchmarkSimpleDBWriteLatency100(b *testing.B) {
 	benchmarkWriteLatency(100, b)
 }
 
-func BenchmarkWriteLatency1k(b *testing.B) {
+func BenchmarkSimpleDBWriteLatency1k(b *testing.B) {
 	benchmarkWriteLatency(1000, b)
 }
 
-func BenchmarkWriteLatency10k(b *testing.B) {
+func BenchmarkSimpleDBWriteLatency10k(b *testing.B) {
 	benchmarkWriteLatency(10000, b)
 }
 
-func BenchmarkWriteLatency100k(b *testing.B) {
+func BenchmarkSimpleDBWriteLatency100k(b *testing.B) {
 	benchmarkWriteLatency(100000, b)
 }
 
 // read
 
-func BenchmarkReadLatency100(b *testing.B) {
+func BenchmarkSimpleDBReadLatency100(b *testing.B) {
 	benchmarkReadLatency(100, b)
 }
 
-func BenchmarkReadLatency1k(b *testing.B) {
+func BenchmarkSimpleDBReadLatency1k(b *testing.B) {
 	benchmarkReadLatency(1000, b)
 }
 
-func BenchmarkReadLatency10k(b *testing.B) {
+func BenchmarkSimpleDBReadLatency10k(b *testing.B) {
 	benchmarkReadLatency(10000, b)
 }
 

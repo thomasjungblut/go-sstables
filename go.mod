@@ -8,6 +8,7 @@ require (
 	github.com/steakknife/hamming v0.0.0-20180906055917-c99c65617cd3 // indirect
 	github.com/stretchr/testify v1.2.2
 	golang.org/x/exp v0.0.0-20181210123644-7d6377eee41f
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/protobuf v1.26.0
 )
 

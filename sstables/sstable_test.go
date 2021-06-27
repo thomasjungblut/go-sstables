@@ -252,7 +252,7 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 	assert.Equal(t, expectedSkipListMap.Size(), numRead)
 }
 
-func getFullScanIterator(t *testing.T, sstablePath string) SSTableIteratorI {
+func getFullScanIterator(t *testing.T, sstablePath string) (SSTableReaderI, SSTableIteratorI) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),
 		ReadWithKeyComparator(skiplist.BytesComparator))
@@ -260,7 +260,7 @@ func getFullScanIterator(t *testing.T, sstablePath string) SSTableIteratorI {
 
 	it, err := reader.Scan()
 	assert.Nil(t, err)
-	return it
+	return reader, it
 }
 
 func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNumbers []int) {
@@ -320,8 +320,8 @@ func cleanWriterDir(t *testing.T, writer *SSTableStreamWriter) {
 	func() { assert.Nil(t, os.RemoveAll(writer.opts.basePath)) }()
 }
 
-func cleanWriterDirs(t *testing.T, writers []*SSTableStreamWriter) {
-	for _, w := range writers {
+func cleanWriterDirs(t *testing.T, writers *[]*SSTableStreamWriter) {
+	for _, w := range *writers {
 		cleanWriterDir(t, w)
 	}
 }

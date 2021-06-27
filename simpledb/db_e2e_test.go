@@ -1,10 +1,9 @@
-// +build !race
+// +build simpleDBe2e
 
 // disabling the race detector as this is a 10-20 minute thing for the below tests
 package simpledb
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"strconv"
@@ -12,25 +11,7 @@ import (
 	"testing"
 )
 
-// those are end2end tests for the whole package
-
-func TestPutAndGetsEndToEnd(t *testing.T) {
-	t.Parallel()
-	db := newOpenedSimpleDB(t, "simpleDB_EndToEnd")
-	defer cleanDatabaseFolder(t, db)
-	defer closeDatabase(t, db)
-
-	assert.Nil(t, db.Put("a", "b"))
-	assert.Nil(t, db.Put("b", "c"))
-
-	val, err := db.Get("a")
-	assert.Nil(t, err)
-	assert.Equal(t, "b", val)
-
-	val, err = db.Get("b")
-	assert.Nil(t, err)
-	assert.Equal(t, "c", val)
-}
+// those are end2end tests for the whole package, some are very heavyweight
 
 func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	t.Parallel()
@@ -42,7 +23,6 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	r := randomRecord(5 * 1024 * 1024)
 	numKeys := 100
 	for n := 0; n < 5; n++ {
-		fmt.Printf("iteration %d\n", n)
 		for i := 0; i < numKeys; i++ {
 			is := strconv.Itoa(i)
 			assert.Nil(t, db.Put(is, recordWithSuffix(i, r)))

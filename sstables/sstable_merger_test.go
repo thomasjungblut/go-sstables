@@ -40,7 +40,9 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 		assert.Nil(t, err)
 		defer cleanWriterDir(t, writer)
 		expectedNumbers = append(expectedNumbers, streamedWriteElements(t, writer, numElementsPerFile)...)
-		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		reader, iterator := getFullScanIterator(t, writer.opts.basePath)
+		defer closeReader(t, reader)
+		iterators = append(iterators, iterator)
 		iteratorContext = append(iteratorContext, i)
 	}
 
@@ -80,7 +82,7 @@ func TestSSTableMergeAndCompactFiveFilesEndToEnd(t *testing.T) {
 
 func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile int) {
 	var writersToClean []*SSTableStreamWriter
-	defer cleanWriterDirs(t, writersToClean)
+	defer cleanWriterDirs(t, &writersToClean)
 	var expectedNumbers []int
 	var iterators []SSTableIteratorI
 	var iteratorContext []interface{}
@@ -92,7 +94,9 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 
 		// all numbers returned here should be the exact same
 		expectedNumbers = streamedWriteAscendingIntegers(t, writer, numElementsPerFile)
-		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		reader, iterator := getFullScanIterator(t, writer.opts.basePath)
+		defer closeReader(t, reader)
+		iterators = append(iterators, iterator)
 		iteratorContext = append(iteratorContext, i)
 	}
 
@@ -139,7 +143,9 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 				expectedNumbersUnique[e] = e
 			}
 		}
-		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		reader, iterator := getFullScanIterator(t, writer.opts.basePath)
+		defer closeReader(t, reader)
+		iterators = append(iterators, iterator)
 		iteratorContext = append(iteratorContext, i)
 	}
 
@@ -174,7 +180,9 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 		defer cleanWriterDir(t, writer)
 
 		streamedWriteAscendingIntegersWithStart(t, writer, i*25, numElementsPerFile)
-		iterators = append(iterators, getFullScanIterator(t, writer.opts.basePath))
+		reader, iterator := getFullScanIterator(t, writer.opts.basePath)
+		defer closeReader(t, reader)
+		iterators = append(iterators, iterator)
 		iteratorContext = append(iteratorContext, i)
 	}
 

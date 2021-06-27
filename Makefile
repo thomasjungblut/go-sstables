@@ -44,11 +44,20 @@ unit-test:
 	$(GO) clean -testcache
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
     # separately test simpledb, because the race detector
-    # increases the runtime of the end2end tests too much
-	$(GO) test $(GOFLAGS) ./simpledb
+    # increases the runtime of the end2end tests too much (10-20m)
+    # the race-simpledb target can be used to test that
+	$(GO) test --tags simpleDBe2e $(GOFLAGS) ./simpledb
+
+.PHONY: race-simpledb
+race-simpledb:
+	@echo
+	@echo "==> Running simpledb race tests <=="
+	$(GO) clean -testcache
+	$(GO) test -v --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
 
 .PHONY: generate-test-files
 generate-test-files:
 	@echo
 	@echo "==> Generate Test Files <=="
+	$(GO) clean -testcache
 	export generate_compatfiles=true && $(GO) test $(GOFLAGS) $(TESTS) -run .*TestGenerateTestFiles.*
