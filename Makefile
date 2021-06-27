@@ -35,6 +35,10 @@ release:
 bench:
 	$(GO) test -v -benchmem -bench=. ./benchmark
 
+.PHONY: bench-simpledb
+bench-simpledb:
+	$(GO) test -v -benchmem -bench=SimpleDB ./benchmark
+
 .PHONY: unit-test
 unit-test:
 	@echo
@@ -46,7 +50,7 @@ unit-test:
     # separately test simpledb, because the race detector
     # increases the runtime of the end2end tests too much (10-20m)
     # the race-simpledb target can be used to test that
-	$(GO) test --tags simpleDBe2e $(GOFLAGS) ./simpledb
+	$(GO) test -v --tags simpleDBe2e $(GOFLAGS) ./simpledb
 
 .PHONY: race-simpledb
 race-simpledb:

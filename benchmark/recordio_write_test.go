@@ -70,37 +70,31 @@ func randomRecordOfSize(l int) []byte {
 	return bytes
 }
 
+// TODO(thomas): refactor this for sub-benchmarks instead of creating multiple methods
 //noinspection GoDeferInLoop
 func benchmarkWriteRecordSize(recSize int, sync bool, compType int, b *testing.B) {
 	const numRecords = 1000 // should be max ~1G on the 1m record size
 	// TODO(thomas): since this is random data, there is not much sense in benchmarking the compression really
 	bytes := randomRecordOfSize(recSize)
+	tmpFile, err := ioutil.TempFile("", "recordio_Bench")
+	assert.Nil(b, err)
+	defer os.Remove(tmpFile.Name())
+
+	writer, err := recordio.NewFileWriter(recordio.File(tmpFile), recordio.CompressionType(compType))
+	assert.Nil(b, err)
+	assert.Nil(b, writer.Open())
+
+	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		tmpFile, err := ioutil.TempFile("", "recordio_Bench")
-		assert.Nil(b, err)
-		defer os.Remove(tmpFile.Name())
-
-		writer, err := recordio.NewFileWriter(recordio.File(tmpFile), recordio.CompressionType(compType))
-		assert.Nil(b, err)
-		assert.Nil(b, writer.Open())
-
-		b.StartTimer()
-		for i := 0; i < numRecords; i++ {
-			if sync {
-				_, err := writer.WriteSync(bytes)
-				assert.Nil(b, err)
-			} else {
-				_, err := writer.Write(bytes)
-				assert.Nil(b, err)
-			}
+		if sync {
+			_, err := writer.WriteSync(bytes)
+			assert.Nil(b, err)
+		} else {
+			_, err := writer.Write(bytes)
+			assert.Nil(b, err)
 		}
-		b.StopTimer()
-
-		assert.Nil(b, writer.Close())
-
-		// report the size of the written file for throughput metrics
-		stat, err := os.Stat(tmpFile.Name())
-		assert.Nil(b, err)
-		b.SetBytes(stat.Size())
+		b.SetBytes(int64(len(bytes)))
 	}
+
+	assert.Nil(b, writer.Close())
 }

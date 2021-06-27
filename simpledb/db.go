@@ -7,7 +7,6 @@ import (
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"os"
@@ -20,7 +19,6 @@ const MemStoreMaxSizeBytes uint64 = 64 * 1024 * 1024   // 64mb
 const WriteAheadMaxSizeBytes uint64 = 32 * 1024 * 1024 // 32mb
 
 var NotFound = errors.New("NotFound")
-var Async = false // async experimental
 
 type DatabaseI interface {
 	recordio.OpenClosableI
@@ -40,24 +38,30 @@ type DatabaseI interface {
 }
 
 type DB struct {
-	basePath          string
-	rwLock            *sync.RWMutex
-	mergeSemaphore    *semaphore.Weighted
-	wal               wal.WriteAheadLogI
-	mainSSTableReader sstables.SSTableReaderI
-	memStore          *RWMemstore
-	// this path is a child to the basePath, currently encodes an increasing number
+	basePath           string
+	rwLock             *sync.RWMutex
+	storeFlushChannel  chan *memstore.MemStoreI
+	doneFlushChannel   chan bool
+	wal                wal.WriteAheadLogI
+	mainSSTableReader  sstables.SSTableReaderI
+	memStore           *RWMemstore
 	currentSSTablePath string
+	memstoreMaxSize    uint64
 }
 
 func (db *DB) Open() error {
 	// TODO if files already exist we need to reconstruct from the WAL
 	// TODO we need to prune the WALs based on a watermark (run some GC)
+	go flushMemstoreAndMergeSSTablesAsync(db)
+
 	return nil
 }
 
 func (db *DB) Close() error {
 	// this should close all files properly, TODO flush the memstore and merge all sstables
+	close(db.storeFlushChannel)
+	<-db.doneFlushChannel
+
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
@@ -116,8 +120,10 @@ func (db *DB) Get(key string) (string, error) {
 }
 
 func (db *DB) Put(key, value string) error {
+	// string to byte conversion takes 7% of the method execution time
 	keyBytes := []byte(key)
 	valBytes := []byte(value)
+	// proto marshal takes 60%(!) of this method execution time
 	walBytes, err := proto.Marshal(&dbproto.WalMutation{
 		Mutation: &dbproto.WalMutation_Addition{
 			Addition: &dbproto.UpsertMutation{
@@ -130,6 +136,7 @@ func (db *DB) Put(key, value string) error {
 		return err
 	}
 
+	swapRequired := false
 	db.rwLock.Lock()
 	err = func() error {
 		defer db.rwLock.Unlock()
@@ -144,22 +151,14 @@ func (db *DB) Put(key, value string) error {
 			return err
 		}
 
-		if db.memStore.EstimatedSizeInBytes() > MemStoreMaxSizeBytes {
-			if Async {
-				storeToFlush := swapMemstore(db)
-				// async start the flushing here to not block the rwLock anymore
-				go func(store *memstore.MemStoreI) {
-					flushMemstoreAndMergeSSTablesAsync(db, store)
-				}(storeToFlush)
-			} else {
-				err = simpleSyncMergeCompaction(db)
-				if err != nil {
-					return err
-				}
-			}
-		}
+		swapRequired = db.memStore.EstimatedSizeInBytes() > db.memstoreMaxSize
 		return nil
 	}()
+
+	// we do not do that inside the lock, because the flushing can cause us to deadlock under the rwLock
+	if swapRequired {
+		db.storeFlushChannel <- swapMemstore(db)
+	}
 
 	return nil
 }
@@ -200,7 +199,7 @@ func (db *DB) Delete(key string) error {
 
 // NewSimpleDB creates a new db that requires a directory that exist, it can be empty in case of existing databases.
 // The error in case it doesn't exist can be checked using normal os package functions like os.IsNotExist(err)
-func NewSimpleDB(basePath string) (*DB, error) {
+func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, error) {
 	// validate the basePath exist
 	_, err := ioutil.ReadDir(basePath)
 	if err != nil {
@@ -213,8 +212,17 @@ func NewSimpleDB(basePath string) (*DB, error) {
 		return nil, err
 	}
 
+	extraOpts := &SimpleDBExtraOptions{
+		MemStoreMaxSizeBytes,
+		WriteAheadMaxSizeBytes,
+	}
+
+	for _, extraOption := range extraOptions {
+		extraOption(extraOpts)
+	}
+
 	walOpts, err := wal.NewWriteAheadLogOptions(wal.BasePath(walBasePath),
-		wal.MaximumWalFileSizeBytes(WriteAheadMaxSizeBytes),
+		wal.MaximumWalFileSizeBytes(extraOpts.walSizeBytes),
 		wal.WriterFactory(func(path string) (recordio.WriterI, error) {
 			return recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
 		}),
@@ -230,14 +238,39 @@ func NewSimpleDB(basePath string) (*DB, error) {
 
 	mStore := memstore.NewMemStore()
 	rwLock := &sync.RWMutex{}
+	flusherChan := make(chan *memstore.MemStoreI)
+	doneFlushChan := make(chan bool)
 
 	return &DB{
 		basePath:           basePath,
 		memStore:           &RWMemstore{mStore, mStore},
 		rwLock:             rwLock,
+		storeFlushChannel:  flusherChan,
+		doneFlushChannel:   doneFlushChan,
 		wal:                writeAheadLog,
 		mainSSTableReader:  sstables.EmptySStableReader{},
-		mergeSemaphore:     semaphore.NewWeighted(1),
-		currentSSTablePath: "0",
+		currentSSTablePath: "",
+		memstoreMaxSize:    extraOpts.memstoreSizeBytes,
 	}, nil
+}
+
+// options
+
+type SimpleDBExtraOptions struct {
+	memstoreSizeBytes uint64
+	walSizeBytes      uint64
+}
+
+type SimpleDBExtraOption func(options *SimpleDBExtraOptions)
+
+func MemstoreSizeBytes(n uint64) SimpleDBExtraOption {
+	return func(args *SimpleDBExtraOptions) {
+		args.memstoreSizeBytes = n
+	}
+}
+
+func WriteAheadLogSizeBytes(n uint64) SimpleDBExtraOption {
+	return func(args *SimpleDBExtraOptions) {
+		args.walSizeBytes = n
+	}
 }

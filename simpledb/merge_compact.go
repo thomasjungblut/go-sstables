@@ -1,14 +1,12 @@
 package simpledb
 
 import (
-	"context"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
+	"io/ioutil"
 	"log"
 	"os"
-	"path"
-	"strconv"
 )
 
 const (
@@ -36,12 +34,10 @@ func compactionFunc(key []byte, values [][]byte, context []interface{}) ([]byte,
 	return key, valToWrite
 }
 
-func flushMemstoreAndMergeSSTablesAsync(db *DB, storeToFlush *memstore.MemStoreI) {
-	// ignoring the semaphore error since we want to block and do not cancel any context
-	_ = db.mergeSemaphore.Acquire(context.Background(), 1)
-	go func() {
-		defer db.mergeSemaphore.Release(1)
-		err := func(db *DB, storeToFlush *memstore.MemStoreI) error {
+func flushMemstoreAndMergeSSTablesAsync(db *DB) {
+	err := func(db *DB) error {
+		defer func() { db.doneFlushChannel <- true }()
+		for storeToFlush := range db.storeFlushChannel {
 			readPath, writePath, err := allocateNewSSTableFolders(db)
 			if err != nil {
 				return err
@@ -58,62 +54,18 @@ func flushMemstoreAndMergeSSTablesAsync(db *DB, storeToFlush *memstore.MemStoreI
 				return err
 			}
 
-			// swap the sstable we just merged under the writer lock
-			db.rwLock.Lock()
-			err = func() error {
-				defer db.rwLock.Unlock()
-
-				reader, err := swapSSTableReader(db, err, writePath, readPath)
-				if err != nil {
-					return err
-				}
-				db.mainSSTableReader = reader
-
-				return nil
-			}()
-
-			return nil
-		}(db, storeToFlush)
-		if err != nil {
-			// TODO is panicking the best we can do?
-			log.Panicf("error while async merging sstable at %s/%s, error was %v",
-				db.basePath, db.currentSSTablePath, err)
+			err = swapSSTableReader(db, err, writePath, readPath)
+			if err != nil {
+				return err
+			}
 		}
-	}()
-}
 
-// this is supposed to be called under the db.rwLock
-// this is the synchronous version of flushMemstoreAndMergeSSTablesAsync
-func simpleSyncMergeCompaction(db *DB) error {
-	// normally we would flush the memstore to disk, for simplicity sake we can directly merge it with the
-	// sstable that we already have and swap the reader out.
-	memStoreIterator := db.memStore.SStableIterator()
-	sstableIterator, err := db.mainSSTableReader.Scan()
-	if err != nil {
-		return err
-	}
+		return nil
+	}(db)
 
-	readPath, writePath, err := allocateNewSSTableFolders(db)
 	if err != nil {
-		return err
+		log.Panicf("error while merging sstable at %s, error was %v", db.currentSSTablePath, err)
 	}
-
-	err = merge(db.memStore.Size(), writePath, memStoreIterator, sstableIterator)
-	if err != nil {
-		return err
-	}
-
-	reader, err := swapSSTableReader(db, err, writePath, readPath)
-	if err != nil {
-		return err
-	}
-	db.mainSSTableReader = reader
-	mStore := memstore.NewMemStore()
-	db.memStore = &RWMemstore{
-		readStore:  mStore,
-		writeStore: mStore,
-	}
-	return nil
 }
 
 func merge(numMemstoreElements int, writePath string, memStoreIterator sstables.SSTableIteratorI,
@@ -146,24 +98,36 @@ func merge(numMemstoreElements int, writePath string, memStoreIterator sstables.
 
 // swapSSTableReader exchanges the old reader with a newly created one over the writePath.
 // the readPath will be deleted completely.
-func swapSSTableReader(db *DB, err error, writePath string, readPath string) (sstables.SSTableReaderI, error) {
+func swapSSTableReader(db *DB, err error, writePath string, readPath string) error {
 	reader, err := sstables.NewSSTableReader(
 		sstables.ReadBasePath(writePath),
 		sstables.ReadWithKeyComparator(skiplist.BytesComparator),
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	err = db.mainSSTableReader.Close()
-	if err != nil {
-		return nil, err
-	}
-	err = os.RemoveAll(readPath)
-	if err != nil {
-		return nil, err
-	}
-	return reader, nil
+	db.rwLock.Lock()
+	return func(db *DB) error {
+		defer db.rwLock.Unlock()
+
+		err = db.mainSSTableReader.Close()
+		if err != nil {
+			return err
+		}
+
+		// at the very start we only have the memstore, thus check if there's a path first
+		if readPath != "" {
+			err = os.RemoveAll(readPath)
+			if err != nil {
+				return err
+			}
+		}
+		// finally swap the pointer over to the new reader
+		db.mainSSTableReader = reader
+
+		return nil
+	}(db)
 }
 
 func swapMemstore(db *DB) *memstore.MemStoreI {
@@ -176,13 +140,11 @@ func swapMemstore(db *DB) *memstore.MemStoreI {
 }
 
 func allocateNewSSTableFolders(db *DB) (string, string, error) {
-	readPath := path.Join(db.basePath, db.currentSSTablePath)
-	i, _ := strconv.Atoi(db.currentSSTablePath)
-	db.currentSSTablePath = strconv.Itoa(i + 1)
-	writePath := path.Join(db.basePath, db.currentSSTablePath)
-	err := os.MkdirAll(writePath, 0700)
+	readPath := db.currentSSTablePath
+	writePath, err := ioutil.TempDir(db.basePath, "sstable")
 	if err != nil {
-		return "", "", nil
+		return "", "", err
 	}
+	db.currentSSTablePath = writePath
 	return readPath, writePath, err
 }

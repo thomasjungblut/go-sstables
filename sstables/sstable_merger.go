@@ -1,6 +1,9 @@
 package sstables
 
-import "github.com/thomasjungblut/go-sstables/skiplist"
+import (
+	"fmt"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+)
 
 type SSTableMerger struct {
 	comp skiplist.KeyComparator
@@ -25,8 +28,12 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 
 	for {
 		k, v, _, err := pq.Next()
-		if err == Done {
-			break
+		if err != nil {
+			if err == Done {
+				break
+			} else {
+				return err
+			}
 		}
 
 		err = writer.WriteNext(k, v)
@@ -63,8 +70,12 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 
 	for {
 		k, v, c, err := pq.Next()
-		if err == Done {
-			break
+		if err != nil {
+			if err == Done {
+				break
+			} else {
+				return err
+			}
 		}
 
 		if prevKey != nil && m.comp(k, prevKey) != 0 {
@@ -82,6 +93,9 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 		prevKey = k
 		valBuf = append(valBuf, v)
 		ctxBuf = append(ctxBuf, c)
+		if len(ctxBuf) > 2 {
+			fmt.Println("hello")
+		}
 	}
 
 	if len(valBuf) > 0 {

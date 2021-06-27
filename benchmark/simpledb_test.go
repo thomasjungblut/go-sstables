@@ -1,115 +1,112 @@
 package benchmark
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/simpledb"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
-// write
+func BenchmarkSimpleDBReadLatency(b *testing.B) {
+	dbSizes := []int{100, 1000, 10000, 100000}
 
-func BenchmarkSimpleDBWriteLatency100(b *testing.B) {
-	benchmarkWriteLatency(100, b)
-}
+	for _, n := range dbSizes {
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			db, err := simpledb.NewSimpleDB(tmpDir,
+				simpledb.MemstoreSizeBytes(1024*1024*1024),
+				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, db.Close()) }()
+			assert.Nil(b, db.Open())
 
-func BenchmarkSimpleDBWriteLatency1k(b *testing.B) {
-	benchmarkWriteLatency(1000, b)
-}
+			parallelWriteDB(b, db, runtime.NumCPU(), n)
 
-func BenchmarkSimpleDBWriteLatency10k(b *testing.B) {
-	benchmarkWriteLatency(10000, b)
-}
-
-func BenchmarkSimpleDBWriteLatency100k(b *testing.B) {
-	benchmarkWriteLatency(100000, b)
-}
-
-// read
-
-func BenchmarkSimpleDBReadLatency100(b *testing.B) {
-	benchmarkReadLatency(100, b)
-}
-
-func BenchmarkSimpleDBReadLatency1k(b *testing.B) {
-	benchmarkReadLatency(1000, b)
-}
-
-func BenchmarkSimpleDBReadLatency10k(b *testing.B) {
-	benchmarkReadLatency(10000, b)
-}
-
-func benchmarkReadLatency(dbSize int, b *testing.B) {
-	tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
-	assert.Nil(b, err)
-	defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
-	db, err := simpledb.NewSimpleDB(tmpDir)
-	assert.Nil(b, err)
-	defer func() { assert.Nil(b, db.Close()) }()
-	assert.Nil(b, db.Open())
-
-	// we save the keys as string to not measure the itoa overhead
-	keys := make([]string, 0)
-	for i := 0; i < dbSize; i++ {
-		keys = append(keys, strconv.Itoa(i))
-		assert.Nil(b, db.Put(keys[i], randomRecordWithPrefix(i)))
-	}
-
-	b.ResetTimer()
-	i := 0
-	for n := 0; n < b.N; n++ {
-		key := keys[i]
-		val, err := db.Get(key)
-		assert.Nil(b, err)
-		assert.Truef(b, strings.HasPrefix(val, key),
-			"expected key %s as prefix, but was %s", key, val[:len(key)])
-		i++
-		if i >= len(keys) {
-			i = 0
-		}
+			b.ResetTimer()
+			i := 0
+			for n := 0; n < b.N; n++ {
+				k := strconv.Itoa(i)
+				val, err := db.Get(k)
+				if err != simpledb.NotFound {
+					b.SetBytes(int64(len(k) + len(val)))
+				}
+				i++
+				if i >= n {
+					i = 0
+				}
+			}
+		})
 	}
 }
 
-func benchmarkWriteLatency(dbSize int, b *testing.B) {
-	tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
-	assert.Nil(b, err)
-	defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
-	db, err := simpledb.NewSimpleDB(tmpDir)
-	assert.Nil(b, err)
-	defer func() { assert.Nil(b, db.Close()) }()
-	assert.Nil(b, db.Open())
+func BenchmarkSimpleDBWriteLatency(b *testing.B) {
+	dbSizes := []int{100, 1000, 10000, 100000, 1000000}
 
-	// we save the keys as string to not measure the itoa overhead
-	keys := make([]string, 0)
-	values := make([]string, 0)
-	for i := 0; i < dbSize; i++ {
-		keys = append(keys, strconv.Itoa(i))
-		values = append(values, randomRecordWithPrefix(i))
-	}
+	for _, n := range dbSizes {
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			db, err := simpledb.NewSimpleDB(tmpDir,
+				simpledb.MemstoreSizeBytes(1024*1024*1024),
+				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, db.Close()) }()
+			assert.Nil(b, db.Open())
 
-	b.ResetTimer()
-	i := 0
-	for n := 0; n < b.N; n++ {
-		err := db.Put(keys[i], values[i])
-		assert.Nil(b, err)
-		i++
-		if i >= len(keys) {
-			i = 0
-		}
+			b.ResetTimer()
+			bytes := parallelWriteDB(b, db, runtime.NumCPU(), n)
+			b.SetBytes(bytes)
+		})
 	}
 }
 
-func randomRecordWithPrefix(prefix int) string {
+func parallelWriteDB(b *testing.B, db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
+	log.Printf("writing %d records with %d goroutines\n", numRecords, numGoRoutines)
+	start := time.Now()
+	numRecordsWritten := int64(0)
+	bytesWritten := int64(0)
+	wg := sync.WaitGroup{}
+	recordsPerRoutine := numRecords / numGoRoutines
+	val := randomString()
+	for n := 0; n < numGoRoutines; n++ {
+		wg.Add(1)
+		go func(db *simpledb.DB, start, end int) {
+			for i := start; i < end; i++ {
+				k := strconv.Itoa(i)
+				assert.Nil(b, db.Put(k, val))
+				atomic.AddInt64(&bytesWritten, int64(len(k)+len(val)))
+				atomic.AddInt64(&numRecordsWritten, 1)
+			}
+			wg.Done()
+		}(db, n*recordsPerRoutine, n*recordsPerRoutine+recordsPerRoutine)
+	}
+
+	wg.Wait()
+	log.Printf("%d records with %d bytes written in %v\n", numRecordsWritten, bytesWritten, time.Since(start))
+	return bytesWritten
+}
+
+func randomString() string {
+	return randomStringSize(10000)
+}
+
+func randomStringSize(n int) string {
 	builder := strings.Builder{}
-	builder.WriteString(strconv.Itoa(prefix))
-	builder.WriteString("_")
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < n; i++ {
 		builder.WriteRune(rand.Int31n(255))
 	}
-
 	return builder.String()
 }
