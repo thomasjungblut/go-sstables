@@ -33,6 +33,27 @@ func TestReadStreamedWriteEndToEnd(t *testing.T) {
 	assertRandomAndSequentialRead(t, writer.opts.basePath, expectedNumbers)
 }
 
+func TestReadStreamedWriteEndToEndCheckMetadata(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	assert.Nil(t, err)
+	defer cleanWriterDir(t, writer)
+
+	expectedNumbers := streamedWrite1kElements(t, writer)
+	reader, err := NewSSTableReader(
+		ReadBasePath(writer.opts.basePath),
+		ReadWithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	defer closeReader(t, reader)
+
+	// check the metadata is accurate
+	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
+	assert.Equal(t, 13008, int(reader.MetaData().DataBytes))
+	assert.Equal(t, 13998, int(reader.MetaData().IndexBytes))
+	assert.Equal(t, 27006, int(reader.MetaData().TotalBytes))
+	assert.Equal(t, []byte{0x0, 0x10, 0xd6, 0x32}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0x7f, 0xf1, 0x1, 0x77}, reader.MetaData().MaxKey)
+}
+
 // this is implicitly covered by the above tests already since it's a default
 func TestReadStreamedWriteEndToEndDataCompressionSnappy(t *testing.T) {
 	writer, err := newTestSSTableStreamWriterWithDataCompression(recordio.CompressionTypeSnappy)

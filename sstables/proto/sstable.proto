@@ -15,4 +15,7 @@ message MetaData {
     uint64 numRecords = 1;
     bytes minKey = 2;
     bytes maxKey = 3;
+    uint64 dataBytes = 4;
+    uint64 indexBytes = 5;
+    uint64 totalBytes = 6;
 }

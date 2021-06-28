@@ -141,6 +141,9 @@ func (writer *SSTableStreamWriter) Close() error {
 
 	if writer.metaData != nil {
 		writer.metaData.MaxKey = writer.lastKey
+		writer.metaData.DataBytes = writer.dataWriter.Size()
+		writer.metaData.IndexBytes = writer.indexWriter.Size()
+		writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
 		bytes, err := proto.Marshal(writer.metaData)
 		if err != nil {
 			return err

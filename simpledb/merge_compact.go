@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 )
 
 const (
@@ -38,6 +39,9 @@ func flushMemstoreAndMergeSSTablesAsync(db *DB) {
 	err := func(db *DB) error {
 		defer func() { db.doneFlushChannel <- true }()
 		for storeToFlush := range db.storeFlushChannel {
+			start := time.Now()
+			memstoreSizeBytes := (*storeToFlush).EstimatedSizeInBytes()
+			sstableSizeBytes := db.mainSSTableReader.MetaData().TotalBytes
 			readPath, writePath, err := allocateNewSSTableFolders(db)
 			if err != nil {
 				return err
@@ -58,6 +62,8 @@ func flushMemstoreAndMergeSSTablesAsync(db *DB) {
 			if err != nil {
 				return err
 			}
+			log.Printf("done merging %d bytes of memstore with sstable of size %d bytes with final size %d bytes in %v path: [%s]\n",
+				memstoreSizeBytes, sstableSizeBytes, db.mainSSTableReader.MetaData().TotalBytes, time.Since(start), writePath)
 		}
 
 		return nil
