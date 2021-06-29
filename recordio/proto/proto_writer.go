@@ -45,6 +45,7 @@ type WriterOptions struct {
 	path            string
 	file            *os.File
 	compressionType int
+	bufSizeBytes    int
 }
 
 type WriterOption func(*WriterOptions)
@@ -67,6 +68,12 @@ func CompressionType(p int) WriterOption {
 	}
 }
 
+func WriteBufferSizeBytes(p int) WriterOption {
+	return func(args *WriterOptions) {
+		args.bufSizeBytes = p
+	}
+}
+
 // create a new writer with the given options. Either Path or File must be supplied, compression is optional and
 // turned off by default.
 func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
@@ -74,6 +81,7 @@ func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
 		path:            "",
 		file:            nil,
 		compressionType: recordio.CompressionTypeNone,
+		bufSizeBytes:    1024 * 1024 * 4,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -95,7 +103,10 @@ func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
 		opts.file = f
 	}
 
-	writer, err := recordio.NewFileWriter(recordio.File(opts.file), recordio.CompressionType(opts.compressionType))
+	writer, err := recordio.NewFileWriter(
+		recordio.File(opts.file),
+		recordio.CompressionType(opts.compressionType),
+		recordio.BufferSizeBytes(opts.bufSizeBytes))
 	if err != nil {
 		return nil, err
 	}

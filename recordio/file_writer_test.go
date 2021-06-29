@@ -143,7 +143,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewFileWriter(File(tmpFile))
+	r, err := NewFileWriter(File(tmpFile), BufferSizeBytes(1024))
 
 	if err != nil {
 		return nil, err
@@ -158,7 +158,7 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewFileWriter(File(tmpFile), CompressionType(compType))
+	r, err := NewFileWriter(File(tmpFile), BufferSizeBytes(1024), CompressionType(compType))
 
 	if err != nil {
 		return nil, err

@@ -62,8 +62,12 @@ func flushMemstoreAndMergeSSTablesAsync(db *DB) {
 			if err != nil {
 				return err
 			}
-			log.Printf("done merging %d bytes of memstore with sstable of size %d bytes with final size %d bytes in %v path: [%s]\n",
-				memstoreSizeBytes, sstableSizeBytes, db.mainSSTableReader.MetaData().TotalBytes, time.Since(start), writePath)
+
+			elapsedDuration := time.Since(start)
+			totalBytes := db.mainSSTableReader.MetaData().TotalBytes
+			throughput := float64(totalBytes) / 1024 / 1024 / elapsedDuration.Seconds()
+			log.Printf("done merging %d bytes of memstore with sstable of size %d bytes with final size %d bytes (%2.f mb/s) in %v path: [%s]\n",
+				memstoreSizeBytes, sstableSizeBytes, totalBytes, throughput, elapsedDuration, writePath)
 		}
 
 		return nil

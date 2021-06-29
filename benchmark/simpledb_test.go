@@ -85,10 +85,6 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
 			memstoreSize := uint64(1024 * 1024 * 1024)
-			if n > 100000 {
-				memstoreSize *= 10
-			}
-
 			db, err := simpledb.NewSimpleDB(tmpDir,
 				simpledb.MemstoreSizeBytes(memstoreSize),
 				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))

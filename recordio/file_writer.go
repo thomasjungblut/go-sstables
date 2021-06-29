@@ -207,7 +207,7 @@ type FileWriterOptions struct {
 	path            string
 	file            *os.File
 	compressionType int
-	bufferSize      int
+	bufferSizeBytes int
 }
 
 type FileWriterOption func(*FileWriterOptions)
@@ -230,9 +230,9 @@ func CompressionType(p int) FileWriterOption {
 	}
 }
 
-func BufferSize(p int) FileWriterOption {
+func BufferSizeBytes(p int) FileWriterOption {
 	return func(args *FileWriterOptions) {
-		args.bufferSize = p
+		args.bufferSizeBytes = p
 	}
 }
 
@@ -242,7 +242,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		path:            "",
 		file:            nil,
 		compressionType: CompressionTypeNone,
-		bufferSize:      4096,
+		bufferSizeBytes: 1024 * 1024 * 4,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -264,7 +264,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		opts.file = f
 	}
 
-	bufWriter := bufio.NewWriterSize(opts.file, opts.bufferSize)
+	bufWriter := bufio.NewWriterSize(opts.file, opts.bufferSizeBytes)
 	return newCompressedFileWriterWithFile(opts.file, bufWriter, opts.compressionType)
 }
 

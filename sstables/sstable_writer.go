@@ -35,7 +35,8 @@ func (writer *SSTableStreamWriter) Open() error {
 	writer.indexFilePath = path.Join(writer.opts.basePath, IndexFileName)
 	iWriter, err := rProto.NewWriter(
 		rProto.Path(writer.indexFilePath),
-		rProto.CompressionType(writer.opts.indexCompressionType))
+		rProto.CompressionType(writer.opts.indexCompressionType),
+		rProto.WriteBufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
 		return err
 	}
@@ -49,7 +50,8 @@ func (writer *SSTableStreamWriter) Open() error {
 	writer.dataFilePath = path.Join(writer.opts.basePath, DataFileName)
 	dWriter, err := rProto.NewWriter(
 		rProto.Path(writer.dataFilePath),
-		rProto.CompressionType(writer.opts.dataCompressionType))
+		rProto.CompressionType(writer.opts.dataCompressionType),
+		rProto.WriteBufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
 		return err
 	}
@@ -214,6 +216,7 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 		dataCompressionType:           recordio.CompressionTypeSnappy,
 		bloomFpProbability:            0.01,
 		bloomExpectedNumberOfElements: 1000,
+		writeBufferSizeBytes:          1024 * 1024 * 4,
 		keyComparator:                 nil,
 	}
 
@@ -238,6 +241,7 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 }
 
 func NewSSTableSimpleWriter(writerOptions ...WriterOption) (*SSTableSimpleWriter, error) {
+	writerOptions = append(writerOptions, WriteBufferSizeBytes(4096))
 	writer, err := NewSSTableStreamWriter(writerOptions...)
 	if err != nil {
 		return nil, err
@@ -254,6 +258,7 @@ type SSTableWriterOptions struct {
 	enableBloomFilter             bool
 	bloomExpectedNumberOfElements uint64
 	bloomFpProbability            float64
+	writeBufferSizeBytes          int
 	keyComparator                 skiplist.KeyComparator
 }
 
@@ -292,6 +297,12 @@ func BloomExpectedNumberOfElements(n uint64) WriterOption {
 func BloomFalsePositiveProbability(fpProbability float64) WriterOption {
 	return func(args *SSTableWriterOptions) {
 		args.bloomFpProbability = fpProbability
+	}
+}
+
+func WriteBufferSizeBytes(bufSizeBytes int) WriterOption {
+	return func(args *SSTableWriterOptions) {
+		args.writeBufferSizeBytes = bufSizeBytes
 	}
 }
 
