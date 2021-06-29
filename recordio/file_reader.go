@@ -38,9 +38,11 @@ func (r *FileReader) Open() error {
 		return errors.New("seek did not return offset 0, it was: " + strconv.FormatInt(newOffset, 10))
 	}
 
+	r.reader = NewCountingByteReader(bufio.NewReader(r.file))
+
 	// try to read the file header
 	bytes := make([]byte, FileHeaderSizeBytes)
-	numRead, err := r.file.Read(bytes)
+	numRead, err := io.ReadFull(r.reader, bytes)
 	if err != nil {
 		return err
 	}
@@ -56,8 +58,6 @@ func (r *FileReader) Open() error {
 
 	r.currentOffset = uint64(len(bytes))
 	r.recordHeaderBuffer = make([]byte, RecordHeaderSizeBytes)
-
-	r.reader = NewCountingByteReader(bufio.NewReader(r.file))
 	r.open = true
 
 	return nil
@@ -139,7 +139,7 @@ func (r *FileReader) SkipNext() error {
 
 // legacy support path for non-vint compressed V1
 func SkipNextV1(r *FileReader) error {
-	numRead, err := r.file.Read(r.recordHeaderBuffer)
+	numRead, err := io.ReadFull(r.reader, r.recordHeaderBuffer)
 	if err != nil {
 		return err
 	}
@@ -147,6 +147,7 @@ func SkipNextV1(r *FileReader) error {
 	if numRead != RecordHeaderSizeBytes {
 		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
 	}
+
 	r.currentOffset = r.currentOffset + uint64(numRead)
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(r.recordHeaderBuffer)
 	if err != nil {
@@ -168,6 +169,9 @@ func SkipNextV1(r *FileReader) error {
 		return errors.New("seek did not return expected offset, it was: " + strconv.FormatInt(newOffset, 10))
 	}
 
+	// reset the buffered reader after the seek
+	r.reader.Reset(r.file)
+
 	r.currentOffset = r.currentOffset + expectedBytesSkipped
 	return nil
 }
@@ -180,7 +184,7 @@ func (r *FileReader) Close() error {
 
 // legacy support path for non-vint compressed V1
 func readNextV1(r *FileReader) ([]byte, error) {
-	numRead, err := r.file.Read(r.recordHeaderBuffer)
+	numRead, err := io.ReadFull(r.reader, r.recordHeaderBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +200,7 @@ func readNextV1(r *FileReader) ([]byte, error) {
 	}
 
 	expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
-	numRead, err = r.file.Read(recordBuffer)
+	numRead, err = io.ReadFull(r.reader, recordBuffer)
 	if err != nil {
 		return nil, err
 	}

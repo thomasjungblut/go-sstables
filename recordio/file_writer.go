@@ -1,6 +1,7 @@
 package recordio
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ type FileWriter struct {
 	open              bool
 	closed            bool
 	file              *os.File
+	bufWriter         *bufio.Writer
 	currentOffset     uint64
 	compressionType   int
 	compressor        compressor.CompressionI
@@ -55,6 +57,8 @@ func (w *FileWriter) Open() error {
 		return fmt.Errorf("seek did not return offset 0, it was: %d", newOffset)
 	}
 
+	w.bufWriter.Reset(w.file)
+
 	offset, err := writeFileHeader(w)
 	if err != nil {
 		return err
@@ -73,7 +77,7 @@ func (w *FileWriter) Open() error {
 }
 
 func writeFileHeader(writer *FileWriter) (int, error) {
-	written, err := writer.file.Write(fileHeaderAsByteSlice(writer))
+	written, err := writer.bufWriter.Write(fileHeaderAsByteSlice(uint32(writer.compressionType)))
 	if err != nil {
 		return 0, err
 	}
@@ -81,11 +85,11 @@ func writeFileHeader(writer *FileWriter) (int, error) {
 	return written, nil
 }
 
-func fileHeaderAsByteSlice(writer *FileWriter) []byte {
+func fileHeaderAsByteSlice(compressionType uint32) []byte {
 	// 4 byte version number, 4 byte compression code = 8 bytes
 	bytes := make([]byte, 8)
 	binary.LittleEndian.PutUint32(bytes[0:4], CurrentVersion)
-	binary.LittleEndian.PutUint32(bytes[4:8], uint32(writer.compressionType))
+	binary.LittleEndian.PutUint32(bytes[4:8], compressionType)
 	return bytes
 }
 
@@ -97,7 +101,7 @@ func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, pay
 	binary.LittleEndian.PutUint32(bytes[0:4], MagicNumberSeparator)
 	binary.LittleEndian.PutUint64(bytes[4:12], payloadSizeUncompressed)
 	binary.LittleEndian.PutUint64(bytes[12:20], payloadSizeCompressed)
-	written, err := writer.file.Write(bytes)
+	written, err := writer.bufWriter.Write(bytes)
 	if err != nil {
 		return 0, err
 	}
@@ -114,7 +118,7 @@ func fillRecordHeaderV2(bytes []byte, payloadSizeUncompressed uint64, payloadSiz
 
 func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	header := fillRecordHeaderV2(writer.recordHeaderCache, payloadSizeUncompressed, payloadSizeCompressed)
-	written, err := writer.file.Write(header)
+	written, err := writer.bufWriter.Write(header)
 	if err != nil {
 		return 0, err
 	}
@@ -158,7 +162,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 		return 0, err
 	}
 
-	recordBytesWritten, err := w.file.Write(recordToWrite)
+	recordBytesWritten, err := w.bufWriter.Write(recordToWrite)
 	if err != nil {
 		return 0, err
 	}
@@ -168,6 +172,11 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	}
 
 	if sync {
+		err = w.bufWriter.Flush()
+		if err != nil {
+			return 0, err
+		}
+
 		err = w.file.Sync()
 		if err != nil {
 			return 0, err
@@ -181,6 +190,10 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 func (w *FileWriter) Close() error {
 	w.closed = true
 	w.open = false
+	err := w.bufWriter.Flush()
+	if err != nil {
+		return err
+	}
 	return w.file.Close()
 }
 
@@ -194,6 +207,7 @@ type FileWriterOptions struct {
 	path            string
 	file            *os.File
 	compressionType int
+	bufferSize      int
 }
 
 type FileWriterOption func(*FileWriterOptions)
@@ -216,12 +230,19 @@ func CompressionType(p int) FileWriterOption {
 	}
 }
 
+func BufferSize(p int) FileWriterOption {
+	return func(args *FileWriterOptions) {
+		args.bufferSize = p
+	}
+}
+
 // creates a new writer with the given options, either Path or File must be supplied, compression is optional.
 func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 	opts := &FileWriterOptions{
 		path:            "",
 		file:            nil,
 		compressionType: CompressionTypeNone,
+		bufferSize:      4096,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -243,13 +264,15 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		opts.file = f
 	}
 
-	return newCompressedFileWriterWithFile(opts.file, opts.compressionType)
+	bufWriter := bufio.NewWriterSize(opts.file, opts.bufferSize)
+	return newCompressedFileWriterWithFile(opts.file, bufWriter, opts.compressionType)
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, compType int) (*FileWriter, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter *bufio.Writer, compType int) (*FileWriter, error) {
 	return &FileWriter{
 		file:            file,
+		bufWriter:       bufWriter,
 		open:            false,
 		closed:          false,
 		compressionType: compType,
