@@ -85,6 +85,19 @@ func TestNegativeContainsHappyPathBloom(t *testing.T) {
 	assertNegativeContains(t, reader)
 }
 
+func TestFullScan(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
+		ReadWithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	defer closeReader(t, reader)
+
+	expected := []int{1, 2, 3, 4, 5, 6, 7}
+	it, err := reader.Scan()
+	assert.Nil(t, err)
+	assertIteratorMatchesSlice(t, it, expected)
+}
+
 func TestScanStartingAt(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),

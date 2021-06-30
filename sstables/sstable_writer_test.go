@@ -86,6 +86,13 @@ func TestDirectoryDoesNotExist(t *testing.T) {
 	assert.Equal(t, errors.New("basePath was not supplied"), err)
 }
 
+func TestUnopenedWrites(t *testing.T) {
+	w, err := NewSSTableSimpleWriter(WriteBasePath("abc"), WithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	err = w.streamWriter.WriteNext([]byte{1}, []byte{1})
+	assert.Equal(t, errors.New("no metadata available to write into, did you Open the writer already?"), err)
+}
+
 func TestCompressionTypeDoesNotExist(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
 	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()

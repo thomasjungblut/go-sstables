@@ -26,7 +26,8 @@ type SSTableReaderI interface {
 	Contains(key []byte) bool
 	// returns the value associated with the given key, NotFound as the error otherwise
 	Get(key []byte) ([]byte, error)
-	// Returns an iterator over the whole sorted sequence.
+	// Returns an iterator over the whole sorted sequence. Scan uses a more optimized version that iterates the
+	// data file sequentially, whereas the other Scan* functions use the index and random access using mmap.
 	Scan() (SSTableIteratorI, error)
 	// Returns an iterator over the sorted sequence starting at the given key (inclusive if key is in the list).
 	// Using a key that is out of the sequence range will result in either an empty iterator or the full sequence.

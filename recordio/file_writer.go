@@ -242,7 +242,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		path:            "",
 		file:            nil,
 		compressionType: CompressionTypeNone,
-		bufferSizeBytes: 1024 * 1024 * 4,
+		bufferSizeBytes: DefaultBufferSize,
 	}
 
 	for _, writeOption := range writerOptions {

@@ -3,6 +3,7 @@ package sstables
 import (
 	"errors"
 	"github.com/steakknife/bloomfilter"
+	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
@@ -21,29 +22,7 @@ type SSTableReader struct {
 	index         *skiplist.SkipListMap // key ([]byte) to uint64 value file offset
 	dataReader    *rProto.MMapProtoReader
 	metaData      *proto.MetaData
-}
-
-type SSTableIterator struct {
-	reader      *SSTableReader
-	keyIterator skiplist.SkipListIteratorI
-}
-
-func (it *SSTableIterator) Next() ([]byte, []byte, error) {
-	key, valueOffset, err := it.keyIterator.Next()
-	if err != nil {
-		if err == skiplist.Done {
-			return nil, nil, Done
-		} else {
-			return nil, nil, err
-		}
-	}
-
-	valBytes, err := it.reader.getValueAtOffset(valueOffset.(uint64))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return key.([]byte), valBytes, nil
+	miscClosers   []recordio.CloseableI
 }
 
 func (reader *SSTableReader) Contains(key []byte) bool {
@@ -80,11 +59,12 @@ func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) 
 }
 
 func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
-	it, err := reader.index.Iterator()
+	it, err := newSStableFullScanIterator(reader)
 	if err != nil {
 		return nil, err
 	}
-	return &SSTableIterator{reader: reader, keyIterator: it}, nil
+	reader.miscClosers = append(reader.miscClosers, it.dataReader)
+	return it, nil
 }
 
 func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
@@ -104,6 +84,12 @@ func (reader *SSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTab
 }
 
 func (reader *SSTableReader) Close() error {
+	for _, e := range reader.miscClosers {
+		err := e.Close()
+		if err != nil {
+			return err
+		}
+	}
 	return reader.dataReader.Close()
 }
 
@@ -111,6 +97,8 @@ func (reader *SSTableReader) MetaData() *proto.MetaData {
 	return reader.metaData
 }
 
+// NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
+// > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 	opts := &SSTableReaderOptions{
@@ -231,7 +219,7 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return md, nil
 }
 

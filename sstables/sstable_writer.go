@@ -95,6 +95,10 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 			writer.lastKey = make([]byte, len(key))
 		}
 	} else {
+		if writer.metaData == nil {
+			return errors.New("no metadata available to write into, did you Open the writer already?")
+		}
+
 		writer.metaData.MinKey = make([]byte, len(key))
 		writer.lastKey = make([]byte, len(key))
 		copy(writer.metaData.MinKey, key)
@@ -208,6 +212,8 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipLi
 	return nil
 }
 
+// NewSSTableStreamWriter creates a new streamed writer, the minimum options required are the base path and the comparator:
+// > sstables.NewSSTableStreamWriter(sstables.WriteBasePath("some_existing_folder"), sstables.WithKeyComparator(some_comparator))
 func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter, error) {
 	opts := &SSTableWriterOptions{
 		basePath:                      "",
