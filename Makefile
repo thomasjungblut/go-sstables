@@ -33,7 +33,8 @@ release:
 
 .PHONY: bench
 bench:
-	$(GO) test -v -benchmem -bench=. ./benchmark
+	$(GO) test -v -benchmem -bench=RecordIO ./benchmark
+	$(GO) test -v -benchmem -bench=SSTable ./benchmark
 
 .PHONY: bench-simpledb
 bench-simpledb:

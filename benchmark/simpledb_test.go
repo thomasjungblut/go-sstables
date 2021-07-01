@@ -17,6 +17,32 @@ import (
 	"time"
 )
 
+// just a handy copy&paste for easier profiling
+// TODO(thomas): remove
+func BenchmarkSimpleDBWriteLatencyForProfiling(b *testing.B) {
+	dbSizes := []int{1000000}
+
+	for _, n := range dbSizes {
+		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
+			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+
+			memstoreSize := uint64(1024 * 1024 * 1024)
+			db, err := simpledb.NewSimpleDB(tmpDir,
+				simpledb.MemstoreSizeBytes(memstoreSize),
+				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, db.Close()) }()
+			assert.Nil(b, db.Open())
+
+			b.ResetTimer()
+			bytes := parallelWriteDB(b, db, runtime.NumCPU(), n)
+			b.SetBytes(bytes)
+		})
+	}
+}
+
 func BenchmarkSimpleDBReadLatency(b *testing.B) {
 	dbSizes := []int{100, 1000, 10000, 100000}
 
@@ -47,30 +73,6 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 					i = 0
 				}
 			}
-		})
-	}
-}
-
-func BenchmarkSimpleDBWriteLatencyForProfile(b *testing.B) {
-	dbSizes := []int{1000000}
-
-	for _, n := range dbSizes {
-		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
-			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
-
-			memstoreSize := uint64(1024 * 1024 * 1024)
-			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(memstoreSize),
-				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, db.Close()) }()
-			assert.Nil(b, db.Open())
-
-			b.ResetTimer()
-			bytes := parallelWriteDB(b, db, runtime.NumCPU(), n)
-			b.SetBytes(bytes)
 		})
 	}
 }
@@ -112,7 +114,7 @@ func parallelWriteDB(b *testing.B, db *simpledb.DB, numGoRoutines int, numRecord
 		go func(db *simpledb.DB, start, end int) {
 			for i := start; i < end; i++ {
 				k := strconv.Itoa(i)
-				assert.Nil(b, db.Put(k, val))
+				_ = db.Put(k, val)
 				atomic.AddInt64(&bytesWritten, int64(len(k)+len(val)))
 				atomic.AddInt64(&numRecordsWritten, 1)
 			}

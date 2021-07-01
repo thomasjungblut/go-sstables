@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func BenchmarkRecordIO(b *testing.B) {
+func BenchmarkRecordIOWrite(b *testing.B) {
 	benchmarks := []struct {
 		name     string
 		recSize  int
@@ -51,16 +51,17 @@ func BenchmarkRecordIO(b *testing.B) {
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				if bm.sync {
-					_, err := writer.WriteSync(bytes)
-					assert.Nil(b, err)
+					_, _ = writer.WriteSync(bytes)
 				} else {
-					_, err := writer.Write(bytes)
-					assert.Nil(b, err)
+					_, _ = writer.Write(bytes)
 				}
 				b.SetBytes(int64(len(bytes)))
 			}
 
 			assert.Nil(b, writer.Close())
+			stat, err := os.Stat(tmpFile.Name())
+			assert.Nil(b, err)
+			assert.Truef(b, stat.Size() > int64(len(bytes)*b.N), "unexpected small file size %d", stat.Size())
 		})
 	}
 
