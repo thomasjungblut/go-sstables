@@ -90,11 +90,16 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 
 		var returnSlice []byte
 		if r.header.compressor != nil {
-			returnSlice, err = r.header.compressor.Decompress(pooledRecordBuf)
+			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+			decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuf, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
 			}
+			// we do a defensive copy here not to leak the pooled slice
+			returnSlice = make([]byte, len(decompressedRecord))
+			copy(returnSlice, decompressedRecord)
 			r.bufferPool.Put(pooledRecordBuf)
+			r.bufferPool.Put(pooledDecompressionBuffer)
 		} else {
 			// we do a defensive copy here not to leak the pooled slice
 			returnSlice = make([]byte, len(pooledRecordBuf))

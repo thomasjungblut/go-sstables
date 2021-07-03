@@ -148,6 +148,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	compressedSize := uint64(0)
 
 	if w.compressor != nil {
+		// TODO(thomas): we can try to buffer pool this compression as well
 		compressedRecord, err := w.compressor.Compress(record)
 		if err != nil {
 			return 0, err

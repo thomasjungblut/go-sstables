@@ -91,12 +91,16 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 
 		var returnSlice []byte
 		if r.header.compressor != nil {
-			// TODO(thomas): with snappy we can also use a pool here
-			returnSlice, err = r.header.compressor.Decompress(pooledRecordBuffer)
+			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+			decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
 			}
+			// we do a defensive copy here not to leak the pooled slice
+			returnSlice = make([]byte, len(decompressedRecord))
+			copy(returnSlice, decompressedRecord)
 			r.bufferPool.Put(pooledRecordBuffer)
+			r.bufferPool.Put(pooledDecompressionBuffer)
 		} else {
 			// we do a defensive copy here not to leak the pooled slice
 			returnSlice = make([]byte, len(pooledRecordBuffer))

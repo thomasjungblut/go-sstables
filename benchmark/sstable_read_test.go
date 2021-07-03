@@ -11,7 +11,7 @@ import (
 )
 
 func BenchmarkSSTableRead(b *testing.B) {
-	tmpDir, err := ioutil.TempDir("", "sstable_Bench")
+	tmpDir, err := ioutil.TempDir("", "sstable_BenchRead")
 	assert.Nil(b, err)
 	defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 

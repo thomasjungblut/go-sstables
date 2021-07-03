@@ -53,6 +53,7 @@ func flushMemstoreAndMergeSSTablesAsync(db *DB) {
 				return err
 			}
 
+			// TODO(thomas): when merging takes too long we should flush it into an sstable instead and merge/compact async later
 			err = merge((*storeToFlush).Size(), writePath, memStoreIterator, sstableIterator)
 			if err != nil {
 				return err
