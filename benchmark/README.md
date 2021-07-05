@@ -40,7 +40,7 @@ ok      github.com/thomasjungblut/go-sstables/benchmark 57.838s
 ### SSTable Read Benchmark
 
 Below is a quick read (sequential full table scan) benchmark of an SSTable, writing a gigabyte of random data and then
-reading it off the disk:
+reading it off the disk. That includes reading the index into memory and iterating over all records:
 
 ```
 $ make bench
@@ -49,7 +49,30 @@ goos: windows
 goarch: amd64
 pkg: github.com/thomasjungblut/go-sstables/benchmark
 BenchmarkSSTableRead
-BenchmarkSSTableRead-20                2         969360850 ns/op        1142.03 MB/s    2353153392 B/op  3145920 allocs/op
+BenchmarkSSTableRead-20    	       1	1959477000 ns/op	 564.96 MB/s
 PASS
 ok      github.com/thomasjungblut/go-sstables/benchmark 9.018s
 ```
+
+### SSTable Write Benchmark
+
+A common requirement is to flush a memstore to a sstable, here is the benchmark for various memstore sizes:
+
+```
+$ make bench
+go test -v -benchmem -bench=SSTable ./benchmark
+goos: windows
+goarch: amd64
+pkg: github.com/thomasjungblut/go-sstables/benchmark
+BenchmarkSSTableMemstoreFlush
+BenchmarkSSTableMemstoreFlush/32mb-20         	      22	  50409068 ns/op	 665.67 MB/s
+BenchmarkSSTableMemstoreFlush/64mb-20         	      12	  94149400 ns/op	 712.80 MB/s
+BenchmarkSSTableMemstoreFlush/128mb-20        	       6	 186079033 ns/op	 721.30 MB/s
+BenchmarkSSTableMemstoreFlush/256mb-20        	       3	 367057467 ns/op	 731.32 MB/s
+BenchmarkSSTableMemstoreFlush/512mb-20        	       2	 740347450 ns/op	 725.16 MB/s
+BenchmarkSSTableMemstoreFlush/1024mb-20       	       1	1506872700 ns/op	 712.56 MB/s
+BenchmarkSSTableMemstoreFlush/2048mb-20       	       1	2972302200 ns/op	 722.50 MB/s
+PASS
+ok      github.com/thomasjungblut/go-sstables/benchmark 19.018s
+```
+

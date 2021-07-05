@@ -29,19 +29,14 @@ func BenchmarkSSTableRead(b *testing.B) {
 	}
 
 	assert.Nil(b, writer.Close())
-
-	reader, err := sstables.NewSSTableReader(sstables.ReadBasePath(tmpDir), sstables.ReadWithKeyComparator(cmp))
-	assert.Nil(b, err)
-	defer func(reader sstables.SSTableReaderI) {
-		assert.Nil(b, reader.Close())
-	}(reader)
-
-	fullScanTable(b, reader)
+	fullScanTable(b, tmpDir, cmp)
 }
 
-func fullScanTable(b *testing.B, reader sstables.SSTableReaderI) {
+func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.KeyComparator) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
+		reader, err := sstables.NewSSTableReader(sstables.ReadBasePath(tmpDir), sstables.ReadWithKeyComparator(cmp))
+		assert.Nil(b, err)
 		scanner, err := reader.Scan()
 		assert.Nil(b, err)
 		for {
@@ -51,5 +46,6 @@ func fullScanTable(b *testing.B, reader sstables.SSTableReaderI) {
 			}
 		}
 		b.SetBytes(int64(reader.MetaData().TotalBytes))
+		assert.Nil(b, reader.Close())
 	}
 }

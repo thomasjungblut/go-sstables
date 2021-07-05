@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"os"
 )
@@ -27,6 +28,7 @@ type FileWriter struct {
 	compressionType   int
 	compressor        compressor.CompressionI
 	recordHeaderCache []byte
+	bufferPool        *pool.BufferPool
 }
 
 func (w *FileWriter) Open() error {
@@ -72,6 +74,7 @@ func (w *FileWriter) Open() error {
 	w.currentOffset = uint64(offset)
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV2MaxSizeBytes)
+	w.bufferPool = new(pool.BufferPool)
 
 	return nil
 }
@@ -148,8 +151,10 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	compressedSize := uint64(0)
 
 	if w.compressor != nil {
-		// TODO(thomas): we can try to buffer pool this compression as well
-		compressedRecord, err := w.compressor.Compress(record)
+		poolBuffer := w.bufferPool.Get(int(uncompressedSize))
+		defer w.bufferPool.Put(poolBuffer)
+
+		compressedRecord, err := w.compressor.CompressWithBuf(record, poolBuffer)
 		if err != nil {
 			return 0, err
 		}

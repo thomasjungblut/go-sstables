@@ -22,6 +22,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 		{"256mb", 1024 * 1024 * 256},
 		{"512mb", 1024 * 1024 * 512},
 		{"1024mb", 1024 * 1024 * 1024},
+		{"2048mb", 1024 * 1024 * 1024 * 2},
 	}
 
 	cmp := skiplist.BytesComparator
