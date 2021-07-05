@@ -49,7 +49,7 @@ goos: windows
 goarch: amd64
 pkg: github.com/thomasjungblut/go-sstables/benchmark
 BenchmarkSSTableRead
-BenchmarkSSTableRead-20    	       1	1959477000 ns/op	 564.96 MB/s
+BenchmarkSSTableRead-20                        1        1465768700 ns/op         753.11 MB/s    1412781624 B/op  9437704 allocs/op
 PASS
 ok      github.com/thomasjungblut/go-sstables/benchmark 9.018s
 ```
@@ -65,14 +65,14 @@ goos: windows
 goarch: amd64
 pkg: github.com/thomasjungblut/go-sstables/benchmark
 BenchmarkSSTableMemstoreFlush
-BenchmarkSSTableMemstoreFlush/32mb-20         	      22	  50409068 ns/op	 665.67 MB/s
-BenchmarkSSTableMemstoreFlush/64mb-20         	      12	  94149400 ns/op	 712.80 MB/s
-BenchmarkSSTableMemstoreFlush/128mb-20        	       6	 186079033 ns/op	 721.30 MB/s
-BenchmarkSSTableMemstoreFlush/256mb-20        	       3	 367057467 ns/op	 731.32 MB/s
-BenchmarkSSTableMemstoreFlush/512mb-20        	       2	 740347450 ns/op	 725.16 MB/s
-BenchmarkSSTableMemstoreFlush/1024mb-20       	       1	1506872700 ns/op	 712.56 MB/s
-BenchmarkSSTableMemstoreFlush/2048mb-20       	       1	2972302200 ns/op	 722.50 MB/s
+BenchmarkSSTableMemstoreFlush/32mb-20                 25          41657792 ns/op         805.51 MB/s    52187665 B/op     198903 allocs/op
+BenchmarkSSTableMemstoreFlush/64mb-20                 14          76066743 ns/op         882.25 MB/s    95117949 B/op     397605 allocs/op
+BenchmarkSSTableMemstoreFlush/128mb-20                 7         149681114 ns/op         896.70 MB/s    180954365 B/op    794972 allocs/op
+BenchmarkSSTableMemstoreFlush/256mb-20                 4         289055850 ns/op         928.67 MB/s    352624252 B/op   1589710 allocs/op
+BenchmarkSSTableMemstoreFlush/512mb-20                 2         574371500 ns/op         934.71 MB/s    695955168 B/op   3179176 allocs/op
+BenchmarkSSTableMemstoreFlush/1024mb-20                1        1141287400 ns/op         940.82 MB/s    1382598768 B/op  6358078 allocs/op
+BenchmarkSSTableMemstoreFlush/2048mb-20                1        2264936500 ns/op         948.14 MB/s    2755888184 B/op 12715874 allocs/op
 PASS
-ok      github.com/thomasjungblut/go-sstables/benchmark 19.018s
+ok      github.com/thomasjungblut/go-sstables/benchmark 20.650s
 ```
 

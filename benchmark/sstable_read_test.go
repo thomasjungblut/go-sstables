@@ -10,6 +10,7 @@ import (
 	"testing"
 )
 
+// we're writing a gig worth of data and test how long it takes to read the index + all data
 func BenchmarkSSTableRead(b *testing.B) {
 	tmpDir, err := ioutil.TempDir("", "sstable_BenchRead")
 	assert.Nil(b, err)
@@ -21,7 +22,6 @@ func BenchmarkSSTableRead(b *testing.B) {
 	assert.Nil(b, writer.Open())
 
 	bytes := randomRecordOfSize(1024)
-	// we're writing a gig worth of data
 	for i := 0; i < len(bytes)*1024; i++ {
 		k := make([]byte, 4)
 		binary.BigEndian.PutUint32(k, uint32(i))
