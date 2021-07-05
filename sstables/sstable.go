@@ -11,6 +11,8 @@ var DataFileName = "data.rio"
 var BloomFileName = "bloom.bf.gz"
 var MetaFileName = "meta.pb.bin"
 
+var Version = uint32(1)
+
 // iterator pattern as described in https://github.com/GoogleCloudPlatform/google-cloud-go/wiki/Iterator-Guidelines
 var Done = errors.New("no more items in iterator")
 var NotFound = errors.New("key was not found")

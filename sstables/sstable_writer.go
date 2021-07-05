@@ -22,7 +22,7 @@ type SSTableStreamWriter struct {
 	metaFilePath  string
 
 	indexWriter  *rProto.Writer
-	dataWriter   *rProto.Writer
+	dataWriter   *recordio.FileWriter
 	metaDataFile *os.File
 
 	bloomFilter *bloomfilter.Filter
@@ -48,10 +48,10 @@ func (writer *SSTableStreamWriter) Open() error {
 	}
 
 	writer.dataFilePath = path.Join(writer.opts.basePath, DataFileName)
-	dWriter, err := rProto.NewWriter(
-		rProto.Path(writer.dataFilePath),
-		rProto.CompressionType(writer.opts.dataCompressionType),
-		rProto.WriteBufferSizeBytes(writer.opts.writeBufferSizeBytes))
+	dWriter, err := recordio.NewFileWriter(
+		recordio.Path(writer.dataFilePath),
+		recordio.CompressionType(writer.opts.dataCompressionType),
+		recordio.BufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,9 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 	writer.metaDataFile = metaFile
-	writer.metaData = &sProto.MetaData{}
+	writer.metaData = &sProto.MetaData{
+		Version: Version,
+	}
 
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
@@ -112,7 +114,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		writer.bloomFilter.Add(fnvHash)
 	}
 
-	recordOffset, err := writer.dataWriter.Write(&sProto.DataEntry{Value: value})
+	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return err
 	}

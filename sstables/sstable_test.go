@@ -46,12 +46,13 @@ func TestReadStreamedWriteEndToEndCheckMetadata(t *testing.T) {
 	defer closeReader(t, reader)
 
 	// check the metadata is accurate
+	assert.Equal(t, 1, int(reader.MetaData().Version))
 	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
-	assert.Equal(t, 13008, int(reader.MetaData().DataBytes))
-	assert.Equal(t, 13998, int(reader.MetaData().IndexBytes))
-	assert.Equal(t, 27006, int(reader.MetaData().TotalBytes))
+	assert.Equal(t, 11008, int(reader.MetaData().DataBytes))
+	assert.Equal(t, 13997, int(reader.MetaData().IndexBytes))
+	assert.Equal(t, 25005, int(reader.MetaData().TotalBytes))
 	assert.Equal(t, []byte{0x0, 0xa, 0x5c, 0x94}, reader.MetaData().MinKey)
-	assert.Equal(t, []byte{0x7f, 0xee, 0x87, 0xeb}, reader.MetaData().MaxKey)
+	assert.Equal(t, []byte{0x7f, 0xe0, 0x33, 0x1}, reader.MetaData().MaxKey)
 }
 
 // this is implicitly covered by the above tests already since it's a default

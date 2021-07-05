@@ -1,11 +1,10 @@
 package sstables
 
 import (
+	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
-
-	"path"
 )
 
 type SSTableIterator struct {
@@ -31,14 +30,15 @@ func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 	return key.([]byte), valBytes, nil
 }
 
+// deprecated, since this is for the v0 protobuf based sstables.
 // this is an optimized iterator that does a sequential read over the index+data files instead of a
 // sequential read on the index with a random access lookup on the data file via mmap
-type SSTableFullScanIterator struct {
-	SSTableIterator
-	dataReader *rProto.Reader
+type V0SSTableFullScanIterator struct {
+	keyIterator skiplist.SkipListIteratorI
+	dataReader  *rProto.Reader
 }
 
-func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
+func (it *V0SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	key, _, err := it.keyIterator.Next()
 	if err != nil {
 		if err == skiplist.Done {
@@ -57,27 +57,37 @@ func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	return key.([]byte), value.Value, nil
 }
 
-func newSStableFullScanIterator(reader *SSTableReader) (*SSTableFullScanIterator, error) {
-	// TODO(thomas): super hack, this is being closed by the caller sstable reader once it closes
-	dataReader, err := rProto.NewProtoReaderWithPath(path.Join(reader.opts.basePath, DataFileName))
+func newV0SStableFullScanIterator(keyIterator skiplist.SkipListIteratorI, dataReader *rProto.Reader) (SSTableIteratorI, error) {
+	return &V0SSTableFullScanIterator{
+		keyIterator: keyIterator,
+		dataReader:  dataReader,
+	}, nil
+}
+
+// this is an optimized iterator that does a sequential read over the index+data files instead of a
+// sequential read on the index with a random access lookup on the data file via mmap
+type SSTableFullScanIterator struct {
+	keyIterator skiplist.SkipListIteratorI
+	dataReader  *recordio.FileReader
+}
+
+func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
+	key, _, err := it.keyIterator.Next()
 	if err != nil {
-		return nil, err
+		if err == skiplist.Done {
+			return nil, nil, Done
+		} else {
+			return nil, nil, err
+		}
 	}
 
-	err = dataReader.Open()
-	if err != nil {
-		return nil, err
-	}
+	next, err := it.dataReader.ReadNext()
+	return key.([]byte), next, err
+}
 
-	it, err := reader.index.Iterator()
-	if err != nil {
-		return nil, err
-	}
+func newSStableFullScanIterator(keyIterator skiplist.SkipListIteratorI, dataReader *recordio.FileReader) (SSTableIteratorI, error) {
 	return &SSTableFullScanIterator{
-		SSTableIterator: SSTableIterator{
-			reader:      reader,
-			keyIterator: it,
-		},
-		dataReader: dataReader,
+		keyIterator: keyIterator,
+		dataReader:  dataReader,
 	}, nil
 }
