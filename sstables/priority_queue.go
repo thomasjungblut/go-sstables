@@ -1,11 +1,12 @@
 package sstables
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
 type PriorityQueueI interface {
-	Init(iterators []SSTableIteratorI) error // initializes the heap with the initial values from the iterators
+	Init(iterators []SSTableIteratorI) error // initializes the heap with the initial values from the Iterators
 	Next() ([]byte, []byte, error)           // next key/value/error, Done is returned when all elements are exhausted
 }
 
@@ -14,6 +15,7 @@ type Element struct {
 	value     []byte
 	heapIndex int
 	iterator  SSTableIteratorI
+	context   interface{}
 }
 
 type PriorityQueue struct {
@@ -36,11 +38,14 @@ func (pq PriorityQueue) swap(i, j int) {
 	pq.heap[j].heapIndex = j
 }
 
-func (pq *PriorityQueue) Init(iterators []SSTableIteratorI) error {
+func (pq *PriorityQueue) Init(ctx MergeContext) error {
+	if len(ctx.Iterators) != len(ctx.IteratorContext) {
+		return errors.New("merge context iterator length does not equal iterator context length")
+	}
 	// reserve the 0th element for nil, makes it easier to implement the rest of the logic
 	pq.heap = []*Element{nil}
-	for i, it := range iterators {
-		e := &Element{heapIndex: i, iterator: it, key: nil, value: nil}
+	for i, it := range ctx.Iterators {
+		e := &Element{heapIndex: i, iterator: it, context: ctx.IteratorContext[i], key: nil, value: nil}
 		err := fillNext(e)
 		if err == nil {
 			pq.heap = append(pq.heap, e)
@@ -54,18 +59,19 @@ func (pq *PriorityQueue) Init(iterators []SSTableIteratorI) error {
 	return nil
 }
 
-func (pq *PriorityQueue) Next() ([]byte, []byte, error) {
+func (pq *PriorityQueue) Next() ([]byte, []byte, interface{}, error) {
 	if pq.size == 0 {
-		return nil, nil, Done
+		return nil, nil, nil, Done
 	}
 	// since we reserved index 0 for nil, the minimum element is always at index 1
 	top := pq.heap[1]
 	k := top.key
 	v := top.value
+	c := top.context
 	err := fillNext(top)
 	// if we encounter a real error, we're returning immediately
 	if err != nil && err != Done {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// remove the element from the heap completely if its iterator is exhausted
@@ -80,7 +86,7 @@ func (pq *PriorityQueue) Next() ([]byte, []byte, error) {
 	// always down the heap at the end
 	pq.downHeap()
 
-	return k, v, nil
+	return k, v, c, nil
 }
 
 func (pq *PriorityQueue) upHeap(i int) {

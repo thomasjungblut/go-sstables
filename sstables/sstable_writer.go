@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"errors"
+	"fmt"
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
@@ -21,7 +22,7 @@ type SSTableStreamWriter struct {
 	metaFilePath  string
 
 	indexWriter  *rProto.Writer
-	dataWriter   *rProto.Writer
+	dataWriter   *recordio.FileWriter
 	metaDataFile *os.File
 
 	bloomFilter *bloomfilter.Filter
@@ -34,7 +35,8 @@ func (writer *SSTableStreamWriter) Open() error {
 	writer.indexFilePath = path.Join(writer.opts.basePath, IndexFileName)
 	iWriter, err := rProto.NewWriter(
 		rProto.Path(writer.indexFilePath),
-		rProto.CompressionType(writer.opts.indexCompressionType))
+		rProto.CompressionType(writer.opts.indexCompressionType),
+		rProto.WriteBufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
 		return err
 	}
@@ -46,9 +48,10 @@ func (writer *SSTableStreamWriter) Open() error {
 	}
 
 	writer.dataFilePath = path.Join(writer.opts.basePath, DataFileName)
-	dWriter, err := rProto.NewWriter(
-		rProto.Path(writer.dataFilePath),
-		rProto.CompressionType(writer.opts.dataCompressionType))
+	dWriter, err := recordio.NewFileWriter(
+		recordio.Path(writer.dataFilePath),
+		recordio.CompressionType(writer.opts.dataCompressionType),
+		recordio.BufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,9 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 	writer.metaDataFile = metaFile
-	writer.metaData = &sProto.MetaData{}
+	writer.metaData = &sProto.MetaData{
+		Version: Version,
+	}
 
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
@@ -92,6 +97,10 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 			writer.lastKey = make([]byte, len(key))
 		}
 	} else {
+		if writer.metaData == nil {
+			return errors.New("no metadata available to write into, did you Open the writer already?")
+		}
+
 		writer.metaData.MinKey = make([]byte, len(key))
 		writer.lastKey = make([]byte, len(key))
 		copy(writer.metaData.MinKey, key)
@@ -105,7 +114,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		writer.bloomFilter.Add(fnvHash)
 	}
 
-	recordOffset, err := writer.dataWriter.Write(&sProto.DataEntry{Value: value})
+	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return err
 	}
@@ -121,7 +130,6 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 }
 
 func (writer *SSTableStreamWriter) Close() error {
-	writer.metaData.MaxKey = writer.lastKey
 	err := writer.indexWriter.Close()
 	if err != nil {
 		return err
@@ -132,28 +140,33 @@ func (writer *SSTableStreamWriter) Close() error {
 		return err
 	}
 
-	if writer.opts.enableBloomFilter {
+	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
 		_, err := writer.bloomFilter.WriteFile(path.Join(writer.opts.basePath, BloomFileName))
 		if err != nil {
 			return err
 		}
 	}
 
-	bytes, err := proto.Marshal(writer.metaData)
-	if err != nil {
-		return err
-	}
+	if writer.metaData != nil {
+		writer.metaData.MaxKey = writer.lastKey
+		writer.metaData.DataBytes = writer.dataWriter.Size()
+		writer.metaData.IndexBytes = writer.indexWriter.Size()
+		writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
+		bytes, err := proto.Marshal(writer.metaData)
+		if err != nil {
+			return err
+		}
 
-	_, err = writer.metaDataFile.Write(bytes)
-	if err != nil {
-		return err
-	}
+		_, err = writer.metaDataFile.Write(bytes)
+		if err != nil {
+			return err
+		}
 
-	err = writer.metaDataFile.Close()
-	if err != nil {
-		return err
+		err = writer.metaDataFile.Close()
+		if err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -201,6 +214,8 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipLi
 	return nil
 }
 
+// NewSSTableStreamWriter creates a new streamed writer, the minimum options required are the base path and the comparator:
+// > sstables.NewSSTableStreamWriter(sstables.WriteBasePath("some_existing_folder"), sstables.WithKeyComparator(some_comparator))
 func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter, error) {
 	opts := &SSTableWriterOptions{
 		basePath:                      "",
@@ -209,6 +224,7 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 		dataCompressionType:           recordio.CompressionTypeSnappy,
 		bloomFpProbability:            0.01,
 		bloomExpectedNumberOfElements: 1000,
+		writeBufferSizeBytes:          1024 * 1024 * 4,
 		keyComparator:                 nil,
 	}
 
@@ -224,10 +240,16 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 		return nil, errors.New("no key comparator supplied")
 	}
 
+	if opts.bloomExpectedNumberOfElements <= 0 {
+		return nil, fmt.Errorf("unexpected number of bloom filter elements, was: %d",
+			opts.bloomExpectedNumberOfElements)
+	}
+
 	return &SSTableStreamWriter{opts: opts}, nil
 }
 
 func NewSSTableSimpleWriter(writerOptions ...WriterOption) (*SSTableSimpleWriter, error) {
+	writerOptions = append(writerOptions, WriteBufferSizeBytes(4096))
 	writer, err := NewSSTableStreamWriter(writerOptions...)
 	if err != nil {
 		return nil, err
@@ -244,6 +266,7 @@ type SSTableWriterOptions struct {
 	enableBloomFilter             bool
 	bloomExpectedNumberOfElements uint64
 	bloomFpProbability            float64
+	writeBufferSizeBytes          int
 	keyComparator                 skiplist.KeyComparator
 }
 
@@ -282,6 +305,12 @@ func BloomExpectedNumberOfElements(n uint64) WriterOption {
 func BloomFalsePositiveProbability(fpProbability float64) WriterOption {
 	return func(args *SSTableWriterOptions) {
 		args.bloomFpProbability = fpProbability
+	}
+}
+
+func WriteBufferSizeBytes(bufSizeBytes int) WriterOption {
+	return func(args *SSTableWriterOptions) {
+		args.writeBufferSizeBytes = bufSizeBytes
 	}
 }
 

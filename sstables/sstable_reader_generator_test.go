@@ -17,11 +17,13 @@ func TestGenerateTestFiles(t *testing.T) {
 
 	prefix := "test_files/"
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableRecordIOV2")
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithBloom")
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithMetaData")
 }
 
 func writeHappyPathSSTable(t *testing.T, path string) {
 	writer := newSimpleBytesWriterAt(t, path)
-	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	err := writer.WriteSkipListMap(list)
 	assert.Nil(t, err)
 }

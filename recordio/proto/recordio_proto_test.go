@@ -16,7 +16,7 @@ const TestFile = "../test_files/berlin52.tsp"
 func TestReadWriteEndToEndProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile))
 	assert.Nil(t, err)
 
@@ -26,7 +26,7 @@ func TestReadWriteEndToEndProto(t *testing.T) {
 func TestReadWriteEndToEndGzipProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzipProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeGZIP))
 	assert.Nil(t, err)
 
@@ -36,7 +36,7 @@ func TestReadWriteEndToEndGzipProto(t *testing.T) {
 func TestReadWriteEndToEndSnappyProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappyProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeSnappy))
 	assert.Nil(t, err)
 
@@ -87,7 +87,7 @@ func endToEndReadWriteProtobuf(writer *Writer, t *testing.T, tmpFile *os.File) {
 func TestRandomReadWriteEndToEndProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile))
 	assert.Nil(t, err)
 
@@ -97,7 +97,7 @@ func TestRandomReadWriteEndToEndProto(t *testing.T) {
 func TestRandomReadWriteEndToEndGzipProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzipProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeGZIP))
 	assert.Nil(t, err)
 
@@ -107,7 +107,7 @@ func TestRandomReadWriteEndToEndGzipProto(t *testing.T) {
 func TestRandomReadWriteEndToEndSnappyProto(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappyProto")
 	assert.Nil(t, err)
-	defer os.Remove(tmpFile.Name())
+	defer func() { assert.Nil(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeSnappy))
 	assert.Nil(t, err)
 

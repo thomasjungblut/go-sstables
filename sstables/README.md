@@ -104,17 +104,19 @@ In this library, this can be easily composed here via full-table scanners and an
 
 ```go
 var iterators []SSTableIteratorI
+var iteratorContext []inteface{}
 for i := 0; i < numFiles; i++ {
-	reader, err := NewSSTableReader(
-    		ReadBasePath(sstablePath),
-    		ReadWithKeyComparator(skiplist.BytesComparator))
-	if err != nil { log.Fatalf("error: %v", err) }
+    reader, err := NewSSTableReader(
+            ReadBasePath(sstablePath),
+            ReadWithKeyComparator(skiplist.BytesComparator))
+    if err != nil { log.Fatalf("error: %v", err) }
     defer reader.Close()
-	
-	it, err := reader.Scan()
-	if err != nil { log.Fatalf("error: %v", err) }
-	
+    
+    it, err := reader.Scan()
+    if err != nil { log.Fatalf("error: %v", err) }
+    
     iterators = append(iterators, it)   
+    iteratorContext = append(iteratorContext, i)
 }
 
 writer, err := sstables.NewSSTableSimpleWriter(
@@ -124,7 +126,11 @@ if err != nil { log.Fatalf("error: %v", err) }
 
 merger := NewSSTableMerger(skiplist.BytesComparator)
 // merge takes care of opening/closing itself
-err = merger.Merge(iterators, writer)  
+err = merger.Merge(MergeContext{
+    iterators:       iterators,
+    iteratorContext: iteratorContext,
+}, outWriter)
+
 if err != nil { log.Fatalf("error: %v", err) }
 
 // do something with the merged sstable
@@ -132,3 +138,19 @@ if err != nil { log.Fatalf("error: %v", err) }
 
 The merge logic itself is based on a heap, so it can scale to thousands of files easily.
 
+There might be some cases where you want to have the ability to compact while you're merging the files. This is where `MergeCompact` comes in handy, there you can supply a simple reduce function to directly compact the values for a given key. Below example illustrates this functionality:
+
+```go
+reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+    // always pick the first one
+    return key, values[0]
+}
+
+merger := NewSSTableMerger(skiplist.BytesComparator)
+err = merger.MergeCompact(MergeContext{
+    iterators:       iterators,
+    iteratorContext: iteratorContext,
+}, outWriter, reduceFunc)
+```
+
+The context gives you the ability to figure out which value originated from which file/iterator. The context slice is parallel to the values slice, so the value at index 0 originated from the context at index 0.

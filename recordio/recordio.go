@@ -27,6 +27,8 @@ const (
 	CompressionTypeSnappy = iota
 )
 
+const DefaultBufferSize = 1024 * 1024 * 4
+
 type SizeI interface {
 	// returns the current size of the file in bytes
 	Size() uint64

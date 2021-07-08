@@ -7,6 +7,7 @@ message IndexEntry {
     uint64 valueOffset = 2;
 }
 
+// deprecated, it's unncessary overhead to marshal the bytes once more
 message DataEntry {
     bytes value = 1;
 }
@@ -15,4 +16,8 @@ message MetaData {
     uint64 numRecords = 1;
     bytes minKey = 2;
     bytes maxKey = 3;
+    uint64 dataBytes = 4;
+    uint64 indexBytes = 5;
+    uint64 totalBytes = 6;
+    uint32 version = 7; // currently version 1, the default is version 0 with protos as values
 }
