@@ -15,8 +15,8 @@ import (
 )
 
 const WriteAheadFolder = "wal"
-const MemStoreMaxSizeBytes uint64 = 64 * 1024 * 1024   // 64mb
-const WriteAheadMaxSizeBytes uint64 = 32 * 1024 * 1024 // 32mb
+const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024   // 1gb
+const WriteAheadMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 
 var NotFound = errors.New("NotFound")
 
@@ -52,7 +52,9 @@ type DB struct {
 func (db *DB) Open() error {
 	// TODO if files already exist we need to reconstruct from the WAL
 	// TODO we need to prune the WALs based on a watermark (run some GC)
-	go flushMemstoreAndMergeSSTablesAsync(db)
+
+	go flushMemstoreContinuously(db)
+	// go flushMemstoreAndMergeSSTablesAsync(db)
 
 	return nil
 }
