@@ -50,7 +50,7 @@ func writeCompressedSingleRecordAugmented(t *testing.T, path string, compType in
 
 func writeCompressedSingleRecord(t *testing.T, path string, compType int) {
 	writer, err := newCompressedOpenedWriterAtPath(path, compType)
-	defer writer.Close()
+	defer closeFileWriter(t, writer)
 	assert.Nil(t, err)
 	_, err = writer.Write(ascendingBytes(1337))
 	assert.Nil(t, err)
@@ -73,7 +73,7 @@ func writeVersionMismatchAugmented(t *testing.T, path string, augmentedVersion u
 
 func writeCompressedMultiRecordAscending(t *testing.T, path string) {
 	writer, err := newCompressedOpenedWriterAtPath(path, CompressionTypeSnappy)
-	defer writer.Close()
+	defer closeFileWriter(t, writer)
 	assert.Nil(t, err)
 	for i := 0; i < 255; i++ {
 		_, err = writer.Write(ascendingBytes(i))
@@ -83,7 +83,7 @@ func writeCompressedMultiRecordAscending(t *testing.T, path string) {
 
 func writeUncompressedMultiRecordAscending(t *testing.T, path string) {
 	writer, err := newUncompressedOpenedWriterAtPath(path)
-	defer writer.Close()
+	defer closeFileWriter(t, writer)
 	assert.Nil(t, err)
 	for i := 0; i < 255; i++ {
 		_, err = writer.Write(ascendingBytes(i))
@@ -93,7 +93,7 @@ func writeUncompressedMultiRecordAscending(t *testing.T, path string) {
 
 func writeUncompressedSingleRecord(t *testing.T, path string) {
 	writer, err := newUncompressedOpenedWriterAtPath(path)
-	defer writer.Close()
+	defer closeFileWriter(t, writer)
 	assert.Nil(t, err)
 	_, err = writer.Write(ascendingBytes(13))
 	assert.Nil(t, err)

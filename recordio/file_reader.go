@@ -4,19 +4,20 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	pool "github.com/libp2p/go-buffer-pool"
 	"io"
 	"os"
 	"strconv"
 )
 
 type FileReader struct {
-	recordHeaderBuffer []byte
-	currentOffset      uint64
-	file               *os.File
-	header             *Header
-	open               bool
-	closed             bool
-	reader             *CountingBufferedReader
+	currentOffset uint64
+	file          *os.File
+	header        *Header
+	open          bool
+	closed        bool
+	reader        *CountingBufferedReader
+	bufferPool    *pool.BufferPool
 }
 
 func (r *FileReader) Open() error {
@@ -38,9 +39,11 @@ func (r *FileReader) Open() error {
 		return errors.New("seek did not return offset 0, it was: " + strconv.FormatInt(newOffset, 10))
 	}
 
+	r.reader = NewCountingByteReader(bufio.NewReaderSize(r.file, DefaultBufferSize))
+
 	// try to read the file header
 	bytes := make([]byte, FileHeaderSizeBytes)
-	numRead, err := r.file.Read(bytes)
+	numRead, err := io.ReadFull(r.reader, bytes)
 	if err != nil {
 		return err
 	}
@@ -55,9 +58,8 @@ func (r *FileReader) Open() error {
 	}
 
 	r.currentOffset = uint64(len(bytes))
-	r.recordHeaderBuffer = make([]byte, RecordHeaderSizeBytes)
 
-	r.reader = NewCountingByteReader(bufio.NewReader(r.file))
+	r.bufferPool = new(pool.BufferPool)
 	r.open = true
 
 	return nil
@@ -77,8 +79,8 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			return nil, err
 		}
 
-		expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
-		numRead, err := io.ReadFull(r.reader, recordBuffer)
+		expectedBytesRead, pooledRecordBuffer := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
+		numRead, err := io.ReadFull(r.reader, pooledRecordBuffer)
 		if err != nil {
 			return nil, err
 		}
@@ -87,16 +89,28 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
 		}
 
+		var returnSlice []byte
 		if r.header.compressor != nil {
-			recordBuffer, err = r.header.compressor.Decompress(recordBuffer)
+			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+			decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
 			}
+			// we do a defensive copy here not to leak the pooled slice
+			returnSlice = make([]byte, len(decompressedRecord))
+			copy(returnSlice, decompressedRecord)
+			r.bufferPool.Put(pooledRecordBuffer)
+			r.bufferPool.Put(pooledDecompressionBuffer)
+		} else {
+			// we do a defensive copy here not to leak the pooled slice
+			returnSlice = make([]byte, len(pooledRecordBuffer))
+			copy(returnSlice, pooledRecordBuffer)
+			r.bufferPool.Put(pooledRecordBuffer)
 		}
 
 		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
 		r.currentOffset = r.currentOffset + (r.reader.count - start)
-		return recordBuffer, nil
+		return returnSlice, nil
 	}
 }
 
@@ -139,7 +153,8 @@ func (r *FileReader) SkipNext() error {
 
 // legacy support path for non-vint compressed V1
 func SkipNextV1(r *FileReader) error {
-	numRead, err := r.file.Read(r.recordHeaderBuffer)
+	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
 		return err
 	}
@@ -147,11 +162,14 @@ func SkipNextV1(r *FileReader) error {
 	if numRead != RecordHeaderSizeBytes {
 		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
 	}
+
 	r.currentOffset = r.currentOffset + uint64(numRead)
-	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(r.recordHeaderBuffer)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(headerBuf)
 	if err != nil {
 		return nil
 	}
+
+	r.bufferPool.Put(headerBuf)
 
 	expectedBytesSkipped := payloadSizeUncompressed
 	if r.header.compressor != nil {
@@ -168,6 +186,9 @@ func SkipNextV1(r *FileReader) error {
 		return errors.New("seek did not return expected offset, it was: " + strconv.FormatInt(newOffset, 10))
 	}
 
+	// reset the buffered reader after the seek
+	r.reader.Reset(r.file)
+
 	r.currentOffset = r.currentOffset + expectedBytesSkipped
 	return nil
 }
@@ -180,7 +201,8 @@ func (r *FileReader) Close() error {
 
 // legacy support path for non-vint compressed V1
 func readNextV1(r *FileReader) ([]byte, error) {
-	numRead, err := r.file.Read(r.recordHeaderBuffer)
+	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
 		return nil, err
 	}
@@ -190,13 +212,14 @@ func readNextV1(r *FileReader) ([]byte, error) {
 	}
 
 	r.currentOffset = r.currentOffset + uint64(numRead)
-	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(r.recordHeaderBuffer)
+	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(headerBuf)
 	if err != nil {
 		return nil, err
 	}
+	r.bufferPool.Put(headerBuf)
 
 	expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
-	numRead, err = r.file.Read(recordBuffer)
+	numRead, err = io.ReadFull(r.reader, recordBuffer)
 	if err != nil {
 		return nil, err
 	}

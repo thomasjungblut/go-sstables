@@ -13,9 +13,39 @@ func TestSimpleGzipCompression(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 33, len(compressedBytes))
 
-	decompressedBytes, err := comp.Decompress(compressedBytes)
-	assert.Nil(t, err)
-	assert.Equal(t, 9, len(decompressedBytes))
+	decompressAndCheck(t, &comp, compressedBytes, data, 9)
+}
 
-	assert.Equal(t, data, string(decompressedBytes))
+func TestSimpleGzipCompressionWithBuffers(t *testing.T) {
+	comp := GzipCompressor{}
+	data := "some data"
+
+	destBuf := make([]byte, 33)
+	compressedBytes, err := comp.CompressWithBuf([]byte(data), destBuf)
+	assert.Nil(t, err)
+	assert.Equal(t, 33, len(compressedBytes))
+
+	decompressAndCheck(t, &comp, compressedBytes, data, 9)
+}
+
+func TestSimpleGzipCompressionWithSmallerBuffer(t *testing.T) {
+	comp := GzipCompressor{}
+	data := "some data"
+
+	destBuf := make([]byte, 30)
+	compressedBytes, err := comp.CompressWithBuf([]byte(data), destBuf)
+	assert.Nil(t, err)
+	assert.Equal(t, 33, len(compressedBytes))
+	decompressAndCheck(t, &comp, compressedBytes, data, 9)
+}
+
+func TestSimpleGzipCompressionWithLargerBuffer(t *testing.T) {
+	comp := GzipCompressor{}
+	data := "some data"
+
+	destBuf := make([]byte, 40)
+	compressedBytes, err := comp.CompressWithBuf([]byte(data), destBuf)
+	assert.Nil(t, err)
+	assert.Equal(t, 33, len(compressedBytes))
+	decompressAndCheck(t, &comp, compressedBytes, data, 9)
 }

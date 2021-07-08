@@ -3,6 +3,7 @@ package recordio
 import (
 	"encoding/binary"
 	"fmt"
+	pool "github.com/libp2p/go-buffer-pool"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"io"
 )
@@ -81,4 +82,13 @@ func allocateRecordBuffer(header *Header, payloadSizeUncompressed uint64, payloa
 	}
 
 	return expectedBytesRead, make([]byte, expectedBytesRead)
+}
+
+func allocateRecordBufferPooled(bufferPool *pool.BufferPool, header *Header, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (uint64, []byte) {
+	expectedBytesRead := payloadSizeUncompressed
+	if header.compressor != nil {
+		expectedBytesRead = payloadSizeCompressed
+	}
+
+	return expectedBytesRead, bufferPool.Get(int(expectedBytesRead))
 }

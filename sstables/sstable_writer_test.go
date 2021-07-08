@@ -12,9 +12,10 @@ import (
 
 func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 	writer, err := newTestSSTableSimpleWriter()
-	defer os.RemoveAll(writer.streamWriter.opts.basePath)
 	assert.Nil(t, err)
-	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7,})
+	defer cleanWriterDir(t, writer.streamWriter)
+
+	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
 	err = writer.WriteSkipListMap(list)
 	assert.Nil(t, err)
 
@@ -22,15 +23,15 @@ func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 		ReadBasePath(writer.streamWriter.opts.basePath),
 		ReadWithKeyComparator(writer.streamWriter.opts.keyComparator))
 	assert.Nil(t, err)
+	defer closeReader(t, reader)
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
-	defer reader.Close()
 	assertContentMatchesSkipList(t, reader, list)
 }
 
 func TestSkipListStreamedWriteFailsOnKeyComparison(t *testing.T) {
 	writer, err := newTestSSTableStreamWriter()
-	defer writer.Close()
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
+	defer closeWriter(t, writer)
 	assert.Nil(t, err)
 
 	err = writer.Open()
@@ -52,8 +53,8 @@ func TestSkipListStreamedWriteFailsOnKeyComparison(t *testing.T) {
 
 func TestSkipListStreamedWriteKeyComparisonAdjustsBufferSize(t *testing.T) {
 	writer, err := newTestSSTableStreamWriter()
-	defer writer.Close()
-	defer os.RemoveAll(writer.opts.basePath)
+	defer cleanWriterDir(t, writer)
+	defer closeWriter(t, writer)
 	assert.Nil(t, err)
 
 	err = writer.Open()
@@ -85,12 +86,28 @@ func TestDirectoryDoesNotExist(t *testing.T) {
 	assert.Equal(t, errors.New("basePath was not supplied"), err)
 }
 
+func TestUnopenedWrites(t *testing.T) {
+	w, err := NewSSTableSimpleWriter(WriteBasePath("abc"), WithKeyComparator(skiplist.BytesComparator))
+	assert.Nil(t, err)
+	err = w.streamWriter.WriteNext([]byte{1}, []byte{1})
+	assert.Equal(t, errors.New("no metadata available to write into, did you Open the writer already?"), err)
+}
+
 func TestCompressionTypeDoesNotExist(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
-	defer os.RemoveAll(tmpDir)
+	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
 	assert.Nil(t, err)
 	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{}))
 	assert.Equal(t, errors.New("unsupported compression type 25"), err)
+	assert.Nil(t, writer.streamWriter.Close())
+}
+
+func TestEmptyBloomFilter(t *testing.T) {
+	_, err := NewSSTableSimpleWriter(
+		WriteBasePath("abc"),
+		WithKeyComparator(skiplist.BytesComparator),
+		BloomExpectedNumberOfElements(0))
+	assert.Equal(t, errors.New("unexpected number of bloom filter elements, was: 0"), err)
 }

@@ -17,6 +17,16 @@ type Appender struct {
 	walOptions         *Options
 }
 
+func (a *Appender) Append(record []byte) error {
+	err := checkSizeAndRotate(a, len(record))
+	if err != nil {
+		return err
+	}
+	_, err = a.currentWriter.Write(record)
+
+	return err
+}
+
 func (a *Appender) AppendSync(record []byte) error {
 	err := checkSizeAndRotate(a, len(record))
 	if err != nil {

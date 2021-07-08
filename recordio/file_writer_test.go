@@ -12,10 +12,10 @@ import (
 
 func TestWriterHappyPathOpenWriteClose(t *testing.T) {
 	writer := singleWrite(t)
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
 
 	reader := newReaderOnTopOfWriter(t, writer)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	readNextExpectAscendingBytesOfLen(t, reader, 13)
 	readNextExpectEOF(t, reader)
@@ -23,7 +23,7 @@ func TestWriterHappyPathOpenWriteClose(t *testing.T) {
 
 func TestSingleWriteSize(t *testing.T) {
 	writer := singleWrite(t)
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
 
 	size := writer.Size()
 	assert.Equal(t, uint64(0x1a), size)
@@ -35,7 +35,7 @@ func TestSingleWriteSize(t *testing.T) {
 
 func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	writer := newOpenedWriter(t)
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
 
 	offset, err := writer.Write(randomRecordOfSize(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
@@ -63,7 +63,7 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	assert.Equal(t, int64(63), stat.Size())
 
 	reader := newReaderOnTopOfWriter(t, writer)
-	defer reader.Close()
+	defer closeFileReader(t, reader)
 
 	readNextExpectRandomBytesOfLen(t, reader, 5)
 	readNextExpectRandomBytesOfLen(t, reader, 10)
@@ -73,7 +73,7 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 
 func TestWriterForbidsClosedWrites(t *testing.T) {
 	writer := singleWrite(t)
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
 	// file is closed, should not allow us to write anymore
 	offset, err := writer.Write(make([]byte, 0))
 	assert.Equal(t, uint64(0), offset)
@@ -84,14 +84,18 @@ func TestWriterForbidsClosedWrites(t *testing.T) {
 
 func TestWriterForbidsDoubleOpens(t *testing.T) {
 	writer := newOpenedWriter(t)
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
+	defer closeFileWriter(t, writer)
+
 	err := writer.Open()
 	assert.Equal(t, errors.New("already opened"), err)
 }
 
 func TestWriterForbidsWritesOnUnopenedFiles(t *testing.T) {
 	writer, err := newUncompressedTestWriter()
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
+	defer closeFileWriter(t, writer)
+
 	assert.Nil(t, err)
 	_, err = writer.Write(make([]byte, 0))
 	assert.Equal(t, errors.New("writer was either not opened yet or is closed already"), err)
@@ -109,10 +113,11 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 	stat, err := os.Stat(writer.file.Name())
 	assert.Nil(t, err)
 	assert.NotEqual(t, 8, stat.Size())
-	defer os.Remove(writer.file.Name())
+	defer removeFileWriterFile(t, writer)
 
 	writer, err = NewFileWriter(Path(writer.file.Name()))
 	assert.Nil(t, err)
+	defer closeFileWriter(t, writer)
 
 	err = writer.Open()
 	assert.Equal(t, errors.New("file is not empty"), err)
@@ -138,7 +143,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewFileWriter(File(tmpFile))
+	r, err := NewFileWriter(File(tmpFile), BufferSizeBytes(1024))
 
 	if err != nil {
 		return nil, err
@@ -153,7 +158,7 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 		return nil, err
 	}
 
-	r, err := NewFileWriter(File(tmpFile), CompressionType(compType))
+	r, err := NewFileWriter(File(tmpFile), BufferSizeBytes(1024), CompressionType(compType))
 
 	if err != nil {
 		return nil, err

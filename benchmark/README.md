@@ -1,10 +1,10 @@
-### RecordIO Benchmark 
+### RecordIO Write Benchmark
 
-Here's a simple write benchmark on a NVME SSD.
+Here's a simple write benchmark on a NVME SSD with 3.5 GB/s sequential read and 2.3 GB/s sequential write throughput.
 Basically writing a thousand records of varying sizes, with normal buffered writes and sync writes after each record.
 
-Keep in mind that compression should not save any IO, since we're compressing random data.
-So the below table actually measures the algorithmic overhead (plus the inefficiency of encoding random data).
+Keep in mind that compression should not save any IO, since we're compressing random data. So the below table actually
+measures the algorithmic overhead (plus the inefficiency of encoding random data).
 
 ```
 $ make bench
@@ -12,60 +12,67 @@ go test -v -benchmem -bench=. ./benchmark
 goos: windows
 goarch: amd64
 pkg: github.com/thomasjungblut/go-sstables/benchmark
-BenchmarkWriteRecordSize1k-12                        100          15419600 ns/op          67.71 MB/s      228427 B/op       3032 allocs/op
-BenchmarkWriteRecordSize10k-12                        50          22147332 ns/op         463.26 MB/s      228542 B/op       3031 allocs/op
-BenchmarkWriteRecordSize100k-12                       20          69468215 ns/op        1474.34 MB/s      233684 B/op       3032 allocs/op
-BenchmarkWriteRecordSize1m-12                          3         410104933 ns/op        2556.90 MB/s      577805 B/op       3031 allocs/op
 
-BenchmarkWriteGzipRecordSize1k-12                      5         215676720 ns/op           4.97 MB/s    815375665 B/op     23191 allocs/op
-BenchmarkWriteGzipRecordSize10k-12                     3         447410966 ns/op          22.99 MB/s    825096056 B/op     23036 allocs/op
-BenchmarkWriteGzipRecordSize100k-12                    1        2685462700 ns/op          38.16 MB/s    1012975064 B/op    25035 allocs/op
-BenchmarkWriteGzipRecordSize1m-12                      1        26986574400 ns/op         38.87 MB/s    4913367912 B/op    29992 allocs/op
+BenchmarkRecordIO/RecordSize1k-20                3883150               290 ns/op        3527.15 MB/s           0 B/op         0 allocs/op
+BenchmarkRecordIO/RecordSize10k-20                413266              2857 ns/op        3584.41 MB/s           0 B/op          0 allocs/op
+BenchmarkRecordIO/RecordSize100k-20                43568             28391 ns/op        3606.75 MB/s           0 B/op          0 allocs/op
+BenchmarkRecordIO/RecordSize1M-20                   4221            275834 ns/op        3712.38 MB/s           0 B/op          0 allocs/op
 
-BenchmarkWriteSnappyRecordSize1k-12                  100          16192124 ns/op          64.79 MB/s     1508384 B/op       4032 allocs/op
-BenchmarkWriteSnappyRecordSize10k-12                  50         118395154 ns/op          86.70 MB/s    12516719 B/op       4034 allocs/op
-BenchmarkWriteSnappyRecordSize100k-12                 20          87928185 ns/op        1164.92 MB/s    123115587 B/op      4062 allocs/op
-BenchmarkWriteSnappyRecordSize1m-12                    2         657253450 ns/op        1595.50 MB/s    1229583544 B/op     4541 allocs/op
+BenchmarkRecordIO/GzipRecordSize1k-20               7500            136226 ns/op           7.52 MB/s      815138 B/op         20 allocs/op
+BenchmarkRecordIO/GzipRecordSize10k-20              4999            217475 ns/op          47.09 MB/s      824866 B/op         20 allocs/op
+BenchmarkRecordIO/GzipRecordSize100k-20              688           1730058 ns/op          59.19 MB/s     1012643 B/op         22 allocs/op
+BenchmarkRecordIO/GzipRecordSize1M-20                 69          16388058 ns/op          62.48 MB/s     2823085 B/op         25 allocs/op
 
-BenchmarkWriteSyncRecordSize1k-12                      1        1224008600 ns/op           0.85 MB/s      229560 B/op       3036 allocs/op
-BenchmarkWriteSyncRecordSize10k-12                     1        1588437800 ns/op           6.46 MB/s      238712 B/op       3034 allocs/op
-BenchmarkWriteSyncRecordSize100k-12                    1        1495825600 ns/op          68.47 MB/s      334968 B/op       3034 allocs/op
-BenchmarkWriteSyncRecordSize1m-12                      1        2219904700 ns/op         472.36 MB/s     1277048 B/op       3034 allocs/op
+BenchmarkRecordIO/SnappyRecordSize1k-20          1668518               690 ns/op        1483.80 MB/s        1280 B/op          1 allocs/op
+BenchmarkRecordIO/SnappyRecordSize10k-20          222228              5038 ns/op        2032.75 MB/s       12288 B/op          1 allocs/op
+BenchmarkRecordIO/SnappyRecordSize100k-20          27940             43273 ns/op        2366.38 MB/s      122880 B/op          1 allocs/op
+BenchmarkRecordIO/SnappyRecordSize1M-20             2402            475310 ns/op        2154.38 MB/s     1196034 B/op          1 allocs/op
+
+BenchmarkRecordIO/SyncRecordSize1k-20                795           1511583 ns/op           0.68 MB/s           0 B/op          0 allocs/op
+BenchmarkRecordIO/SyncRecordSize10k-20               861           1616945 ns/op           6.33 MB/s           0 B/op          0 allocs/op
+BenchmarkRecordIO/SyncRecordSize100k-20              684           1672742 ns/op          61.22 MB/s           1 B/op          0 allocs/op
+BenchmarkRecordIO/SyncRecordSize1M-20                603           2034682 ns/op         503.27 MB/s           1 B/op          0 allocs/op
 
 PASS
-ok      github.com/thomasjungblut/go-sstables/benchmark 58.505s
+ok      github.com/thomasjungblut/go-sstables/benchmark 57.838s
 ```
 
-We can now compare this against the V2 format where I implemented vint compression for the record headers. For very small records that are also uncompressed this reduced the static 20 byte size down to 5 bytes. The drawback is with bigger compressed and uncompressed sizes of a record the encoding can take up to 30 bytes - you have to encode several gigabytes, if not terabytes, as a single record for it to reach that state. Additionally the record header buffer is now preserved between calls, which saves us roughly 1000 allocs/op in our benchmark.
+### SSTable Read Benchmark
 
-Here's the benchmark on the exact same hardware for the V2 format:
+Below is a quick read (sequential full table scan) benchmark of an SSTable, writing a gigabyte of random data and then
+reading it off the disk. That includes reading the index into memory and iterating over all records:
 
 ```
 $ make bench
-go test -v -benchmem -bench=. ./benchmark
+go test -v -benchmem -bench=SSTable ./benchmark
 goos: windows
 goarch: amd64
 pkg: github.com/thomasjungblut/go-sstables/benchmark
-BenchmarkWriteRecordSize1k-12                        200          10895390 ns/op          94.54 MB/s      192021 B/op       2000 allocs/op
-BenchmarkWriteRecordSize10k-12                       100          14459813 ns/op         708.59 MB/s      192134 B/op       2000 allocs/op
-BenchmarkWriteRecordSize100k-12                       30          50120730 ns/op        2043.21 MB/s      195642 B/op       2000 allocs/op
-BenchmarkWriteRecordSize1m-12                          5         309121100 ns/op        3392.14 MB/s      402289 B/op       2004 allocs/op
-
-BenchmarkWriteGzipRecordSize1k-12                      5         209883920 ns/op           5.05 MB/s    815340088 B/op     22159 allocs/op
-BenchmarkWriteGzipRecordSize10k-12                     3         349456566 ns/op          29.40 MB/s    825060482 B/op     22009 allocs/op
-BenchmarkWriteGzipRecordSize100k-12                    1        2615651500 ns/op          39.17 MB/s    1012941928 B/op    24030 allocs/op
-BenchmarkWriteGzipRecordSize1m-12                      1        26212039500 ns/op         40.02 MB/s    4913287544 B/op    28209 allocs/op
-
-BenchmarkWriteSnappyRecordSize1k-12                  100          10432194 ns/op          99.31 MB/s     1472051 B/op       3000 allocs/op
-BenchmarkWriteSnappyRecordSize10k-12                 100          21735654 ns/op         471.67 MB/s    12480251 B/op       3002 allocs/op
-BenchmarkWriteSnappyRecordSize100k-12                 20          65215745 ns/op        1570.45 MB/s    123078350 B/op      3015 allocs/op
-BenchmarkWriteSnappyRecordSize1m-12                    2         562678400 ns/op        1863.65 MB/s    1229549780 B/op     3542 allocs/op
-
-BenchmarkWriteSyncRecordSize1k-12                      1        1168090500 ns/op           0.88 MB/s      196072 B/op       2026 allocs/op
-BenchmarkWriteSyncRecordSize10k-12                     1        1250856200 ns/op           8.19 MB/s      205304 B/op       2025 allocs/op
-BenchmarkWriteSyncRecordSize100k-12                    1        1414026800 ns/op          72.42 MB/s      301480 B/op       2024 allocs/op
-BenchmarkWriteSyncRecordSize1m-12                      1        2119873300 ns/op         494.64 MB/s     1243560 B/op       2024 allocs/op
-
+BenchmarkSSTableRead
+BenchmarkSSTableRead-20                        1        1465768700 ns/op         753.11 MB/s    1412781624 B/op  9437704 allocs/op
 PASS
-ok      github.com/thomasjungblut/go-sstables/benchmark 60.939s
+ok      github.com/thomasjungblut/go-sstables/benchmark 9.018s
 ```
+
+### SSTable Write Benchmark
+
+A common requirement is to flush a memstore to a sstable, here is the benchmark for various memstore sizes:
+
+```
+$ make bench
+go test -v -benchmem -bench=SSTable ./benchmark
+goos: windows
+goarch: amd64
+pkg: github.com/thomasjungblut/go-sstables/benchmark
+BenchmarkSSTableMemstoreFlush
+BenchmarkSSTableMemstoreFlush/32mb-20                 25          41657792 ns/op         805.51 MB/s    52187665 B/op     198903 allocs/op
+BenchmarkSSTableMemstoreFlush/64mb-20                 14          76066743 ns/op         882.25 MB/s    95117949 B/op     397605 allocs/op
+BenchmarkSSTableMemstoreFlush/128mb-20                 7         149681114 ns/op         896.70 MB/s    180954365 B/op    794972 allocs/op
+BenchmarkSSTableMemstoreFlush/256mb-20                 4         289055850 ns/op         928.67 MB/s    352624252 B/op   1589710 allocs/op
+BenchmarkSSTableMemstoreFlush/512mb-20                 2         574371500 ns/op         934.71 MB/s    695955168 B/op   3179176 allocs/op
+BenchmarkSSTableMemstoreFlush/1024mb-20                1        1141287400 ns/op         940.82 MB/s    1382598768 B/op  6358078 allocs/op
+BenchmarkSSTableMemstoreFlush/2048mb-20                1        2264936500 ns/op         948.14 MB/s    2755888184 B/op 12715874 allocs/op
+PASS
+ok      github.com/thomasjungblut/go-sstables/benchmark 20.650s
+```
+

@@ -3,6 +3,7 @@ package sstables
 import (
 	"errors"
 	"github.com/steakknife/bloomfilter"
+	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
@@ -19,31 +20,10 @@ type SSTableReader struct {
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.KeyComparator
 	index         *skiplist.SkipListMap // key ([]byte) to uint64 value file offset
-	dataReader    *rProto.MMapProtoReader
+	v0DataReader  *rProto.MMapProtoReader
+	dataReader    *recordio.MMapReader
 	metaData      *proto.MetaData
-}
-
-type SSTableIterator struct {
-	reader      *SSTableReader
-	keyIterator skiplist.SkipListIteratorI
-}
-
-func (it *SSTableIterator) Next() ([]byte, []byte, error) {
-	key, valueOffset, err := it.keyIterator.Next()
-	if err != nil {
-		if err == skiplist.Done {
-			return nil, nil, Done
-		} else {
-			return nil, nil, err
-		}
-	}
-
-	valBytes, err := it.reader.getValueAtOffset(valueOffset.(uint64))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return key.([]byte), valBytes, nil
+	miscClosers   []recordio.CloseableI
 }
 
 func (reader *SSTableReader) Contains(key []byte) bool {
@@ -70,21 +50,61 @@ func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 }
 
 func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) {
-	value := &proto.DataEntry{}
-	_, err := reader.dataReader.ReadNextAt(value, valOffset)
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
+	if reader.v0DataReader != nil {
+		value := &proto.DataEntry{}
+		_, err := reader.v0DataReader.ReadNextAt(value, valOffset)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
 
-	return value.Value, nil
+		return value.Value, nil
+	} else {
+		val, err := reader.dataReader.ReadNextAt(valOffset)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+
+		return val, nil
+	}
 }
 
 func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
-	it, err := reader.index.Iterator()
-	if err != nil {
-		return nil, err
+	if reader.v0DataReader != nil {
+		dataReader, err := rProto.NewProtoReaderWithPath(path.Join(reader.opts.basePath, DataFileName))
+		if err != nil {
+			return nil, err
+		}
+
+		err = dataReader.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		reader.miscClosers = append(reader.miscClosers, dataReader)
+
+		it, err := reader.index.Iterator()
+		if err != nil {
+			return nil, err
+		}
+		return newV0SStableFullScanIterator(it, dataReader)
+	} else {
+		dataReader, err := recordio.NewFileReaderWithPath(path.Join(reader.opts.basePath, DataFileName))
+		if err != nil {
+			return nil, err
+		}
+		err = dataReader.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		reader.miscClosers = append(reader.miscClosers, dataReader)
+
+		it, err := reader.index.Iterator()
+		if err != nil {
+			return nil, err
+		}
+		return newSStableFullScanIterator(it, dataReader)
 	}
-	return &SSTableIterator{reader: reader, keyIterator: it}, nil
 }
 
 func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
@@ -104,13 +124,30 @@ func (reader *SSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTab
 }
 
 func (reader *SSTableReader) Close() error {
-	return reader.dataReader.Close()
+	for _, e := range reader.miscClosers {
+		err := e.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	if reader.v0DataReader != nil {
+		return reader.v0DataReader.Close()
+	}
+
+	if reader.dataReader != nil {
+		return reader.dataReader.Close()
+	}
+
+	return nil
 }
 
 func (reader *SSTableReader) MetaData() *proto.MetaData {
 	return reader.metaData
 }
 
+// NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
+// > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 	opts := &SSTableReaderOptions{
@@ -144,17 +181,35 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		return nil, err
 	}
 
-	dataReader, err := rProto.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
-	if err != nil {
-		return nil, err
+	reader := &SSTableReader{opts: opts, bloomFilter: filter, index: index, metaData: metaData}
+
+	if metaData.Version == 0 {
+		v0DataReader, err := rProto.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
+		if err != nil {
+			return nil, err
+		}
+
+		err = v0DataReader.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		reader.v0DataReader = v0DataReader
+	} else {
+		dataReader, err := recordio.NewMemoryMappedReaderWithPath(path.Join(opts.basePath, DataFileName))
+		if err != nil {
+			return nil, err
+		}
+
+		err = dataReader.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		reader.dataReader = dataReader
 	}
 
-	err = dataReader.Open()
-	if err != nil {
-		return nil, err
-	}
-
-	return &SSTableReader{opts: opts, bloomFilter: filter, index: index, dataReader: dataReader, metaData: metaData}, nil
+	return reader, nil
 }
 
 func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (*skiplist.SkipListMap, error) {
@@ -223,6 +278,11 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 	}
 
 	err = pb.Unmarshal(content, md)
+	if err != nil {
+		return nil, err
+	}
+
+	err = mpf.Close()
 	if err != nil {
 		return nil, err
 	}
