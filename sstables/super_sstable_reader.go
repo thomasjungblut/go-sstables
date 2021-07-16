@@ -117,15 +117,18 @@ func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTabl
 }
 
 func scanReduce(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
-	// we're taking the value of the "latest" reader
+	// we're taking the value of the "latest" reader by checking the maximum value in the context
 	maxCtx := 0
-	for _, x := range context {
-		if x.(int) > maxCtx {
-			maxCtx = x.(int)
+	maxCtxIndex := 0
+	for i, x := range context {
+		xInt := x.(int)
+		if xInt > maxCtx {
+			maxCtx = xInt
+			maxCtxIndex = i
 		}
 	}
 
-	return key, values[maxCtx]
+	return key, values[maxCtxIndex]
 }
 
 func (s SuperSSTableReader) Close() error {

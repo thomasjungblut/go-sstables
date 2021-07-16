@@ -58,9 +58,11 @@ func (it *SkipListIterator) Next() (interface{}, interface{}, error) {
 
 	if it.keyHigher != nil {
 		c := it.comp(cur.key, it.keyHigher)
-		if c >= 0 {
+		if c == 0 {
 			// we have reached the higher end of the range and we return it, next iteration stops
 			it.doneNext = true
+		} else if c > 0 { // we're over the higher end of the range already, return immediately
+			return nil, nil, Done
 		}
 	}
 
