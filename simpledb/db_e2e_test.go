@@ -142,13 +142,7 @@ func TestNaiveCrashRecovery(t *testing.T) {
 
 	n := 500
 	testWriteAlternatingDeletes(t, db, n)
-	// TODO(thomas): this is super naive
-	// we poke holes by directly closing some files, channels and deleting the memstore
-	// which doesn't necessary simulate a proper power failure
-	close(db.storeFlushChannel)
-	assert.Nil(t, db.wal.Close())
-	db.memStore = nil
-	assert.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
+	crashDatabaseInternally(t, db)
 
 	db, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
 	assert.Nil(t, err)
@@ -165,6 +159,45 @@ func TestNaiveCrashRecovery(t *testing.T) {
 			assertGet(t, db, key)
 		}
 	}
+}
+
+func TestContinuousCrashRecovery(t *testing.T) {
+	t.Parallel()
+	db := newOpenedSimpleDB(t, "simpleDB_RecoveryFromCrashContinuous")
+	defer cleanDatabaseFolder(t, db)
+
+	for i := 1; i < 10; i++ {
+		n := 100 * i // to make sure we overwrite a certain amount and new data
+		testWriteAlternatingDeletes(t, db, n)
+		crashDatabaseInternally(t, db)
+
+		var err error
+		db, err = NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
+		assert.Nil(t, err)
+		assert.Nil(t, db.Open())
+		defer func() { _ = db.Close() }() // mainly for cleaning the files at the end
+
+		for j := 0; j < n; j++ {
+			key := strconv.Itoa(j)
+			if j%2 == 0 {
+				v, err := db.Get(key)
+				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+				assert.Equal(t, "", v)
+			} else {
+				assertGet(t, db, key)
+			}
+		}
+	}
+}
+
+// TODO(thomas): this is super naive
+// we poke holes by directly closing some files, channels and deleting the memstore
+// which doesn't necessary simulate a proper power failure
+func crashDatabaseInternally(t *testing.T, db *DB) {
+	close(db.storeFlushChannel)
+	assert.Nil(t, db.wal.Close())
+	db.memStore = nil
+	assert.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
 }
 
 func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {

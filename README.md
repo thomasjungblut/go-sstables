@@ -26,13 +26,14 @@ This is a library as it does not contain any installable binary, which means you
 This README became fairly long, thus the documentation is now separated by package. There you'll find more information on how to use each individual package:
 
 * [RecordIO](recordio/README.md)
-  * [Benchmark](benchmark/README.md#recordio-write-benchmark)
+  * [Benchmark](benchmark/README.md#recordio)
 * [sstables](sstables/README.md)
-  * [Benchmark](benchmark/README.md#sstable-read-benchmark)
+  * [Benchmark](benchmark/README.md#sstable)
 * [Memstore](memstore/README.md)  
 * [SkipList](skiplist/README.md)
 * [WriteAheadLog](wal/README.md)
 * [SimpleDB](simpledb/README.md)
+  * [Benchmark](benchmark/README.md#simpledb)
 
 ## Kaitai Support
 

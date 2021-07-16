@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/simpledb"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"os"
 	"runtime"
@@ -14,7 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func BenchmarkSimpleDBReadLatency(b *testing.B) {
@@ -31,7 +29,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 			defer func() { assert.Nil(b, db.Close()) }()
 			assert.Nil(b, db.Open())
 
-			parallelWriteDB(b, db, runtime.NumCPU(), n)
+			parallelWriteDB(db, runtime.NumCPU(), n)
 
 			b.ResetTimer()
 			i := 0
@@ -67,15 +65,15 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 			assert.Nil(b, db.Open())
 
 			b.ResetTimer()
-			bytes := parallelWriteDB(b, db, runtime.NumCPU(), n)
-			b.SetBytes(bytes)
+			for n := 0; n < b.N; n++ {
+				bytes := parallelWriteDB(db, runtime.NumCPU(), n)
+				b.SetBytes(bytes)
+			}
 		})
 	}
 }
 
-func parallelWriteDB(b *testing.B, db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
-	log.Printf("writing %d records with %d goroutines\n", numRecords, numGoRoutines)
-	start := time.Now()
+func parallelWriteDB(db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
 	numRecordsWritten := int64(0)
 	bytesWritten := int64(0)
 	wg := sync.WaitGroup{}
@@ -95,7 +93,6 @@ func parallelWriteDB(b *testing.B, db *simpledb.DB, numGoRoutines int, numRecord
 	}
 
 	wg.Wait()
-	log.Printf("%d records with %d bytes written in %v\n", numRecordsWritten, bytesWritten, time.Since(start))
 	return bytesWritten
 }
 
