@@ -191,12 +191,44 @@ func TestMemStoreFlush(t *testing.T) {
 	assert.Equal(t, sstables.NotFound, err)
 }
 
+func TestMemStoreFlushWithTombStones(t *testing.T) {
+	m := NewMemStore()
+	err := m.Upsert([]byte("akey"), []byte("aval"))
+	assert.Nil(t, err)
+	err = m.Upsert([]byte("bkey"), []byte("bval"))
+	assert.Nil(t, err)
+	assert.Nil(t, m.Delete([]byte("akey")))
+
+	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	assert.Nil(t, err)
+	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
+
+	err = m.Flush(sstables.WriteBasePath(tmpDir))
+	assert.Nil(t, err)
+
+	reader, err := sstables.NewSSTableReader(
+		sstables.ReadBasePath(tmpDir),
+		sstables.ReadWithKeyComparator(m.comparator))
+	assert.Nil(t, err)
+	defer closeReader(t, reader)
+
+	val, err := reader.Get([]byte("akey"))
+	assert.Equal(t, sstables.NotFound, err)
+
+	val, err = reader.Get([]byte("bkey"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("bval"), val)
+
+	// negative test
+	_, err = reader.Get([]byte("ckey"))
+	assert.Equal(t, sstables.NotFound, err)
+}
+
 func TestMemStoreSStableIteratorUpsertOnly(t *testing.T) {
 	m := NewMemStore()
 	assert.Nil(t, m.Upsert([]byte("akey"), []byte("aval")))
 	assert.Nil(t, m.Upsert([]byte("bkey"), []byte("bval")))
 	assert.Nil(t, m.Upsert([]byte("ckey"), []byte("cval")))
-	// assert.Nil(t, m.Delete([]byte("bkey")))
 
 	actualCount := 0
 	prefix := []string{"a", "b", "c"}

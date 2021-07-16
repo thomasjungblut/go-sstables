@@ -191,7 +191,7 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 		vBytes := v.(ValueStruct)
 
 		// do not write tombstones to the final file
-		if vBytes.value != nil {
+		if *vBytes.value != nil {
 			err = writer.WriteNext(kBytes, *vBytes.value)
 			if err != nil {
 				return err
