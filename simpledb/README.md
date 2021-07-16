@@ -23,6 +23,13 @@ Effectively SimpleDB implements the given diagram:
 
 ![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
 
-There is always a writable-memstore that stores in the writes in memory. When it's becoming too big (default of 1gb) it will rotate to a new memstore and flush the filled one as a SSTable and rotate the WAL. The WAL will be deleted once the sstable is written fully to disk.
+There is always a writable-memstore that stores in the writes in memory. When it's becoming too big (default of 1gb) it will rotate to a new memstore and flush the filled one to a SSTable and rotate the WAL. The WAL will be deleted once the SSTable is written fully to disk.
 
 In SimpleDB only L0 is implemented, meaning there are multiple SSTables at the same time that have overlapping key ranges. There is a maximum limit of ten simultaneous SSTables, after that limit an asynchronous compaction and merge process will kick off and merge into a single SSTable again.
+
+The only difference is that there is no manifest log, the purpose of this tracking is delegated to the filesystem mainly using path patterns and conventions.
+
+
+## Recovery Modes
+
+

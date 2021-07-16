@@ -5,7 +5,6 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
-	"math/rand"
 	"strconv"
 	"sync"
 	"testing"
@@ -53,50 +52,18 @@ func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	for i := 0; i < 2000; i++ {
-		is := strconv.Itoa(i)
-		assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))
-		// make sure that we currentSSTable the same thing we just put in there
-		assertGet(t, db, is)
-
-		for j := 0; j < i; j++ {
-			key := strconv.Itoa(j)
-			if j%2 == 0 {
-				v, err := db.Get(key)
-				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
-				assert.Equal(t, "", v)
-			} else {
-				assertGet(t, db, key)
-			}
-		}
-
-		// delete every second element
-		if i%2 == 0 {
-			assert.Nil(t, db.Delete(is))
-		}
-	}
+	testWriteAlternatingDeletes(t, db, 2000)
 }
 
 // that test writes a couple of integers as keys and very big string values
-// to trigger the memstore flushes/table merges
-// the test here roughly produces 143MB in WAL and a final sstable of 114mb
+// to trigger the memstore flushes/table compactions
 func TestPutAndGetsEndToEndLargerData(t *testing.T) {
 	t.Parallel()
-	db := newOpenedSimpleDB(t, "simpleDB_EndToEndLargerData")
+	db := newOpenedSimpleDBWithSize(t, "simpleDB_EndToEndLargerData", 1024*1024*256)
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	for i := 0; i < 10000; i++ {
-		assert.Nil(t, db.Put(strconv.Itoa(i), randomRecordWithPrefix(i)))
-		// try to scan 5% of the previous elements, otherwise the runtime becomes too long (30s)
-		// TODO we can probably fix some performance issues here too
-		for j := 0; j <= i; j++ {
-			if rand.Float32() < 0.05 {
-				key := strconv.Itoa(j)
-				assertGet(t, db, key)
-			}
-		}
-	}
+	testWriteAlternatingDeletes(t, db, 5000)
 }
 
 func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
@@ -138,6 +105,89 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 			assert.Equal(t, NotFound, err)
 		} else {
 			assertGet(t, db, key)
+		}
+	}
+}
+
+func TestRecoveryFromCloseHappyPath(t *testing.T) {
+	t.Parallel()
+	db := newOpenedSimpleDB(t, "simpleDB_RecoveryFromClose")
+	defer cleanDatabaseFolder(t, db)
+
+	n := 500
+	testWriteAlternatingDeletes(t, db, n)
+	assert.Nil(t, db.Close())
+
+	db, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer closeDatabase(t, db)
+
+	for j := 0; j < n; j++ {
+		key := strconv.Itoa(j)
+		if j%2 == 0 {
+			v, err := db.Get(key)
+			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equal(t, "", v)
+		} else {
+			assertGet(t, db, key)
+		}
+	}
+}
+
+func TestNaiveCrashRecovery(t *testing.T) {
+	t.Parallel()
+	db := newOpenedSimpleDB(t, "simpleDB_RecoveryFromCrashNaive")
+	defer cleanDatabaseFolder(t, db)
+
+	n := 500
+	testWriteAlternatingDeletes(t, db, n)
+	// TODO(thomas): this is super naive
+	// we poke holes by directly closing some files, channels and deleting the memstore
+	// which doesn't necessary simulate a proper power failure
+	close(db.storeFlushChannel)
+	assert.Nil(t, db.wal.Close())
+	db.memStore = nil
+	assert.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
+
+	db, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer closeDatabase(t, db)
+
+	for j := 0; j < n; j++ {
+		key := strconv.Itoa(j)
+		if j%2 == 0 {
+			v, err := db.Get(key)
+			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equal(t, "", v)
+		} else {
+			assertGet(t, db, key)
+		}
+	}
+}
+
+func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
+	for i := 0; i < n; i++ {
+		is := strconv.Itoa(i)
+		assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))
+		// make sure that we currentSSTable the same thing we just put in there
+		assertGet(t, db, is)
+
+		for j := 0; j < i; j++ {
+			key := strconv.Itoa(j)
+			if j%2 == 0 {
+				v, err := db.Get(key)
+				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+				assert.Equal(t, "", v)
+			} else {
+				assertGet(t, db, key)
+			}
+		}
+
+		// delete every second element
+		if i%2 == 0 {
+			assert.Nil(t, db.Delete(is))
 		}
 	}
 }

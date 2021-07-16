@@ -22,8 +22,9 @@ func (s *SSTableManager) addNewReader(newReader sstables.SSTableReaderI) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.allSSTableReaders = append(s.allSSTableReaders, newReader)
-	s.currentReader = sstables.NewSuperSSTableReader(s.allSSTableReaders, s.cmp)
+	allSSTableReaders := append(s.allSSTableReaders, newReader)
+	s.currentReader = sstables.NewSuperSSTableReader(allSSTableReaders, s.cmp)
+	s.allSSTableReaders = allSSTableReaders
 }
 
 func (s *SSTableManager) currentSSTable() sstables.SSTableReaderI {

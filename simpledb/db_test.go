@@ -139,6 +139,16 @@ func randomRecordWithPrefix(prefix int) string {
 	return randomRecordWithPrefixWithSize(prefix, 10000)
 }
 
+func newOpenedSimpleDBWithSize(t *testing.T, name string, memstoreSize int) *DB {
+	tmpDir, err := ioutil.TempDir("", name)
+	assert.Nil(t, err)
+
+	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(uint64(memstoreSize)))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	return db
+}
+
 func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
 	assert.Nil(t, err)
