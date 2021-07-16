@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	pool "github.com/libp2p/go-buffer-pool"
+	"github.com/ncw/directio"
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"os"
 )
@@ -212,6 +213,7 @@ type FileWriterOptions struct {
 	file            *os.File
 	compressionType int
 	bufferSizeBytes int
+	useDirectIO     bool
 }
 
 type FileWriterOption func(*FileWriterOptions)
@@ -240,6 +242,12 @@ func BufferSizeBytes(p int) FileWriterOption {
 	}
 }
 
+func DirectIO() FileWriterOption {
+	return func(args *FileWriterOptions) {
+		args.useDirectIO = true
+	}
+}
+
 // creates a new writer with the given options, either Path or File must be supplied, compression is optional.
 func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 	opts := &FileWriterOptions{
@@ -247,6 +255,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		file:            nil,
 		compressionType: CompressionTypeNone,
 		bufferSizeBytes: DefaultBufferSize,
+		useDirectIO:     false,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -261,11 +270,19 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 		if opts.path == "" {
 			return nil, errors.New("path was not supplied")
 		}
-		f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
-		if err != nil {
-			return nil, err
+		if opts.useDirectIO {
+			f, err := directio.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
+			opts.file = f
+		} else {
+			f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
+			opts.file = f
 		}
-		opts.file = f
 	}
 
 	bufWriter := bufio.NewWriterSize(opts.file, opts.bufferSizeBytes)
