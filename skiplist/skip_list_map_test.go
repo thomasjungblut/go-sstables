@@ -158,6 +158,37 @@ func TestSkipListBetweenIterator(t *testing.T) {
 	assert.Equal(t, Done, err)
 }
 
+func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
+	list := NewSkipListMap(BytesComparator)
+	wholeSequence := [][]byte{{0}, {1}, {2}, {4}, {8}, {9}, {10}}
+	for i := 0; i < len(wholeSequence); i++ {
+		list.Insert(wholeSequence[i], wholeSequence[i])
+	}
+	expected := [][]byte{{4}}
+	it, err := list.IteratorBetween([]byte{3}, []byte{7})
+	assert.Nil(t, err)
+
+	currentIndex := 0
+	for {
+		k, v, err := it.Next()
+		if err == Done {
+			break
+		}
+
+		if err != nil {
+			assert.Fail(t, "received an error while iterating, shouldn't happen")
+		}
+
+		assert.NotNil(t, k)
+		assert.NotNil(t, v)
+
+		assert.Equal(t, expected[currentIndex], k)
+		assert.Equal(t, expected[currentIndex], v)
+		currentIndex++
+	}
+	assert.Equal(t, len(expected), currentIndex)
+}
+
 func singleElementSkipList(t *testing.T) *SkipListMap {
 	list := NewSkipListMap(IntComparator)
 	list.Insert(13, 91)

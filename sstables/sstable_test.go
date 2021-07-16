@@ -250,8 +250,10 @@ func assertIteratorMatchesSlice(t *testing.T, it SSTableIteratorI, expectedSlice
 	// just to prevent that we've read something empty accidentally
 	assert.Equal(t, len(expectedSlice), numRead)
 	// iterator must be in Done state too
-	_, _, err := it.Next()
+	k, v, err := it.Next()
 	assert.Equal(t, Done, err)
+	assert.Nil(t, k)
+	assert.Nil(t, v)
 }
 
 func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap *skiplist.SkipListMap) {
