@@ -70,7 +70,8 @@ func TestForcedRotation(t *testing.T) {
 	assert.Equal(t, uint(1), log.nextWriterNumber)
 	for i := 0; i < 95; i++ {
 		appendAndRecord(t, log, []byte{byte(i)}, &recorder)
-		assert.Nil(t, log.Rotate())
+		_, err := log.Rotate()
+		assert.Nil(t, err)
 		assert.Equal(t, uint(i+2), log.nextWriterNumber)
 	}
 

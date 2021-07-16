@@ -23,7 +23,6 @@ Effectively SimpleDB implements the given diagram:
 
 ![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
 
-There is always a writable-memstore that stores in the writes in memory. When it's becoming too big (default of 1gb) it will rotate to a new memstore and flush the filled one as a SSTable.  
-In SimpleDB only L0 is implemented, meaning there are multiple SSTables at the same time that have overlapping key ranges. There is a maximum limit of five simultaneous SSTables, after that limit an asynchronous compaction and merge process will kick off and merge into a single SSTable again.
+There is always a writable-memstore that stores in the writes in memory. When it's becoming too big (default of 1gb) it will rotate to a new memstore and flush the filled one as a SSTable and rotate the WAL. The WAL will be deleted once the sstable is written fully to disk.
 
-The WAL path is structured similar, albeit the details of the manifest log and "tandem-flush" with the memstore are not there yet. The recovery paths are yet to be implemented. In general a recovery can be done by replaying the full WAL folder and applying the mutations - which is somewhat inefficient.
+In SimpleDB only L0 is implemented, meaning there are multiple SSTables at the same time that have overlapping key ranges. There is a maximum limit of five simultaneous SSTables, after that limit an asynchronous compaction and merge process will kick off and merge into a single SSTable again.

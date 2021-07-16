@@ -29,9 +29,7 @@ func BenchmarkSimpleDBWriteLatencyForProfiling(b *testing.B) {
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
 			memstoreSize := uint64(1024 * 1024 * 1024)
-			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(memstoreSize),
-				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+			db, err := simpledb.NewSimpleDB(tmpDir, simpledb.MemstoreSizeBytes(memstoreSize))
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, db.Close()) }()
 			assert.Nil(b, db.Open())
@@ -52,8 +50,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(1024*1024*1024),
-				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+				simpledb.MemstoreSizeBytes(1024*1024*1024))
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, db.Close()) }()
 			assert.Nil(b, db.Open())
@@ -88,8 +85,7 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 
 			memstoreSize := uint64(1024 * 1024 * 1024)
 			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(memstoreSize),
-				simpledb.WriteAheadLogSizeBytes(1024*1024*1024))
+				simpledb.MemstoreSizeBytes(memstoreSize))
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, db.Close()) }()
 			assert.Nil(b, db.Open())

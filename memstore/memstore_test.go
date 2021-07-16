@@ -191,7 +191,7 @@ func TestMemStoreFlush(t *testing.T) {
 	assert.Equal(t, sstables.NotFound, err)
 }
 
-func TestMemStoreFlushWithTombStones(t *testing.T) {
+func TestMemStoreFlushTombStonesIgnore(t *testing.T) {
 	m := NewMemStore()
 	err := m.Upsert([]byte("akey"), []byte("aval"))
 	assert.Nil(t, err)
@@ -214,6 +214,40 @@ func TestMemStoreFlushWithTombStones(t *testing.T) {
 
 	val, err := reader.Get([]byte("akey"))
 	assert.Equal(t, sstables.NotFound, err)
+
+	val, err = reader.Get([]byte("bkey"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("bval"), val)
+
+	// negative test
+	_, err = reader.Get([]byte("ckey"))
+	assert.Equal(t, sstables.NotFound, err)
+}
+
+func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
+	m := NewMemStore()
+	err := m.Upsert([]byte("akey"), []byte("aval"))
+	assert.Nil(t, err)
+	err = m.Upsert([]byte("bkey"), []byte("bval"))
+	assert.Nil(t, err)
+	assert.Nil(t, m.Delete([]byte("akey")))
+
+	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	assert.Nil(t, err)
+	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
+
+	err = m.FlushWithTombstones(sstables.WriteBasePath(tmpDir))
+	assert.Nil(t, err)
+
+	reader, err := sstables.NewSSTableReader(
+		sstables.ReadBasePath(tmpDir),
+		sstables.ReadWithKeyComparator(m.comparator))
+	assert.Nil(t, err)
+	defer closeReader(t, reader)
+
+	val, err := reader.Get([]byte("akey"))
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{}, val)
 
 	val, err = reader.Get([]byte("bkey"))
 	assert.Nil(t, err)

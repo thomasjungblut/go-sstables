@@ -14,6 +14,7 @@ type Appender struct {
 	nextWriterNumber   uint
 	walFileNamePattern string
 	currentWriter      recordio.WriterI
+	currentWriterPath  string
 	walOptions         *Options
 }
 
@@ -37,18 +38,19 @@ func (a *Appender) AppendSync(record []byte) error {
 	return err
 }
 
-func (a *Appender) Rotate() error {
+func (a *Appender) Rotate() (string, error) {
+	currentPath := a.currentWriterPath
 	err := a.currentWriter.Close()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	err = setupNextWriter(a)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return currentPath, nil
 }
 
 func (a *Appender) Close() error {
@@ -57,7 +59,8 @@ func (a *Appender) Close() error {
 
 func checkSizeAndRotate(a *Appender, nextRecordSize int) error {
 	if (a.currentWriter.Size() + uint64(nextRecordSize)) > a.walOptions.maxWalFileSize {
-		return a.Rotate()
+		_, err := a.Rotate()
+		return err
 	}
 
 	return nil
@@ -82,6 +85,7 @@ func setupNextWriter(a *Appender) error {
 
 	a.nextWriterNumber++
 	a.currentWriter = currentWriter
+	a.currentWriterPath = writerPath
 
 	return nil
 }

@@ -26,7 +26,7 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 		for i := 0; i < numKeys; i++ {
 			is := strconv.Itoa(i)
 			assert.Nil(t, db.Put(is, recordWithSuffix(i, r)))
-			// make sure that we get the same thing we just put in there
+			// make sure that we currentSSTable the same thing we just put in there
 			assertGet(t, db, is)
 
 			// delete every second element
@@ -56,14 +56,15 @@ func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
 	for i := 0; i < 2000; i++ {
 		is := strconv.Itoa(i)
 		assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))
-		// make sure that we get the same thing we just put in there
+		// make sure that we currentSSTable the same thing we just put in there
 		assertGet(t, db, is)
 
 		for j := 0; j < i; j++ {
 			key := strconv.Itoa(j)
 			if j%2 == 0 {
-				_, err := db.Get(key)
-				assert.Equal(t, NotFound, err)
+				v, err := db.Get(key)
+				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+				assert.Equal(t, "", v)
 			} else {
 				assertGet(t, db, key)
 			}

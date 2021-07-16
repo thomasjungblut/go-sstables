@@ -21,6 +21,19 @@ func TestWriterHappyPathOpenWriteClose(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
+func TestWriterWriteNil(t *testing.T) {
+	writer := simpleWriteBytes(t, nil)
+	defer removeFileWriterFile(t, writer)
+
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer closeFileReader(t, reader)
+
+	buf, err := reader.ReadNext()
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{}, buf)
+	readNextExpectEOF(t, reader)
+}
+
 func TestSingleWriteSize(t *testing.T) {
 	writer := singleWrite(t)
 	defer removeFileWriterFile(t, writer)
@@ -205,6 +218,7 @@ func simpleWriteBytes(t *testing.T, record []byte) *FileWriter {
 	assert.Nil(t, err)
 	return writer
 }
+
 func newOpenedWriter(t *testing.T) *FileWriter {
 	writer, err := newUncompressedTestWriter()
 	assert.Nil(t, err)

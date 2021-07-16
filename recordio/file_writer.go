@@ -144,9 +144,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 		return 0, errors.New("writer was either not opened yet or is closed already")
 	}
 
-	var recordToWrite []byte
-	recordToWrite = record
-
+	recordToWrite := record
 	uncompressedSize := uint64(len(recordToWrite))
 	compressedSize := uint64(0)
 
@@ -154,7 +152,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 		poolBuffer := w.bufferPool.Get(int(uncompressedSize))
 		defer w.bufferPool.Put(poolBuffer)
 
-		compressedRecord, err := w.compressor.CompressWithBuf(record, poolBuffer)
+		compressedRecord, err := w.compressor.CompressWithBuf(recordToWrite, poolBuffer)
 		if err != nil {
 			return 0, err
 		}

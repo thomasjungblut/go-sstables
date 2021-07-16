@@ -5,6 +5,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
@@ -15,10 +16,10 @@ import (
 )
 
 const WriteAheadFolder = "wal"
-const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024   // 1gb
-const WriteAheadMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
+const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 
 var NotFound = errors.New("NotFound")
+var EmptyKeyValue = errors.New("neither empty keys nor values are allowed")
 
 type DatabaseI interface {
 	recordio.OpenClosableI
@@ -30,6 +31,7 @@ type DatabaseI interface {
 
 	// Put adds the given value for the given key. If this key already exists, it will
 	// overwrite the already existing value with the given one.
+	// Unfortunately this method does not support empty keys and values, that will immediately return an error.
 	Put(key, value string) error
 
 	// Delete will delete the value for the given key. It will ignore when a key does not exist in the database.
@@ -37,21 +39,26 @@ type DatabaseI interface {
 	Delete(key string) error
 }
 
+type memStoreFlushAction struct {
+	memStore *memstore.MemStoreI
+	walPath  string
+}
+
 type DB struct {
+	cmp                skiplist.KeyComparator
 	basePath           string
 	rwLock             *sync.RWMutex
-	storeFlushChannel  chan *memstore.MemStoreI
+	storeFlushChannel  chan memStoreFlushAction
 	doneFlushChannel   chan bool
 	wal                wal.WriteAheadLogI
-	mainSSTableReader  sstables.SSTableReaderI
+	sstableManager     *SSTableManager
 	memStore           *RWMemstore
 	currentSSTablePath string
 	memstoreMaxSize    uint64
 }
 
 func (db *DB) Open() error {
-	// TODO if files already exist we need to reconstruct from the WAL
-	// TODO we need to prune the WALs based on a watermark (run some GC)
+	// TODO if files already exist we need read all sstables and reconstruct memstore from the left-over WAL
 
 	go flushMemstoreContinuously(db)
 	// go flushMemstoreAndMergeSSTablesAsync(db)
@@ -72,7 +79,7 @@ func (db *DB) Close() error {
 		return err
 	}
 
-	err = db.mainSSTableReader.Close()
+	err = db.sstableManager.currentSSTable().Close()
 	if err != nil {
 		return err
 	}
@@ -89,14 +96,14 @@ func (db *DB) Get(key string) (string, error) {
 	// we have to read the sstable first and then augment it with
 	// any changes that were reflected in the memstore
 	var sstableNotFound bool
-	ssTableVal, err := db.mainSSTableReader.Get(keyBytes)
+	ssTableVal, err := db.sstableManager.currentSSTable().Get(keyBytes)
 	if err != nil {
 		if err == sstables.NotFound {
 			sstableNotFound = true
 		} else {
 			return "", err
 		}
-	} else if ssTableVal == nil {
+	} else if ssTableVal == nil || len(ssTableVal) == 0 {
 		sstableNotFound = true
 	}
 
@@ -122,6 +129,10 @@ func (db *DB) Get(key string) (string, error) {
 }
 
 func (db *DB) Put(key, value string) error {
+	if len(key) == 0 || len(value) == 0 {
+		return EmptyKeyValue
+	}
+
 	// string to byte conversion takes 7% of the method execution time
 	keyBytes := []byte(key)
 	valBytes := []byte(value)
@@ -138,9 +149,8 @@ func (db *DB) Put(key, value string) error {
 		return err
 	}
 
-	swapRequired := false
 	db.rwLock.Lock()
-	err = func() error {
+	return func() error {
 		defer db.rwLock.Unlock()
 		// we deliberately do not append with fsync here, it's a simple db :)
 		err = db.wal.Append(walBytes)
@@ -153,16 +163,18 @@ func (db *DB) Put(key, value string) error {
 			return err
 		}
 
-		swapRequired = db.memStore.EstimatedSizeInBytes() > db.memstoreMaxSize
+		if db.memStore.EstimatedSizeInBytes() > db.memstoreMaxSize {
+			walPath, err := db.wal.Rotate()
+			if err != nil {
+				return err
+			}
+			db.storeFlushChannel <- memStoreFlushAction{
+				memStore: swapMemstore(db),
+				walPath:  walPath,
+			}
+		}
 		return nil
 	}()
-
-	// we do not do that inside the lock, because the flushing can cause us to deadlock under the rwLock
-	if swapRequired {
-		db.storeFlushChannel <- swapMemstore(db)
-	}
-
-	return nil
 }
 
 func (db *DB) Delete(key string) error {
@@ -201,7 +213,7 @@ func (db *DB) Delete(key string) error {
 
 // NewSimpleDB creates a new db that requires a directory that exist, it can be empty in case of existing databases.
 // The error in case it doesn't exist can be checked using normal os package functions like os.IsNotExist(err)
-func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, error) {
+func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	// validate the basePath exist
 	_, err := ioutil.ReadDir(basePath)
 	if err != nil {
@@ -214,9 +226,8 @@ func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, err
 		return nil, err
 	}
 
-	extraOpts := &SimpleDBExtraOptions{
+	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
-		WriteAheadMaxSizeBytes,
 	}
 
 	for _, extraOption := range extraOptions {
@@ -224,7 +235,8 @@ func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, err
 	}
 
 	walOpts, err := wal.NewWriteAheadLogOptions(wal.BasePath(walBasePath),
-		wal.MaximumWalFileSizeBytes(extraOpts.walSizeBytes),
+		// we do manual rotation in lockstep with the memstore flushes, thus just set this super high
+		wal.MaximumWalFileSizeBytes(extraOpts.memstoreSizeBytes*10),
 		wal.WriterFactory(func(path string) (recordio.WriterI, error) {
 			return recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
 		}),
@@ -238,19 +250,21 @@ func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, err
 		return nil, err
 	}
 
+	cmp := skiplist.BytesComparator
 	mStore := memstore.NewMemStore()
 	rwLock := &sync.RWMutex{}
-	flusherChan := make(chan *memstore.MemStoreI)
+	flusherChan := make(chan memStoreFlushAction)
 	doneFlushChan := make(chan bool)
 
 	return &DB{
+		cmp:                cmp,
 		basePath:           basePath,
 		memStore:           &RWMemstore{mStore, mStore},
 		rwLock:             rwLock,
 		storeFlushChannel:  flusherChan,
 		doneFlushChannel:   doneFlushChan,
 		wal:                writeAheadLog,
-		mainSSTableReader:  sstables.EmptySStableReader{},
+		sstableManager:     NewSSTableManager(cmp),
 		currentSSTablePath: "",
 		memstoreMaxSize:    extraOpts.memstoreSizeBytes,
 	}, nil
@@ -258,21 +272,14 @@ func NewSimpleDB(basePath string, extraOptions ...SimpleDBExtraOption) (*DB, err
 
 // options
 
-type SimpleDBExtraOptions struct {
+type ExtraOptions struct {
 	memstoreSizeBytes uint64
-	walSizeBytes      uint64
 }
 
-type SimpleDBExtraOption func(options *SimpleDBExtraOptions)
+type ExtraOption func(options *ExtraOptions)
 
-func MemstoreSizeBytes(n uint64) SimpleDBExtraOption {
-	return func(args *SimpleDBExtraOptions) {
+func MemstoreSizeBytes(n uint64) ExtraOption {
+	return func(args *ExtraOptions) {
 		args.memstoreSizeBytes = n
-	}
-}
-
-func WriteAheadLogSizeBytes(n uint64) SimpleDBExtraOption {
-	return func(args *SimpleDBExtraOptions) {
-		args.walSizeBytes = n
 	}
 }

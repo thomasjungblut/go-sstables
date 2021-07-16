@@ -171,3 +171,7 @@ func (s SuperSSTableReader) MetaData() *proto.MetaData {
 	}
 	return sum
 }
+
+func NewSuperSSTableReader(readers []SSTableReaderI, comp skiplist.KeyComparator) *SuperSSTableReader {
+	return &SuperSSTableReader{readers: readers, comp: comp}
+}

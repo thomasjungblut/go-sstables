@@ -37,8 +37,11 @@ type MemStoreI interface {
 	Tombstone(key []byte) error
 	// returns a rough estimate of size in bytes of this MemStore
 	EstimatedSizeInBytes() uint64
-	// flushes the current memstore to disk as an SSTable, error if unsuccessful
+	// Flush flushes the current memstore to disk as an SSTable, error if unsuccessful. This excludes tombstoned keys.
 	Flush(opts ...sstables.WriterOption) error
+	// FlushWithTombstones flushes the current memstore to disk as an SSTable, error if unsuccessful.
+	// This includes tombstoned keys and writes their values as nil.
+	FlushWithTombstones(opts ...sstables.WriterOption) error
 	// returns the current memstore as an sstables.SStableIteratorI to iterate the table in memory.
 	// if there is a tombstoned record, the key will be returned but the value will be nil.
 	// this is especially useful when you want to merge on-disk sstables with in memory memstores
@@ -166,6 +169,14 @@ func (m *MemStore) Size() int {
 }
 
 func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
+	return flushMemstore(m, false, writerOptions...)
+}
+
+func (m *MemStore) FlushWithTombstones(writerOptions ...sstables.WriterOption) error {
+	return flushMemstore(m, true, writerOptions...)
+}
+
+func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstables.WriterOption) error {
 	writerOptions = append(writerOptions, sstables.WithKeyComparator(m.comparator))
 	writer, err := sstables.NewSSTableStreamWriter(writerOptions...)
 	if err != nil {
@@ -190,11 +201,18 @@ func (m *MemStore) Flush(writerOptions ...sstables.WriterOption) error {
 		kBytes := k.([]byte)
 		vBytes := v.(ValueStruct)
 
-		// do not write tombstones to the final file
-		if *vBytes.value != nil {
+		if includeTombstones {
 			err = writer.WriteNext(kBytes, *vBytes.value)
 			if err != nil {
 				return err
+			}
+		} else {
+			// do not write tombstones to the final file
+			if *vBytes.value != nil {
+				err = writer.WriteNext(kBytes, *vBytes.value)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

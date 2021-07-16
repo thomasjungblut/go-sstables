@@ -37,6 +37,21 @@ func TestGetNotFound(t *testing.T) {
 	assert.Equal(t, NotFound, err)
 }
 
+func TestEmptyPutDisallowed(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpleDB_testEmptyPut")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	err := db.Put("a", "")
+	assert.Equal(t, EmptyKeyValue, err)
+
+	err = db.Put("", "")
+	assert.Equal(t, EmptyKeyValue, err)
+
+	err = db.Put("", "a")
+	assert.Equal(t, EmptyKeyValue, err)
+}
+
 func TestDeleteNotFound(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testDeleteNotFound")
 	defer cleanDatabaseFolder(t, db)
@@ -128,7 +143,8 @@ func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
 	assert.Nil(t, err)
 
-	db, err := NewSimpleDB(tmpDir)
+	//for testing purposes we will flush with a tiny amount of 1mb
+	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(1024*1024))
 	assert.Nil(t, err)
 	assert.Nil(t, db.Open())
 	return db

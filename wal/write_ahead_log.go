@@ -23,7 +23,8 @@ type WriteAheadLogAppendI interface {
 
 	// The WAL usually auto-rotates after a certain size - this method allows to force this rotation.
 	// This can be useful in scenarios where you want to flush a memstore and rotate the WAL at the same time.
-	Rotate() error
+	// Therefore this returns the path of the previous wal file that was closed through this operation.
+	Rotate() (string, error)
 }
 
 type WriteAheadLogCleanI interface {
