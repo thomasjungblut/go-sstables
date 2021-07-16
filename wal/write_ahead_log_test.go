@@ -84,6 +84,7 @@ func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 	wal, err := NewWriteAheadLog(opts)
 	assert.Nil(t, err)
 	t.Cleanup(func() {
+		_ = wal.Close()
 		_ = wal.Clean()
 	})
 

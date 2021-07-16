@@ -2,6 +2,7 @@ package wal
 
 import (
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/recordio"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,11 +35,19 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 	// do not rely on the order of the FS, we do an additional sort to make sure we start reading from 0000 to 9999
 	sort.Strings(walFiles)
 
+	var toClose []recordio.ReaderI
+	defer func() {
+		for _, reader := range toClose {
+			_ = reader.Close()
+		}
+	}()
+
 	for _, path := range walFiles {
 		reader, err := r.walOptions.readerFactory(path)
 		if err != nil {
 			return err
 		}
+		toClose = append(toClose, reader)
 
 		err = reader.Open()
 		if err != nil {

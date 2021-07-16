@@ -20,6 +20,10 @@ type WriteAheadLogAppendI interface {
 	// Appends a given record and execute fsync to guarantee the persistence of the record.
 	// Has considerably less throughput than Append.
 	AppendSync(record []byte) error
+
+	// The WAL usually auto-rotates after a certain size - this method allows to force this rotation.
+	// This can be useful in scenarios where you want to flush a memstore and rotate the WAL at the same time.
+	Rotate() error
 }
 
 type WriteAheadLogCleanI interface {

@@ -37,21 +37,27 @@ func (a *Appender) AppendSync(record []byte) error {
 	return err
 }
 
+func (a *Appender) Rotate() error {
+	err := a.currentWriter.Close()
+	if err != nil {
+		return err
+	}
+
+	err = setupNextWriter(a)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (a *Appender) Close() error {
 	return a.currentWriter.Close()
 }
 
 func checkSizeAndRotate(a *Appender, nextRecordSize int) error {
 	if (a.currentWriter.Size() + uint64(nextRecordSize)) > a.walOptions.maxWalFileSize {
-		err := a.currentWriter.Close()
-		if err != nil {
-			return err
-		}
-
-		err = setupNextWriter(a)
-		if err != nil {
-			return err
-		}
+		return a.Rotate()
 	}
 
 	return nil
