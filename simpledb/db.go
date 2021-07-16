@@ -228,6 +228,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
+		10,
 	}
 
 	for _, extraOption := range extraOptions {
@@ -273,13 +274,24 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 // options
 
 type ExtraOptions struct {
-	memstoreSizeBytes uint64
+	memstoreSizeBytes   uint64
+	compactionThreshold int
 }
 
 type ExtraOption func(options *ExtraOptions)
 
+// MemstoreSizeBytes controls the size of the memstore, after this limit is hit the memstore will be written to disk.
+// Default is 1 GiB.
 func MemstoreSizeBytes(n uint64) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.memstoreSizeBytes = n
+	}
+}
+
+// SSTableCompactionThreshold tells how often SSTables are being compacted, this is measured in the number of SSTables.
+// The default is 10, which in turn will compact into a single SSTable.
+func SSTableCompactionThreshold(n int) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.compactionThreshold = n
 	}
 }

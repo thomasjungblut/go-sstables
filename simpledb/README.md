@@ -25,4 +25,4 @@ Effectively SimpleDB implements the given diagram:
 
 There is always a writable-memstore that stores in the writes in memory. When it's becoming too big (default of 1gb) it will rotate to a new memstore and flush the filled one as a SSTable and rotate the WAL. The WAL will be deleted once the sstable is written fully to disk.
 
-In SimpleDB only L0 is implemented, meaning there are multiple SSTables at the same time that have overlapping key ranges. There is a maximum limit of five simultaneous SSTables, after that limit an asynchronous compaction and merge process will kick off and merge into a single SSTable again.
+In SimpleDB only L0 is implemented, meaning there are multiple SSTables at the same time that have overlapping key ranges. There is a maximum limit of ten simultaneous SSTables, after that limit an asynchronous compaction and merge process will kick off and merge into a single SSTable again.
