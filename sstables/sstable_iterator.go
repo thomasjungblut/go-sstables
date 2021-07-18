@@ -68,7 +68,7 @@ func newV0SStableFullScanIterator(keyIterator skiplist.SkipListIteratorI, dataRe
 // sequential read on the index with a random access lookup on the data file via mmap
 type SSTableFullScanIterator struct {
 	keyIterator skiplist.SkipListIteratorI
-	dataReader  *recordio.FileReader
+	dataReader  recordio.ReaderI
 }
 
 func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
@@ -85,7 +85,7 @@ func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	return key.([]byte), next, err
 }
 
-func newSStableFullScanIterator(keyIterator skiplist.SkipListIteratorI, dataReader *recordio.FileReader) (SSTableIteratorI, error) {
+func newSStableFullScanIterator(keyIterator skiplist.SkipListIteratorI, dataReader recordio.ReaderI) (SSTableIteratorI, error) {
 	return &SSTableFullScanIterator{
 		keyIterator: keyIterator,
 		dataReader:  dataReader,

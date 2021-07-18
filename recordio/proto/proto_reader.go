@@ -7,7 +7,7 @@ import (
 )
 
 type Reader struct {
-	reader *recordio.FileReader
+	reader recordio.ReaderI
 }
 
 func (r *Reader) Open() error {

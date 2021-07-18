@@ -3,6 +3,7 @@ package sstables
 import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	"strings"
 )
 
 // SuperSSTableReader unifies several sstables under one single reader with the same interface.
@@ -56,7 +57,7 @@ func (s SuperSSTableReader) Scan() (SSTableIteratorI, error) {
 		IteratorContext: context,
 	}
 
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, scanReduce)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (s SuperSSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error)
 		IteratorContext: context,
 	}
 
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, scanReduce)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +109,7 @@ func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTabl
 		IteratorContext: context,
 	}
 
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, scanReduce)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +117,9 @@ func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTabl
 	return iterator, nil
 }
 
-func scanReduce(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+// ScanReduceLatestWins is a simple version of a merge where the latest value always wins. Latest is determined
+// by looping the context and finding the biggest value denoted by integers (assuming context is actually []int).
+func ScanReduceLatestWins(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
 	// we're taking the value of the "latest" reader by checking the maximum value in the context
 	maxCtx := 0
 	maxCtxIndex := 0
@@ -170,4 +173,17 @@ func (s SuperSSTableReader) MetaData() *proto.MetaData {
 		}
 	}
 	return sum
+}
+
+func (s SuperSSTableReader) BasePath() string {
+	// the usefulness here is also debatable, but we return a joined string of all sub files
+	var paths []string
+	for _, reader := range s.readers {
+		paths = append(paths, reader.BasePath())
+	}
+	return strings.Join(paths, ",")
+}
+
+func NewSuperSSTableReader(readers []SSTableReaderI, comp skiplist.KeyComparator) *SuperSSTableReader {
+	return &SuperSSTableReader{readers: readers, comp: comp}
 }

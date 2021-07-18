@@ -78,6 +78,9 @@ type ReadAtI interface {
 	ReadNextAt(offset uint64) ([]byte, error)
 }
 
+// Returns an instance of the desired compressor defined by its identifier.
+// An error is returned if the desired compressor is not implemented.
+// Currently only CompressionTypeNone,CompressionTypeSnappy and CompressionTypeGZIP are available.
 func NewCompressorForType(compType int) (compressor.CompressionI, error) {
 	switch compType {
 	case CompressionTypeNone:

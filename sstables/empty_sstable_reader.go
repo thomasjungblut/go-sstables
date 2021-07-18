@@ -40,6 +40,10 @@ func (EmptySStableReader) MetaData() *proto.MetaData {
 	}
 }
 
+func (EmptySStableReader) BasePath() string {
+	return ""
+}
+
 type EmptySSTableIterator struct{}
 
 func (EmptySSTableIterator) Next() ([]byte, []byte, error) {

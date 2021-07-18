@@ -6,15 +6,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type AppenderReplayer struct {
-	wal *w.WriteAheadLog
-}
-
-type WriteAheadLog struct {
-	*AppenderReplayer
-	*w.Cleaner
-}
-
 type WriteAheadLogReplayI interface {
 	// Replays the whole WAL from start, calling the given process function
 	// for each record in guaranteed order.
@@ -27,6 +18,20 @@ type WriteAheadLogAppendI interface {
 	// Appends a given record and execute fsync to guarantee the persistence of the record.
 	// Has considerably less throughput than Append.
 	AppendSync(record proto.Message) error
+}
+
+type WriteAheadLogI interface {
+	WriteAheadLogAppendI
+	WriteAheadLogReplayI
+	w.WriteAheadLogCleanI
+}
+
+type WriteAheadLog struct {
+	wal w.WriteAheadLogI
+}
+
+func (p *WriteAheadLog) Clean() error {
+	return p.wal.Clean()
 }
 
 func (p *WriteAheadLog) Replay(messageFactory func() proto.Message, process func(record proto.Message) error) error {
@@ -54,24 +59,13 @@ func (p *WriteAheadLog) Close() error {
 	return p.wal.Close()
 }
 
-func newProtoAppenderReplayer(opts *w.Options) (*AppenderReplayer, error) {
+func NewProtoWriteAheadLog(opts *w.Options) (WriteAheadLogI, error) {
 	wal, err := w.NewWriteAheadLog(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AppenderReplayer{
-		wal: wal,
-	}, nil
-}
-
-func NewProtoWriteAheadLog(opts *w.Options) (*WriteAheadLog, error) {
-	appRepl, err := newProtoAppenderReplayer(opts)
-	if err != nil {
-		return nil, err
-	}
 	return &WriteAheadLog{
-		AppenderReplayer: appRepl,
-		Cleaner:          w.NewCleaner(opts),
+		wal: wal,
 	}, nil
 }

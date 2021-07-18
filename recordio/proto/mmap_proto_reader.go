@@ -6,7 +6,7 @@ import (
 )
 
 type MMapProtoReader struct {
-	reader *recordio.MMapReader
+	reader recordio.ReadAtI
 }
 
 func (r *MMapProtoReader) Open() error {

@@ -134,7 +134,7 @@ type MetaData struct {
 	DataBytes  uint64 `protobuf:"varint,4,opt,name=dataBytes,proto3" json:"dataBytes,omitempty"`
 	IndexBytes uint64 `protobuf:"varint,5,opt,name=indexBytes,proto3" json:"indexBytes,omitempty"`
 	TotalBytes uint64 `protobuf:"varint,6,opt,name=totalBytes,proto3" json:"totalBytes,omitempty"`
-	Version    uint32 `protobuf:"varint,7,opt,name=version,proto3" json:"version,omitempty"`
+	Version    uint32 `protobuf:"varint,7,opt,name=version,proto3" json:"version,omitempty"` // currently version 1, the default is version 0 with protos as values
 }
 
 func (x *MetaData) Reset() {

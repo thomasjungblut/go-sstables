@@ -7,7 +7,7 @@ import (
 )
 
 func TestSimpleDeleteHappyPath(t *testing.T) {
-	log, _ := singleRecordWal(t, "wal_simpleWriteHappyPath")
+	log, _ := singleRecordWal(t, "wal_simpleDeleteHappyPath")
 	info, err := os.Stat(log.walOptions.basePath)
 	assert.Nil(t, err)
 	assert.True(t, info.IsDir())

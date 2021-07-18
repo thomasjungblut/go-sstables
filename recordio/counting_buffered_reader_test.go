@@ -26,7 +26,7 @@ func TestReaderHappyCountingSingleBytes(t *testing.T) {
 	}
 
 	assert.Equal(t, len(testBuf), idx)
-	assert.Equal(t, len(testBuf), int(reader.count))
+	assert.Equal(t, len(testBuf), int(reader.Count()))
 }
 
 func TestReaderHappyCountingBufferedBytes(t *testing.T) {
@@ -48,7 +48,7 @@ func TestReaderHappyCountingBufferedBytes(t *testing.T) {
 	}
 
 	assert.Equal(t, len(testBuf), idx)
-	assert.Equal(t, len(testBuf), int(reader.count))
+	assert.Equal(t, len(testBuf), int(reader.Count()))
 }
 
 func TestReaderHappyResetAndRead(t *testing.T) {
@@ -73,9 +73,9 @@ func TestReaderHappyResetAndRead(t *testing.T) {
 	}
 
 	assert.Equal(t, len(testBuf), idx)
-	assert.Equal(t, 12, int(reader.count)) // 12 because we have been skipping that many bytes in reading
+	assert.Equal(t, 12, int(reader.Count())) // 12 because we have been skipping that many bytes in reading
 }
 
-func testReader() *CountingBufferedReader {
+func testReader() CountingReaderResetComposite {
 	return NewCountingByteReader(bufio.NewReader(bytes.NewReader(testBuf)))
 }

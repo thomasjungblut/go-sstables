@@ -21,6 +21,19 @@ func TestWriterHappyPathOpenWriteClose(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
+func TestWriterWriteNil(t *testing.T) {
+	writer := simpleWriteBytes(t, nil)
+	defer removeFileWriterFile(t, writer)
+
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer closeFileReader(t, reader)
+
+	buf, err := reader.ReadNext()
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{}, buf)
+	readNextExpectEOF(t, reader)
+}
+
 func TestSingleWriteSize(t *testing.T) {
 	writer := singleWrite(t)
 	defer removeFileWriterFile(t, writer)
@@ -115,7 +128,7 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 	assert.NotEqual(t, 8, stat.Size())
 	defer removeFileWriterFile(t, writer)
 
-	writer, err = NewFileWriter(Path(writer.file.Name()))
+	writer, err = newWriterStruct(Path(writer.file.Name()))
 	assert.Nil(t, err)
 	defer closeFileWriter(t, writer)
 
@@ -149,7 +162,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 		return nil, err
 	}
 
-	return r, nil
+	return r.(*FileWriter), nil
 }
 
 func newCompressedTestWriter(compType int) (*FileWriter, error) {
@@ -164,7 +177,7 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 		return nil, err
 	}
 
-	return r, nil
+	return r.(*FileWriter), nil
 }
 
 func randomRecordOfSize(l int) []byte {
@@ -205,6 +218,7 @@ func simpleWriteBytes(t *testing.T, record []byte) *FileWriter {
 	assert.Nil(t, err)
 	return writer
 }
+
 func newOpenedWriter(t *testing.T) *FileWriter {
 	writer, err := newUncompressedTestWriter()
 	assert.Nil(t, err)
@@ -235,5 +249,13 @@ func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
 	reader, err := NewFileReaderWithPath(writer.file.Name())
 	assert.Nil(t, err)
 	assert.Nil(t, reader.Open())
-	return reader
+	return reader.(*FileReader)
+}
+
+func newWriterStruct(writerOptions ...FileWriterOption) (*FileWriter, error) {
+	writer, err := NewFileWriter(writerOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return writer.(*FileWriter), nil
 }

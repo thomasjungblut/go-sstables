@@ -105,7 +105,7 @@ func newUncompressedOpenedWriterAtPath(path string) (*FileWriter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return r, r.Open()
+	return r.(*FileWriter), r.Open()
 }
 
 func newCompressedOpenedWriterAtPath(path string, compType int) (*FileWriter, error) {
@@ -114,5 +114,5 @@ func newCompressedOpenedWriterAtPath(path string, compType int) (*FileWriter, er
 	if err != nil {
 		return nil, err
 	}
-	return r, r.Open()
+	return r.(*FileWriter), r.Open()
 }

@@ -116,5 +116,5 @@ func newOpenedTestMMapReader(t *testing.T, file string) (*MMapReader, error) {
 func newTestMMapReader(file string, t *testing.T) *MMapReader {
 	r, err := NewMemoryMappedReaderWithPath(file)
 	assert.Nil(t, err)
-	return r
+	return r.(*MMapReader)
 }

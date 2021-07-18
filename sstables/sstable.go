@@ -43,6 +43,8 @@ type SSTableReaderI interface {
 	Close() error
 	// Returns the metadata of this sstable
 	MetaData() *proto.MetaData
+	// Returns the base path / root path of this sstable that contains all the files.
+	BasePath() string
 }
 
 type SSTableSimpleWriterI interface {

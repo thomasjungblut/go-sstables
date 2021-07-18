@@ -21,8 +21,8 @@ type SSTableStreamWriter struct {
 	dataFilePath  string
 	metaFilePath  string
 
-	indexWriter  *rProto.Writer
-	dataWriter   *recordio.FileWriter
+	indexWriter  rProto.WriterI
+	dataWriter   recordio.WriterI
 	metaDataFile *os.File
 
 	bloomFilter *bloomfilter.Filter
@@ -174,7 +174,7 @@ type SSTableSimpleWriter struct {
 	streamWriter *SSTableStreamWriter
 }
 
-func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap *skiplist.SkipListMap) error {
+func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.SkipListMapI) error {
 	err := writer.streamWriter.Open()
 	if err != nil {
 		return err
