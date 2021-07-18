@@ -15,8 +15,12 @@ import (
 
 const SSTablePrefix = "sstable"
 const SSTablePattern = SSTablePrefix + "_%015d"
+const SSTableCompactionPathPrefix = SSTablePrefix + "_compaction"
+const CompactionFinishedSuccessfulFileName = "compaction_successful"
 const WriteAheadFolder = "wal"
 const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
+const NumSSTablesToTriggerCompaction int = 10
+const DefaultCompactionMaxSizeBytes uint64 = 5 * 1024 * 1024 * 1024 // 5gb
 
 var NotFound = errors.New("NotFound")
 var EmptyKeyValue = errors.New("neither empty keys nor values are allowed")
@@ -39,28 +43,46 @@ type DatabaseI interface {
 	Delete(key string) error
 }
 
+type compactionAction struct {
+	pathsToCompact []string
+	readers        []sstables.SSTableReaderI
+	totalRecords   uint64
+}
+
 type memStoreFlushAction struct {
 	memStore *memstore.MemStoreI
 	walPath  string
 }
 
 type DB struct {
-	cmp                skiplist.KeyComparator
-	basePath           string
-	rwLock             *sync.RWMutex
-	storeFlushChannel  chan memStoreFlushAction
-	doneFlushChannel   chan bool
-	wal                wal.WriteAheadLogI
-	sstableManager     *SSTableManager
-	memStore           *RWMemstore
-	currentSSTablePath string
-	memstoreMaxSize    uint64
-	currentGeneration  int64
+	cmp                   skiplist.KeyComparator
+	basePath              string
+	currentSSTablePath    string
+	memstoreMaxSize       uint64
+	compactionThreshold   int
+	compactedMaxSizeBytes uint64
+	enableCompactions     bool
+
+	rwLock         *sync.RWMutex
+	wal            wal.WriteAheadLogI
+	sstableManager *SSTableManager
+	memStore       *RWMemstore
+
+	storeFlushChannel chan memStoreFlushAction
+	doneFlushChannel  chan bool
+
+	compactionChannel     chan compactionAction
+	doneCompactionChannel chan bool
+
+	currentGeneration int64
 }
 
 func (db *DB) Open() error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
+
+	// TODO(thomas): we need to recover left-over compactions
+	// for example by removing all non-finished compactions
 
 	err := db.reconstructSSTables()
 	if err != nil {
@@ -72,7 +94,7 @@ func (db *DB) Open() error {
 	}
 
 	go flushMemstoreContinuously(db)
-	// go flushMemstoreAndMergeSSTablesAsync(db)
+	go backgroundCompaction(db)
 
 	return nil
 }
@@ -88,6 +110,9 @@ func (db *DB) Close() error {
 
 	close(db.storeFlushChannel)
 	<-db.doneFlushChannel
+
+	close(db.compactionChannel)
+	<-db.doneCompactionChannel
 
 	err = db.wal.Close()
 	if err != nil {
@@ -230,7 +255,9 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
-		10,
+		false,
+		NumSSTablesToTriggerCompaction,
+		DefaultCompactionMaxSizeBytes,
 	}
 
 	for _, extraOption := range extraOptions {
@@ -242,26 +269,42 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	rwLock := &sync.RWMutex{}
 	flusherChan := make(chan memStoreFlushAction)
 	doneFlushChan := make(chan bool)
+	compactionChan := make(chan compactionAction, 1)
+	doneCompactionChan := make(chan bool)
+
+	sstableManager := NewSSTableManager(
+		cmp,
+		extraOpts.compactionThreshold,
+		extraOpts.compactionMaxSizeBytes,
+		compactionChan)
 
 	return &DB{
-		cmp:                cmp,
-		basePath:           basePath,
-		memStore:           &RWMemstore{mStore, mStore},
-		rwLock:             rwLock,
-		storeFlushChannel:  flusherChan,
-		doneFlushChannel:   doneFlushChan,
-		sstableManager:     NewSSTableManager(cmp),
-		currentSSTablePath: "",
-		memstoreMaxSize:    extraOpts.memstoreSizeBytes,
-		currentGeneration:  0,
+		cmp:                   cmp,
+		basePath:              basePath,
+		currentSSTablePath:    "",
+		memstoreMaxSize:       extraOpts.memstoreSizeBytes,
+		compactionThreshold:   extraOpts.compactionThreshold,
+		compactedMaxSizeBytes: extraOpts.compactionMaxSizeBytes,
+		enableCompactions:     extraOpts.enableCompactions,
+		rwLock:                rwLock,
+		wal:                   nil,
+		sstableManager:        sstableManager,
+		memStore:              &RWMemstore{mStore, mStore},
+		storeFlushChannel:     flusherChan,
+		doneFlushChannel:      doneFlushChan,
+		compactionChannel:     compactionChan,
+		doneCompactionChannel: doneCompactionChan,
+		currentGeneration:     0,
 	}, nil
 }
 
 // options
 
 type ExtraOptions struct {
-	memstoreSizeBytes   uint64
-	compactionThreshold int
+	memstoreSizeBytes      uint64
+	enableCompactions      bool
+	compactionThreshold    int
+	compactionMaxSizeBytes uint64
 }
 
 type ExtraOption func(options *ExtraOptions)
@@ -279,5 +322,13 @@ func MemstoreSizeBytes(n uint64) ExtraOption {
 func SSTableCompactionThreshold(n int) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionThreshold = n
+	}
+}
+
+// CompactionMaxSizeBytes tells whether an SSTable is considered for compaction.
+// SSTables over the given threshold will not be compacted any further. Default is 5GB in DefaultCompactionMaxSizeBytes.
+func CompactionMaxSizeBytes(n uint64) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.compactionMaxSizeBytes = n
 	}
 }

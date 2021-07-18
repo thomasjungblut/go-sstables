@@ -1,81 +1,119 @@
 package simpledb
 
 import (
-	"github.com/thomasjungblut/go-sstables/memstore"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
+	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"io/ioutil"
 	"log"
+	"os"
+	"path"
+	"strings"
+	"time"
 )
 
-const (
-	sstableIteratorId  = iota
-	memstoreIteratorId = iota
-)
+func backgroundCompaction(db *DB) {
+	defer func() {
+		db.doneCompactionChannel <- true
+	}()
+	err := func(db *DB) error {
+		if !db.enableCompactions {
+			return nil
+		}
+	outer:
+		for compactionAction := range db.compactionChannel {
+			paths := compactionAction.pathsToCompact
+			readers := compactionAction.readers
+			numRecords := compactionAction.totalRecords
 
-func compactionFunc(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
-	l := len(values)
-	if l == 0 || l > 2 {
-		log.Panicf("unexpected number of values getting merged, len=%d but expected 2", l)
-	}
+			// first thing we need to check is whether there are any tables that we already compacted - if so ignore
+			for _, p := range paths {
+				_, err := os.Stat(p)
+				if err != nil {
+					if os.IsNotExist(err) {
+						continue outer
+					}
+					return err
+				}
+			}
 
-	valToWrite := values[0]
-	// the larger value of the context wins, that would be the memstore write
-	if l == 2 && context[1].(int) > context[0].(int) {
-		valToWrite = values[1]
-	}
+			start := time.Now()
+			writeFolder, err := ioutil.TempDir(db.basePath, SSTableCompactionPathPrefix)
+			if err != nil {
+				return err
+			}
 
-	// if the winning value is a tombstone (nil), then we will tell the merger to ignore it altogether
-	// this is the actual compaction of the merged sstable
-	if valToWrite == nil {
-		return nil, nil
-	}
-	return key, valToWrite
-}
+			log.Printf("Starting compaction in %v with %v\n", writeFolder, strings.Join(paths, ","))
 
-func merge(numMemstoreElements int, writePath string, memStoreIterator sstables.SSTableIteratorI,
-	sstableIterator sstables.SSTableIteratorI) error {
+			writer, err := sstables.NewSSTableStreamWriter(
+				sstables.WriteBasePath(writeFolder),
+				sstables.WithKeyComparator(skiplist.BytesComparator),
+				sstables.BloomExpectedNumberOfElements(numRecords))
+			if err != nil {
+				return err
+			}
 
-	writer, err := sstables.NewSSTableStreamWriter(
-		sstables.WriteBasePath(writePath),
-		sstables.WithKeyComparator(skiplist.BytesComparator),
-		sstables.BloomExpectedNumberOfElements(uint64(numMemstoreElements)))
+			var iterators []sstables.SSTableIteratorI
+			var iteratorContext []interface{}
+			for i := 0; i < len(readers); i++ {
+				scanner, err := readers[i].Scan()
+				if err != nil {
+					return err
+				}
+
+				iterators = append(iterators, scanner)
+				iteratorContext = append(iteratorContext, i)
+			}
+
+			ctx := sstables.MergeContext{
+				Iterators:       iterators,
+				IteratorContext: iteratorContext,
+			}
+
+			// TODO(thomas): this includes tombstones, do we really need to?
+			err = sstables.NewSSTableMerger(db.cmp).MergeCompact(ctx, writer, sstables.ScanReduceLatestWins)
+			if err != nil {
+				return err
+			}
+
+			compactionMetadata := proto.CompactionMetadata{
+				WritePath:       writeFolder,
+				ReplacementPath: compactionAction.pathsToCompact[0],
+				SstablePaths:    compactionAction.pathsToCompact,
+			}
+
+			// at this point the compaction is finished, we save the metadata that this was successful for potential recoveries
+			metaWriter, err := rProto.NewWriter(rProto.Path(path.Join(writeFolder, CompactionFinishedSuccessfulFileName)))
+			if err != nil {
+				return err
+			}
+			err = metaWriter.Open()
+			if err != nil {
+				return err
+			}
+
+			_, err = metaWriter.Write(&compactionMetadata)
+			if err != nil {
+				return err
+			}
+
+			err = metaWriter.Close()
+			if err != nil {
+				return err
+			}
+
+			log.Printf("done compacting %d sstables in %v. Path: [%s]\n", len(paths), time.Since(start), writeFolder)
+
+			err = db.sstableManager.reflectCompactionResult(&compactionMetadata)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}(db)
+
 	if err != nil {
-		return err
+		log.Panicf("error while compacting, error was %v", err)
 	}
-
-	err = sstables.NewSSTableMerger(skiplist.BytesComparator).
-		MergeCompact(sstables.MergeContext{
-			Iterators: []sstables.SSTableIteratorI{
-				memStoreIterator,
-				sstableIterator,
-			}, IteratorContext: []interface{}{
-				memstoreIteratorId,
-				sstableIteratorId,
-			},
-		}, writer, compactionFunc)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func swapMemstore(db *DB) *memstore.MemStoreI {
-	storeToFlush := db.memStore.writeStore
-	db.memStore = &RWMemstore{
-		readStore:  storeToFlush,
-		writeStore: memstore.NewMemStore(),
-	}
-	return &storeToFlush
-}
-
-func allocateNewSSTableFolders(db *DB) (string, string, error) {
-	readPath := db.currentSSTablePath
-	writePath, err := ioutil.TempDir(db.basePath, "sstable")
-	if err != nil {
-		return "", "", err
-	}
-	db.currentSSTablePath = writePath
-	return readPath, writePath, err
 }

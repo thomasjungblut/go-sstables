@@ -146,6 +146,10 @@ func (reader *SSTableReader) MetaData() *proto.MetaData {
 	return reader.metaData
 }
 
+func (reader *SSTableReader) BasePath() string {
+	return reader.opts.basePath
+}
+
 // NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
 // > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {

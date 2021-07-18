@@ -51,3 +51,8 @@ synchronously into a new SSTable. That has a very simple reason: the WAL folder 
 cases when WALs are being overwritten in multi-crash scenarios. The trade-off here is that most likely the created
 SSTable is too small, but it will be compacted with others later on.
 
+In case the crash happened during a compaction, there are two places where we can attempt to recover. The first one is
+while the compaction is ongoing (there is no compaction_successful flag file in the folder yet), in this case we can
+discard the compaction result. If there is a compaction that has finished successfully, we can try to recover that by
+completing the steps in the sstable_manager. The flag file contains several meta information for that case and can be
+used to trigger the remainder of the logic again. 

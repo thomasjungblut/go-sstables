@@ -2,7 +2,7 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"log"
 	"os"
@@ -12,8 +12,8 @@ import (
 )
 
 func flushMemstoreContinuously(db *DB) {
+	defer func() { db.doneFlushChannel <- true }()
 	err := func(db *DB) error {
-		defer func() { db.doneFlushChannel <- true }()
 		for flushAction := range db.storeFlushChannel {
 			err := executeFlush(db, flushAction)
 			if err != nil {
@@ -49,7 +49,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 
 	err = (*memStoreToFlush).FlushWithTombstones(
 		sstables.WriteBasePath(writePath),
-		sstables.WithKeyComparator(skiplist.BytesComparator),
+		sstables.WithKeyComparator(db.cmp),
 		sstables.BloomExpectedNumberOfElements(numElements))
 	if err != nil {
 		return err
@@ -64,19 +64,22 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 
 	reader, err := sstables.NewSSTableReader(
 		sstables.ReadBasePath(writePath),
-		sstables.ReadWithKeyComparator(skiplist.BytesComparator),
+		sstables.ReadWithKeyComparator(db.cmp),
 	)
 	if err != nil {
 		return err
 	}
-
-	db.sstableManager.addNewReader(reader)
 
 	elapsedDuration := time.Since(start)
 	totalBytes := reader.MetaData().TotalBytes
 	throughput := float64(totalBytes) / 1024 / 1024 / elapsedDuration.Seconds()
 	log.Printf("done flushing memstore to sstable of size %d bytes (%2.f mb/s) in %v. Path: [%s]\n",
 		totalBytes, throughput, elapsedDuration, writePath)
+
+	// add the newly created reader into the rotation
+	// note that this CAN block here waiting on a current compaction to finish
+	db.sstableManager.addReaderAndMaybeTriggerCompaction(reader)
+
 	return nil
 }
 
@@ -91,4 +94,13 @@ func (db *DB) rotateWalAndFlushMemstore() error {
 	}
 
 	return nil
+}
+
+func swapMemstore(db *DB) *memstore.MemStoreI {
+	storeToFlush := db.memStore.writeStore
+	db.memStore = &RWMemstore{
+		readStore:  storeToFlush,
+		writeStore: memstore.NewMemStore(),
+	}
+	return &storeToFlush
 }

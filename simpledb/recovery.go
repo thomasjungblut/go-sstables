@@ -3,7 +3,6 @@ package simpledb
 import (
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
@@ -51,13 +50,13 @@ func (db *DB) reconstructSSTables() error {
 		for _, p := range tablePaths {
 			reader, err := sstables.NewSSTableReader(
 				sstables.ReadBasePath(p),
-				sstables.ReadWithKeyComparator(skiplist.BytesComparator),
+				sstables.ReadWithKeyComparator(db.cmp),
 			)
 			if err != nil {
 				return err
 			}
 
-			db.sstableManager.addNewReader(reader)
+			db.sstableManager.addReaderAndMaybeTriggerCompaction(reader)
 		}
 	}
 

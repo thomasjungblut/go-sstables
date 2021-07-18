@@ -1,0 +1,9 @@
+syntax = "proto3";
+package proto;
+option go_package = "github.com/thomasjungblut/simpledb/proto";
+
+message CompactionMetadata {
+    string writePath = 1;
+    string replacementPath = 2;
+    repeated string sstablePaths = 3;
+}
