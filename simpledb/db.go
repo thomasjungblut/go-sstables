@@ -14,7 +14,7 @@ import (
 )
 
 const SSTablePrefix = "sstable"
-const SSTablePattern = SSTablePrefix + "_%06d"
+const SSTablePattern = SSTablePrefix + "_%015d"
 const WriteAheadFolder = "wal"
 const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 

@@ -40,7 +40,7 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 	endToEndReadWrite(writer, t, tmpFile)
 }
 
-func endToEndReadWrite(writer *FileWriter, t *testing.T, tmpFile *os.File) {
+func endToEndReadWrite(writer WriterI, t *testing.T, tmpFile *os.File) {
 	// we're reading the file line by line and try to read it back and assert the same content
 	inFile, err := os.Open("test_files/berlin52.tsp")
 	assert.Nil(t, err)

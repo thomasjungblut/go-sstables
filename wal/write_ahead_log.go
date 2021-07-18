@@ -44,12 +44,12 @@ type WriteAheadLogI interface {
 }
 
 type WriteAheadLog struct {
-	*Appender
-	*Replayer
-	*Cleaner
+	WriteAheadLogAppendI
+	WriteAheadLogReplayI
+	WriteAheadLogCleanI
 }
 
-func NewWriteAheadLog(opts *Options) (*WriteAheadLog, error) {
+func NewWriteAheadLog(opts *Options) (WriteAheadLogI, error) {
 	appender, err := NewAppender(opts)
 	if err != nil {
 		return nil, err
@@ -59,9 +59,9 @@ func NewWriteAheadLog(opts *Options) (*WriteAheadLog, error) {
 		return nil, err
 	}
 	return &WriteAheadLog{
-		Appender: appender,
-		Replayer: replayer,
-		Cleaner:  NewCleaner(opts),
+		appender,
+		replayer,
+		NewCleaner(opts),
 	}, nil
 }
 

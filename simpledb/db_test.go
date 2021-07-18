@@ -115,7 +115,7 @@ func recordWithSuffix(prefix int, suffix string) string {
 	return builder.String()
 }
 
-func randomRecord(size int) string {
+func randomString(size int) string {
 	builder := strings.Builder{}
 	for i := 0; i < size; i++ {
 		builder.WriteRune(rand.Int31n(255))

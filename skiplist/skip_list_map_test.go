@@ -189,7 +189,7 @@ func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
 	assert.Equal(t, len(expected), currentIndex)
 }
 
-func singleElementSkipList(t *testing.T) *SkipListMap {
+func singleElementSkipList(t *testing.T) SkipListMapI {
 	list := NewSkipListMap(IntComparator)
 	list.Insert(13, 91)
 	assert.Equal(t, 1, list.Size())
@@ -222,7 +222,7 @@ func assertIteratorOutputs(t *testing.T, expectedSeq []int, it SkipListIteratorI
 	assert.Equal(t, len(expectedSeq), currentIndex)
 }
 
-func batchInsertAndAssertContains(t *testing.T, toInsert []int, list *SkipListMap) {
+func batchInsertAndAssertContains(t *testing.T, toInsert []int, list SkipListMapI) {
 	for _, e := range toInsert {
 		list.Insert(e, e+1)
 	}

@@ -90,7 +90,7 @@ func setupNextWriter(a *Appender) error {
 	return nil
 }
 
-func NewAppender(walOpts *Options) (*Appender, error) {
+func NewAppender(walOpts *Options) (WriteAheadLogAppendI, error) {
 	appender := &Appender{
 		walOptions:         walOpts,
 		nextWriterNumber:   0,

@@ -88,5 +88,5 @@ func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 		_ = wal.Clean()
 	})
 
-	return wal
+	return wal.(*WriteAheadLog)
 }

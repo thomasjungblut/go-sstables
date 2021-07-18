@@ -60,7 +60,7 @@ func (v ValueStruct) GetValue() []byte {
 }
 
 type MemStore struct {
-	skipListMap   *skiplist.SkipListMap
+	skipListMap   skiplist.SkipListMapI
 	estimatedSize uint64
 	comparator    skiplist.KeyComparator
 }
@@ -230,7 +230,7 @@ func (m *MemStore) SStableIterator() sstables.SSTableIteratorI {
 	return &SkipListSStableIterator{iterator: it}
 }
 
-func NewMemStore() *MemStore {
+func NewMemStore() MemStoreI {
 	cmp := skiplist.BytesComparator
 	return &MemStore{skipListMap: skiplist.NewSkipListMap(cmp), comparator: cmp}
 }

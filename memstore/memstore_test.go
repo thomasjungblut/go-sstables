@@ -10,7 +10,7 @@ import (
 )
 
 func TestMemStoreAddHappyPath(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.False(t, m.Contains([]byte("a")))
 	val, err := m.Get([]byte("a"))
 	assert.Nil(t, val)
@@ -24,7 +24,7 @@ func TestMemStoreAddHappyPath(t *testing.T) {
 }
 
 func TestMemStoreAddFailOnNilKeyValue(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Add(nil, nil)
 	assert.Equal(t, errors.New("key was nil"), err)
 	err = m.Add([]byte("a"), nil)
@@ -32,7 +32,7 @@ func TestMemStoreAddFailOnNilKeyValue(t *testing.T) {
 }
 
 func TestMemStoreAddFailsOnExist(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Add([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	err = m.Add([]byte("a"), []byte("aVal"))
@@ -40,7 +40,7 @@ func TestMemStoreAddFailsOnExist(t *testing.T) {
 }
 
 func TestMemStoreUpsertBehavesLikeAdd(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
@@ -50,7 +50,7 @@ func TestMemStoreUpsertBehavesLikeAdd(t *testing.T) {
 }
 
 func TestMemStoreUpsertUpdatesOnExist(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
@@ -69,7 +69,7 @@ func TestMemStoreUpsertUpdatesOnExist(t *testing.T) {
 }
 
 func TestMemStoreDeleteTombstones(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
@@ -91,7 +91,7 @@ func TestMemStoreDeleteTombstones(t *testing.T) {
 }
 
 func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.Equal(t, 1, m.Size())
@@ -111,7 +111,7 @@ func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {
 }
 
 func TestMemStoreDeleteSemantics(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	keyA := []byte("a")
 	err := m.Upsert(keyA, []byte("aVal"))
 	assert.Nil(t, err)
@@ -135,7 +135,7 @@ func TestMemStoreDeleteSemantics(t *testing.T) {
 }
 
 func TestMemStoreSizeEstimates(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.Equal(t, 0, m.Size())
 	err := m.Upsert(make([]byte, 20), make([]byte, 50))
 	assert.Nil(t, err)
@@ -159,7 +159,7 @@ func TestMemStoreSizeEstimates(t *testing.T) {
 }
 
 func TestMemStoreFlush(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("akey"), []byte("aval"))
 	assert.Nil(t, err)
 	err = m.Upsert([]byte("bkey"), []byte("bval"))
@@ -192,7 +192,7 @@ func TestMemStoreFlush(t *testing.T) {
 }
 
 func TestMemStoreFlushTombStonesIgnore(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("akey"), []byte("aval"))
 	assert.Nil(t, err)
 	err = m.Upsert([]byte("bkey"), []byte("bval"))
@@ -225,7 +225,7 @@ func TestMemStoreFlushTombStonesIgnore(t *testing.T) {
 }
 
 func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	err := m.Upsert([]byte("akey"), []byte("aval"))
 	assert.Nil(t, err)
 	err = m.Upsert([]byte("bkey"), []byte("bval"))
@@ -259,7 +259,7 @@ func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
 }
 
 func TestMemStoreSStableIteratorUpsertOnly(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.Nil(t, m.Upsert([]byte("akey"), []byte("aval")))
 	assert.Nil(t, m.Upsert([]byte("bkey"), []byte("bval")))
 	assert.Nil(t, m.Upsert([]byte("ckey"), []byte("cval")))
@@ -283,7 +283,7 @@ func TestMemStoreSStableIteratorUpsertOnly(t *testing.T) {
 }
 
 func TestMemStoreSStableIteratorWithTombstones(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.Nil(t, m.Upsert([]byte("akey"), []byte("aval")))
 	assert.Nil(t, m.Upsert([]byte("bkey"), []byte("bval")))
 	assert.Nil(t, m.Upsert([]byte("ckey"), []byte("cval")))
@@ -313,7 +313,7 @@ func TestMemStoreSStableIteratorWithTombstones(t *testing.T) {
 }
 
 func TestMemStoreTombstoneExistingKey(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.Equal(t, 0, m.Size())
 	key := make([]byte, 20)
 	err := m.Upsert(key, make([]byte, 50))
@@ -330,7 +330,7 @@ func TestMemStoreTombstoneExistingKey(t *testing.T) {
 }
 
 func TestMemStoreTombstoneNotExistingKey(t *testing.T) {
-	m := NewMemStore()
+	m := newMemStoreTest()
 	assert.Equal(t, 0, m.Size())
 	key := make([]byte, 20)
 	assert.Nil(t, m.Tombstone(key))
@@ -343,4 +343,8 @@ func TestMemStoreTombstoneNotExistingKey(t *testing.T) {
 
 func closeReader(t *testing.T, reader sstables.SSTableReaderI) {
 	func() { assert.Nil(t, reader.Close()) }()
+}
+
+func newMemStoreTest() *MemStore {
+	return NewMemStore().(*MemStore)
 }

@@ -218,30 +218,39 @@ type FileWriterOptions struct {
 
 type FileWriterOption func(*FileWriterOptions)
 
+// Path defines the file path where to write the recordio file into. Path will create a new file if it doesn't exist yet,
+// it will not create any parent directories. Either this or File must be supplied.
 func Path(p string) FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.path = p
 	}
 }
 
+// File uses the given os.File as the sink to write into. The code manages the given file lifecycle (ie closing).
+// Either this or Path must be supplied
 func File(p *os.File) FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.file = p
 	}
 }
 
+// CompressionType sets the record compression for the given file, the types are all prefixed with CompressionType*.
+// Valid values for example are CompressionTypeNone, CompressionTypeSnappy, CompressionTypeGZIP.
 func CompressionType(p int) FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.compressionType = p
 	}
 }
 
+// BufferSizeBytes sets the write buffer size, by default it uses DefaultBufferSize.
+// This is the internal memory buffer before it's written to disk.
 func BufferSizeBytes(p int) FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.bufferSizeBytes = p
 	}
 }
 
+// Experimental: this flag enables DirectIO while writing, this currently might not work due to the misaligned allocations
 func DirectIO() FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.useDirectIO = true
@@ -249,7 +258,7 @@ func DirectIO() FileWriterOption {
 }
 
 // creates a new writer with the given options, either Path or File must be supplied, compression is optional.
-func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
+func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	opts := &FileWriterOptions{
 		path:            "",
 		file:            nil,
@@ -290,7 +299,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (*FileWriter, error) {
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter *bufio.Writer, compType int) (*FileWriter, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter *bufio.Writer, compType int) (WriterI, error) {
 	return &FileWriter{
 		file:            file,
 		bufWriter:       bufWriter,

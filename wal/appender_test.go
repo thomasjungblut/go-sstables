@@ -111,7 +111,7 @@ func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
 		_ = NewCleaner(opts).Clean()
 	})
 
-	return log
+	return log.(*Appender)
 }
 
 func assertRecorderMatchesReplay(t *testing.T, opts *Options, recorder [][]byte) {

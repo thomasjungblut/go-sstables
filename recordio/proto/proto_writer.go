@@ -9,7 +9,7 @@ import (
 )
 
 type Writer struct {
-	writer *recordio.FileWriter
+	writer recordio.WriterI
 }
 
 func (w *Writer) Open() error {

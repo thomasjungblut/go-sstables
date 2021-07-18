@@ -195,7 +195,7 @@ func (list *SkipListMap) IteratorBetween(keyLower interface{}, keyHigher interfa
 	return &SkipListIterator{node: node, comp: list.comp, keyHigher: keyHigher}, nil
 }
 
-func NewSkipListMap(comp KeyComparator) *SkipListMap {
+func NewSkipListMap(comp KeyComparator) SkipListMapI {
 	const maxHeight = 12
 	return &SkipListMap{head: newSkipListNode(nil, nil, maxHeight), comp: comp, maxHeight: maxHeight}
 }

@@ -80,7 +80,7 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 	return nil
 }
 
-func NewReplayer(walOpts *Options) (*Replayer, error) {
+func NewReplayer(walOpts *Options) (WriteAheadLogReplayI, error) {
 	stat, err := os.Stat(walOpts.basePath)
 	if err != nil {
 		return nil, err

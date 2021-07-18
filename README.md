@@ -23,7 +23,7 @@ This is a library as it does not contain any installable binary, which means you
 
 ![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
 
-This README became fairly long, thus the documentation is now separated by package. There you'll find more information on how to use each individual package:
+You will find basically all of those mentioned pieces above and all of them stitched together as SimpleDB. The documentation is now separated by package for easier browsing, each of those READMEs contain examples - there is also [/examples](examples) when you prefer browsing the code directly.
 
 * [RecordIO](recordio/README.md)
   * [Benchmark](benchmark/README.md#recordio)
@@ -34,6 +34,8 @@ This README became fairly long, thus the documentation is now separated by packa
 * [WriteAheadLog](wal/README.md)
 * [SimpleDB](simpledb/README.md)
   * [Benchmark](benchmark/README.md#simpledb)
+
+You can also find all interface and method [documentation on `pkg.go.dev`](https://pkg.go.dev/github.com/thomasjungblut/go-sstables/sstables#section-documentation).
 
 ## Kaitai Support
 

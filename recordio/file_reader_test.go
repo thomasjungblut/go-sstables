@@ -174,5 +174,5 @@ func newOpenedTestReader(t *testing.T, file string) (*FileReader, error) {
 func newTestReader(file string, t *testing.T) *FileReader {
 	r, err := NewFileReaderWithPath(file)
 	assert.Nil(t, err)
-	return r
+	return r.(*FileReader)
 }

@@ -128,7 +128,7 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 	assert.NotEqual(t, 8, stat.Size())
 	defer removeFileWriterFile(t, writer)
 
-	writer, err = NewFileWriter(Path(writer.file.Name()))
+	writer, err = newWriterStruct(Path(writer.file.Name()))
 	assert.Nil(t, err)
 	defer closeFileWriter(t, writer)
 
@@ -162,7 +162,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 		return nil, err
 	}
 
-	return r, nil
+	return r.(*FileWriter), nil
 }
 
 func newCompressedTestWriter(compType int) (*FileWriter, error) {
@@ -177,7 +177,7 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 		return nil, err
 	}
 
-	return r, nil
+	return r.(*FileWriter), nil
 }
 
 func randomRecordOfSize(l int) []byte {
@@ -249,5 +249,13 @@ func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
 	reader, err := NewFileReaderWithPath(writer.file.Name())
 	assert.Nil(t, err)
 	assert.Nil(t, reader.Open())
-	return reader
+	return reader.(*FileReader)
+}
+
+func newWriterStruct(writerOptions ...FileWriterOption) (*FileWriter, error) {
+	writer, err := NewFileWriter(writerOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return writer.(*FileWriter), nil
 }

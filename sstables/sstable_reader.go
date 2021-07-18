@@ -19,9 +19,9 @@ type SSTableReader struct {
 	opts          *SSTableReaderOptions
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.KeyComparator
-	index         *skiplist.SkipListMap // key ([]byte) to uint64 value file offset
-	v0DataReader  *rProto.MMapProtoReader
-	dataReader    *recordio.MMapReader
+	index         skiplist.SkipListMapI // key ([]byte) to uint64 value file offset
+	v0DataReader  rProto.ReadAtI
+	dataReader    recordio.ReadAtI
 	metaData      *proto.MetaData
 	miscClosers   []recordio.CloseableI
 }
@@ -212,7 +212,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	return reader, nil
 }
 
-func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (*skiplist.SkipListMap, error) {
+func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist.SkipListMapI, error) {
 	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
 		return nil, err

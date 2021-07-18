@@ -5,12 +5,20 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"log"
+	"math/rand"
 	"strconv"
 	"sync"
 	"testing"
 )
 
 // those are end2end tests for the whole package, some are very heavyweight
+
+func init() {
+	// to save some log space, the logs with flushes are very verbose on the small memstore sizes
+	log.SetOutput(ioutil.Discard)
+}
 
 func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	t.Parallel()
@@ -19,7 +27,7 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	// writing the same set of keys with a static 5mb record value
-	r := randomRecord(5 * 1024 * 1024)
+	r := randomString(5 * 1024 * 1024)
 	numKeys := 100
 	for n := 0; n < 5; n++ {
 		for i := 0; i < numKeys; i++ {
@@ -44,6 +52,76 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 			assertGet(t, db, key)
 		}
 	}
+}
+
+func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
+	t.Parallel()
+	db := newOpenedSimpleDB(t, "simpleDB_EndToEndRandomKeys")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	r := randomString(1024 * 1024)
+	var keys []string
+	for i := 0; i < 500; i++ {
+		keys = append(keys, randomString(10))
+		assert.Nil(t, db.Put(keys[i], r))
+	}
+
+	assertDatabaseContains(t, db, keys)
+
+	var expectedKeys []string
+	var deletedKeys []string
+	for i := 0; i < len(keys); i++ {
+		if i%2 == 0 {
+			expectedKeys = append(expectedKeys, keys[i])
+		} else {
+			deletedKeys = append(deletedKeys, keys[i])
+			assert.Nil(t, db.Delete(keys[i]))
+		}
+	}
+
+	assertDatabaseContains(t, db, expectedKeys)
+	assertDatabaseNotContains(t, db, deletedKeys)
+}
+
+func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
+	t.Parallel()
+	db := newOpenedSimpleDB(t, "simpleDB_EndToEndRandomKeysWithReplacement")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	r := randomString(1024 * 1024)
+	var keys []string
+	for i := 0; i < 500; i++ {
+		keys = append(keys, randomString(10))
+		assert.Nil(t, db.Put(keys[i], r))
+	}
+
+	assertDatabaseContains(t, db, keys)
+
+	// we try to add and delete ten times, a random subset of the initial key set
+	for i := 0; i < 10; i++ {
+		var expectedKeys []string
+		var deletedKeys []string
+		for i := 0; i < len(keys); i++ {
+			if rand.Float32() > 0.5 {
+				expectedKeys = append(expectedKeys, keys[i])
+			} else {
+				deletedKeys = append(deletedKeys, keys[i])
+				assert.Nil(t, db.Delete(keys[i]))
+			}
+		}
+
+		assertDatabaseContains(t, db, expectedKeys)
+		assertDatabaseNotContains(t, db, deletedKeys)
+
+		// add all of them back
+		for i := 0; i < len(keys); i++ {
+			assert.Nil(t, db.Put(keys[i], r))
+		}
+		assertDatabaseContains(t, db, keys)
+	}
+
 }
 
 func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
@@ -222,5 +300,21 @@ func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
 		if i%2 == 0 {
 			assert.Nil(t, db.Delete(is))
 		}
+	}
+}
+
+func assertDatabaseContains(t *testing.T, db *DB, keys []string) {
+	for _, k := range keys {
+		v, err := db.Get(k)
+		assert.Nil(t, err)
+		assert.NotNilf(t, v, "expecting value for key %v, but was nil", k)
+	}
+}
+
+func assertDatabaseNotContains(t *testing.T, db *DB, keys []string) {
+	for _, k := range keys {
+		v, err := db.Get(k)
+		assert.Equalf(t, NotFound, err, "found %v in the table where it should've been deleted", k)
+		assert.Equal(t, "", v)
 	}
 }
