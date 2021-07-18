@@ -55,7 +55,7 @@ type DB struct {
 	memStore           *RWMemstore
 	currentSSTablePath string
 	memstoreMaxSize    uint64
-	currentGeneration  int32
+	currentGeneration  int64
 }
 
 func (db *DB) Open() error {

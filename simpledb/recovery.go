@@ -33,8 +33,8 @@ func (db *DB) reconstructSSTables() error {
 			if err != nil {
 				return err
 			}
-			if i > int(db.currentGeneration) {
-				db.currentGeneration = int32(i)
+			if int64(i) > db.currentGeneration {
+				db.currentGeneration = int64(i)
 			}
 		}
 
