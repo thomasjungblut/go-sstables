@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 )
 
 // those are end2end tests for the whole package, some are very heavyweight
@@ -121,23 +122,11 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 		}
 		assertDatabaseContains(t, db, keys)
 	}
-
 }
 
 func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
 	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndMixedDeletes")
-	defer cleanDatabaseFolder(t, db)
-	defer closeDatabase(t, db)
-
-	testWriteAlternatingDeletes(t, db, 2000)
-}
-
-// that test writes a couple of integers as keys and very big string values
-// to trigger the memstore flushes/table compactions
-func TestPutAndGetsEndToEndLargerData(t *testing.T) {
-	t.Parallel()
-	db := newOpenedSimpleDBWithSize(t, "simpleDB_EndToEndLargerData", 1024*1024*256)
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
@@ -242,7 +231,14 @@ func TestNaiveCrashRecovery(t *testing.T) {
 func TestContinuousCrashRecovery(t *testing.T) {
 	t.Parallel()
 	db := newOpenedSimpleDB(t, "simpleDB_RecoveryFromCrashContinuous")
-	defer cleanDatabaseFolder(t, db)
+	dbsToClose := []*DB{db}
+	defer func() {
+		for i := len(dbsToClose) - 1; i >= 0; i-- {
+			_ = dbsToClose[i].Close()
+		}
+
+		cleanDatabaseFolder(t, db)
+	}()
 
 	for i := 1; i < 10; i++ {
 		n := 100 * i // to make sure we overwrite a certain amount and new data
@@ -250,10 +246,11 @@ func TestContinuousCrashRecovery(t *testing.T) {
 		crashDatabaseInternally(t, db)
 
 		var err error
-		db, err = NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
+		db, err = NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024),
+			CompactionRunInterval(1*time.Second), CompactionFileThreshold(2))
 		assert.Nil(t, err)
+		dbsToClose = append(dbsToClose, db)
 		assert.Nil(t, db.Open())
-		defer func() { _ = db.Close() }() // mainly for cleaning the files at the end
 
 		for j := 0; j < n; j++ {
 			key := strconv.Itoa(j)
@@ -266,13 +263,18 @@ func TestContinuousCrashRecovery(t *testing.T) {
 			}
 		}
 	}
+
 }
 
 // TODO(thomas): this is super naive
 // we poke holes by directly closing some files, channels and deleting the memstore
 // which doesn't necessary simulate a proper power failure
 func crashDatabaseInternally(t *testing.T, db *DB) {
+	log.Println("crashing the database")
 	close(db.storeFlushChannel)
+	db.compactionTicker.Stop()
+	db.compactionTickerStopChannel <- true
+	close(db.compactionTickerStopChannel)
 	assert.Nil(t, db.wal.Close())
 	db.memStore = nil
 	assert.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later

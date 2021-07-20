@@ -18,6 +18,10 @@ with the given one (basically an upsert).
 `Delete` will remove the value for the given key. It will ignore when a key does not exist in the database. Underneath
 it will be tombstoned, which still store it and make it not retrievable through this interface.
 
+## Examples
+
+## Configuration
+
 ## Concurrency
 
 The database itself is thread-safe and can be used from multiple goroutines. It's not advised to open or close it from

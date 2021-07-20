@@ -36,7 +36,7 @@ func (r *Reader) Close() error {
 	return r.reader.Close()
 }
 
-func NewProtoReaderWithPath(path string) (*Reader, error) {
+func NewProtoReaderWithPath(path string) (ReaderI, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func NewProtoReaderWithPath(path string) (*Reader, error) {
 	return r, nil
 }
 
-func NewProtoReaderWithFile(file *os.File) (*Reader, error) {
+func NewProtoReaderWithFile(file *os.File) (ReaderI, error) {
 	reader, err := recordio.NewFileReaderWithFile(file)
 	if err != nil {
 		return nil, err

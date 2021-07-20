@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io/ioutil"
 	"sync"
+	"time"
 )
 
 const SSTablePrefix = "sstable"
@@ -21,8 +22,10 @@ const WriteAheadFolder = "wal"
 const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 const NumSSTablesToTriggerCompaction int = 10
 const DefaultCompactionMaxSizeBytes uint64 = 5 * 1024 * 1024 * 1024 // 5gb
+const DefaultCompactionInterval = 5 * time.Second
 
 var NotFound = errors.New("NotFound")
+var AlreadyClosed = errors.New("database is already closed")
 var EmptyKeyValue = errors.New("neither empty keys nor values are allowed")
 
 type DatabaseI interface {
@@ -45,7 +48,6 @@ type DatabaseI interface {
 
 type compactionAction struct {
 	pathsToCompact []string
-	readers        []sstables.SSTableReaderI
 	totalRecords   uint64
 }
 
@@ -60,8 +62,10 @@ type DB struct {
 	currentSSTablePath    string
 	memstoreMaxSize       uint64
 	compactionThreshold   int
+	compactionInterval    time.Duration
 	compactedMaxSizeBytes uint64
 	enableCompactions     bool
+	closed                bool
 
 	rwLock         *sync.RWMutex
 	wal            wal.WriteAheadLogI
@@ -71,8 +75,9 @@ type DB struct {
 	storeFlushChannel chan memStoreFlushAction
 	doneFlushChannel  chan bool
 
-	compactionChannel     chan compactionAction
-	doneCompactionChannel chan bool
+	compactionTicker            *time.Ticker
+	compactionTickerStopChannel chan interface{}
+	doneCompactionChannel       chan bool
 
 	currentGeneration int64
 }
@@ -81,10 +86,12 @@ func (db *DB) Open() error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	// TODO(thomas): we need to recover left-over compactions
-	// for example by removing all non-finished compactions
+	err := db.repairCompactions()
+	if err != nil {
+		return err
+	}
 
-	err := db.reconstructSSTables()
+	err = db.reconstructSSTables()
 	if err != nil {
 		return err
 	}
@@ -94,25 +101,46 @@ func (db *DB) Open() error {
 	}
 
 	go flushMemstoreContinuously(db)
-	go backgroundCompaction(db)
+
+	if db.enableCompactions {
+		db.compactionTicker = time.NewTicker(db.compactionInterval)
+		go backgroundCompaction(db)
+	}
 
 	return nil
 }
 
 func (db *DB) Close() error {
 	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
 
-	err := db.rotateWalAndFlushMemstore()
+	err := func() error {
+		defer db.rwLock.Unlock()
+		if db.closed {
+			return AlreadyClosed
+		}
+
+		db.closed = true
+
+		err := db.rotateWalAndFlushMemstore()
+		if err != nil {
+			return err
+		}
+
+		close(db.storeFlushChannel)
+		<-db.doneFlushChannel
+		return nil
+	}()
+
 	if err != nil {
 		return err
 	}
 
-	close(db.storeFlushChannel)
-	<-db.doneFlushChannel
-
-	close(db.compactionChannel)
-	<-db.doneCompactionChannel
+	// we finish the compaction outside of the lock, since the compaction internally may require it
+	if db.enableCompactions {
+		db.compactionTicker.Stop()
+		db.compactionTickerStopChannel <- true
+		<-db.doneCompactionChannel
+	}
 
 	err = db.wal.Close()
 	if err != nil {
@@ -132,6 +160,10 @@ func (db *DB) Get(key string) (string, error) {
 
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
+
+	if db.closed {
+		return "", AlreadyClosed
+	}
 
 	// we have to read the sstable first and then augment it with
 	// any changes that were reflected in the memstore
@@ -190,6 +222,10 @@ func (db *DB) Put(key, value string) error {
 	}
 
 	db.rwLock.Lock()
+	if db.closed {
+		return AlreadyClosed
+	}
+
 	return func() error {
 		defer db.rwLock.Unlock()
 		// we deliberately do not append with fsync here, it's a simple db :)
@@ -226,6 +262,10 @@ func (db *DB) Delete(key string) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
+	if db.closed {
+		return AlreadyClosed
+	}
+
 	err = db.wal.Append(bytes)
 	if err != nil {
 		return err
@@ -255,9 +295,10 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
-		false,
+		true,
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
+		DefaultCompactionInterval,
 	}
 
 	for _, extraOption := range extraOptions {
@@ -269,42 +310,41 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	rwLock := &sync.RWMutex{}
 	flusherChan := make(chan memStoreFlushAction)
 	doneFlushChan := make(chan bool)
-	compactionChan := make(chan compactionAction, 1)
 	doneCompactionChan := make(chan bool)
+	compactionTimerStopChannel := make(chan interface{})
 
-	sstableManager := NewSSTableManager(
-		cmp,
-		extraOpts.compactionThreshold,
-		extraOpts.compactionMaxSizeBytes,
-		compactionChan)
+	sstableManager := NewSSTableManager(cmp, rwLock)
 
 	return &DB{
-		cmp:                   cmp,
-		basePath:              basePath,
-		currentSSTablePath:    "",
-		memstoreMaxSize:       extraOpts.memstoreSizeBytes,
-		compactionThreshold:   extraOpts.compactionThreshold,
-		compactedMaxSizeBytes: extraOpts.compactionMaxSizeBytes,
-		enableCompactions:     extraOpts.enableCompactions,
-		rwLock:                rwLock,
-		wal:                   nil,
-		sstableManager:        sstableManager,
-		memStore:              &RWMemstore{mStore, mStore},
-		storeFlushChannel:     flusherChan,
-		doneFlushChannel:      doneFlushChan,
-		compactionChannel:     compactionChan,
-		doneCompactionChannel: doneCompactionChan,
-		currentGeneration:     0,
+		cmp:                         cmp,
+		basePath:                    basePath,
+		currentSSTablePath:          "",
+		memstoreMaxSize:             extraOpts.memstoreSizeBytes,
+		compactionThreshold:         extraOpts.compactionFileThreshold,
+		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
+		enableCompactions:           extraOpts.enableCompactions,
+		compactionInterval:          extraOpts.compactionRunInterval,
+		closed:                      false,
+		rwLock:                      rwLock,
+		wal:                         nil,
+		sstableManager:              sstableManager,
+		memStore:                    &RWMemstore{mStore, mStore},
+		storeFlushChannel:           flusherChan,
+		doneFlushChannel:            doneFlushChan,
+		compactionTickerStopChannel: compactionTimerStopChannel,
+		doneCompactionChannel:       doneCompactionChan,
+		currentGeneration:           0,
 	}, nil
 }
 
 // options
 
 type ExtraOptions struct {
-	memstoreSizeBytes      uint64
-	enableCompactions      bool
-	compactionThreshold    int
-	compactionMaxSizeBytes uint64
+	memstoreSizeBytes       uint64
+	enableCompactions       bool
+	compactionFileThreshold int
+	compactionMaxSizeBytes  uint64
+	compactionRunInterval   time.Duration
 }
 
 type ExtraOption func(options *ExtraOptions)
@@ -317,11 +357,26 @@ func MemstoreSizeBytes(n uint64) ExtraOption {
 	}
 }
 
-// SSTableCompactionThreshold tells how often SSTables are being compacted, this is measured in the number of SSTables.
-// The default is 10, which in turn will compact into a single SSTable.
-func SSTableCompactionThreshold(n int) ExtraOption {
+// DisableCompactions will disable the compaction process from running. Default is enabled.
+func DisableCompactions() ExtraOption {
 	return func(args *ExtraOptions) {
-		args.compactionThreshold = n
+		args.enableCompactions = false
+	}
+}
+
+// CompactionRunInterval configures how often the compaction ticker tries to compact sstables.
+// By default it's every DefaultCompactionInterval.
+func CompactionRunInterval(interval time.Duration) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.compactionRunInterval = interval
+	}
+}
+
+// CompactionFileThreshold tells how often SSTables are being compacted, this is measured in the number of SSTables.
+// The default is 10, which in turn will compact into a single SSTable.
+func CompactionFileThreshold(n int) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.compactionFileThreshold = n
 	}
 }
 

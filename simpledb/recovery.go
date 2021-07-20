@@ -2,6 +2,7 @@ package simpledb
 
 import (
 	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
@@ -15,6 +16,92 @@ import (
 	"strings"
 	"time"
 )
+
+func (db *DB) repairCompactions() error {
+	// we are only scanning for any compactions that were running.
+	// If one was successful, we make sure it's finished by deleting all the corresponding sstables.
+	// If it was unsuccessful the whole folder is deleted and it can be attempted again.
+	var compactionsToFinish []*dbproto.CompactionMetadata
+	var compactionsToDelete []string
+	err := filepath.Walk(db.basePath, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() && strings.HasPrefix(info.Name(), SSTableCompactionPathPrefix) {
+			err := func() error {
+				metaPath := path.Join(p, CompactionFinishedSuccessfulFileName)
+				_, err := os.Stat(metaPath)
+				if err != nil {
+					return err
+				}
+
+				// try to read it, if it's corrupted we would also delete it
+				reader, err := rProto.NewProtoReaderWithPath(metaPath)
+				if err != nil {
+					return err
+				}
+
+				err = reader.Open()
+				if err != nil {
+					return err
+				}
+
+				metadata := &dbproto.CompactionMetadata{}
+				_, err = reader.ReadNext(metadata)
+				if err != nil {
+					return err
+				}
+
+				compactionsToFinish = append(compactionsToFinish, metadata)
+
+				return reader.Close()
+			}()
+
+			if err != nil {
+				// assuming this folder is corrupted, we'll delete it for a later attempt
+				compactionsToDelete = append(compactionsToDelete, p)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, p := range compactionsToDelete {
+		log.Printf("found malformed compaction to be deleted in %v", p)
+		err := os.RemoveAll(p)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, meta := range compactionsToFinish {
+		log.Printf("finishing compaction in %v into %v", meta.WritePath, meta.ReplacementPath)
+		err := os.RemoveAll(meta.ReplacementPath)
+		if err != nil {
+			return err
+		}
+
+		err = os.Rename(meta.WritePath, meta.ReplacementPath)
+		if err != nil {
+			return err
+		}
+
+		for _, sstablePath := range meta.SstablePaths {
+			if sstablePath != meta.ReplacementPath {
+				err := os.RemoveAll(sstablePath)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
 
 // this reads all existing sstables and adds them (if any), along with the generation number
 func (db *DB) reconstructSSTables() error {
@@ -43,6 +130,10 @@ func (db *DB) reconstructSSTables() error {
 		return err
 	}
 
+	if len(db.sstableManager.allSSTableReaders) != 0 {
+		db.sstableManager.clearReaders()
+	}
+
 	if len(tablePaths) > 0 {
 		log.Printf("found %d existing sstables, starting recovery...\n", len(tablePaths))
 		// do not rely on the order of the FS, we do an additional sort to make sure we start reading from 0000 to 9999
@@ -56,7 +147,7 @@ func (db *DB) reconstructSSTables() error {
 				return err
 			}
 
-			db.sstableManager.addReaderAndMaybeTriggerCompaction(reader)
+			db.sstableManager.addReader(reader)
 		}
 	}
 

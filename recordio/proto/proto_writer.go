@@ -84,7 +84,7 @@ func DirectIO() WriterOption {
 
 // create a new writer with the given options. Either Path or File must be supplied, compression is optional and
 // turned off by default.
-func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
+func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 	opts := &WriterOptions{
 		path:            "",
 		file:            nil,

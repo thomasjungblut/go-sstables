@@ -31,7 +31,7 @@ func (r *MMapProtoReader) Close() error {
 	return r.reader.Close()
 }
 
-func NewMMapProtoReaderWithPath(path string) (*MMapProtoReader, error) {
+func NewMMapProtoReaderWithPath(path string) (ReadAtI, error) {
 	r, err := recordio.NewMemoryMappedReaderWithPath(path)
 	if err != nil {
 		return nil, err

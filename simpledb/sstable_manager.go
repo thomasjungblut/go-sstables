@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"fmt"
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
@@ -11,20 +12,19 @@ import (
 
 type SSTableManager struct {
 	cmp               skiplist.KeyComparator
-	lock              *sync.RWMutex
+	databaseLock      *sync.RWMutex
+	managerLock       *sync.RWMutex
 	allSSTableReaders []sstables.SSTableReaderI
 	currentReader     sstables.SSTableReaderI
-
-	// after how many sstables to trigger a compaction
-	compactionThreshold    int
-	compactionChannel      chan compactionAction
-	compactionMaxSizeBytes uint64
 }
 
 func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) error {
-	s.lock.Lock()
+	// careful about the lock ordering, we always need to acquire the full DB lock first to not corrupt reads
+	s.databaseLock.Lock()
+	s.managerLock.Lock()
 	return func() error {
-		defer s.lock.Unlock()
+		defer s.databaseLock.Unlock()
+		defer s.managerLock.Unlock()
 
 		for _, path := range m.SstablePaths {
 			i := indexOfReader(s.allSSTableReaders, path)
@@ -56,18 +56,18 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		)
 
 		i := indexOfReader(s.allSSTableReaders, m.ReplacementPath)
-		if i >= 0 {
-			s.allSSTableReaders[i] = replacedReader
-			// remove the remainder of the deleted paths
-			for _, p := range m.SstablePaths {
-				if p != m.ReplacementPath {
-					readerIndex := indexOfReader(s.allSSTableReaders, p)
-					s.allSSTableReaders = removeReaderAt(s.allSSTableReaders, readerIndex)
-				}
+		if i < 0 {
+			return fmt.Errorf("couldn't find replacement sstable in current readers. Path: %v", m.ReplacementPath)
+		}
+
+		s.allSSTableReaders[i] = replacedReader
+		// remove the remainder of the deleted paths
+		for _, p := range m.SstablePaths {
+			if p != m.ReplacementPath {
+				readerIndex := indexOfReader(s.allSSTableReaders, p)
+				s.allSSTableReaders = removeReaderAt(s.allSSTableReaders, readerIndex)
 			}
 		}
-		// if we haven't found that path i == -1, then we are currently in a recovery and the
-		// recovery logic later will read all sstables again in the right order
 
 		s.currentReader = sstables.NewSuperSSTableReader(s.allSSTableReaders, s.cmp)
 
@@ -75,47 +75,46 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 	}()
 }
 
-func (s *SSTableManager) addReaderAndMaybeTriggerCompaction(newReader sstables.SSTableReaderI) {
-	s.lock.Lock()
+func (s *SSTableManager) clearReaders() {
+	s.managerLock.Lock()
 	func() {
-		defer s.lock.Unlock()
+		defer s.managerLock.Unlock()
+
+		s.currentReader = sstables.EmptySStableReader{}
+		s.allSSTableReaders = []sstables.SSTableReaderI{}
+	}()
+}
+
+func (s *SSTableManager) addReader(newReader sstables.SSTableReaderI) {
+	s.managerLock.Lock()
+	func() {
+		defer s.managerLock.Unlock()
 
 		allSSTableReaders := append(s.allSSTableReaders, newReader)
 		s.currentReader = sstables.NewSuperSSTableReader(allSSTableReaders, s.cmp)
 		s.allSSTableReaders = allSSTableReaders
 	}()
-
-	// when we're over the sstable count threshold, we'll trigger a compaction.
-	// note that this CAN block here and that in turn can block a flush, which in turn blocks a Put.
-	// this is entirely intended as a way to deal with back pressure.
-	// in order for us to later on update the sstable manager,
-	// we'll keep this outside of the lock to not block ongoing reads
-	compactionAction := s.candidateTablesForCompaction()
-	if len(s.compactionChannel) == 0 && len(compactionAction.pathsToCompact) >= s.compactionThreshold {
-		s.compactionChannel <- compactionAction
-	}
 }
 
 func (s *SSTableManager) currentSSTable() sstables.SSTableReaderI {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	s.managerLock.RLock()
+	defer s.managerLock.RUnlock()
 
 	return s.currentReader
 }
 
-func (s *SSTableManager) candidateTablesForCompaction() compactionAction {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uint64) compactionAction {
+	s.managerLock.RLock()
+	defer s.managerLock.RUnlock()
 
 	numRecords := uint64(0)
 	var paths []string
-	var readers []sstables.SSTableReaderI
 	for i := 0; i < len(s.allSSTableReaders); i++ {
 		reader := s.allSSTableReaders[i]
 		// avoid the EmptySStableReader (or empty files) and only include small enough SSTables
-		if reader.MetaData().NumRecords > 0 && reader.MetaData().TotalBytes < s.compactionMaxSizeBytes {
+
+		if reader.MetaData().NumRecords > 0 && reader.MetaData().TotalBytes < compactionMaxSizeBytes {
 			paths = append(paths, reader.BasePath())
-			readers = append(readers, reader)
 			numRecords += reader.MetaData().NumRecords
 		}
 	}
@@ -124,23 +123,16 @@ func (s *SSTableManager) candidateTablesForCompaction() compactionAction {
 
 	return compactionAction{
 		pathsToCompact: paths,
-		readers:        readers,
 		totalRecords:   numRecords,
 	}
 }
 
-func NewSSTableManager(
-	cmp skiplist.KeyComparator,
-	compactionThreshold int,
-	compactionMaxSizeBytes uint64,
-	compactionChannel chan compactionAction) *SSTableManager {
+func NewSSTableManager(cmp skiplist.KeyComparator, dbLock *sync.RWMutex) *SSTableManager {
 	return &SSTableManager{
-		cmp:                    cmp,
-		lock:                   &sync.RWMutex{},
-		currentReader:          sstables.EmptySStableReader{},
-		compactionThreshold:    compactionThreshold,
-		compactionMaxSizeBytes: compactionMaxSizeBytes,
-		compactionChannel:      compactionChannel,
+		cmp:           cmp,
+		managerLock:   &sync.RWMutex{},
+		databaseLock:  dbLock,
+		currentReader: sstables.EmptySStableReader{},
 	}
 }
 

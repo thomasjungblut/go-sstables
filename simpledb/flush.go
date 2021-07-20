@@ -78,7 +78,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 
 	// add the newly created reader into the rotation
 	// note that this CAN block here waiting on a current compaction to finish
-	db.sstableManager.addReaderAndMaybeTriggerCompaction(reader)
+	db.sstableManager.addReader(reader)
 
 	return nil
 }
