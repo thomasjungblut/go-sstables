@@ -18,9 +18,68 @@ with the given one (basically an upsert).
 `Delete` will remove the value for the given key. It will ignore when a key does not exist in the database. Underneath
 it will be tombstoned, which still store it and make it not retrievable through this interface.
 
+As with any embedded database, they are based on an empty directory you supply. All the state is contained in that
+database and opening an existing database in a folder will allow you to continue where you've left off.
+
+Thus, there are two more methods in the interface: `Open` and `Close`. `Open` will set up some state, kick off the
+compaction and memstore flushing goroutines and make sure to recover anything that wasn't closed properly beforehand -
+more is described in the recovery section below. `Close` will make sure everything is flushed, cleaned and all started
+goroutines are stopped.
+
 ## Examples
 
+### Opening and closing
+
+```go
+db, err := simpledb.NewSimpleDB("path")
+if err != nil { log.Fatalf("error: %v", err) }
+
+err = db.Open()
+if err != nil { log.Fatalf("error: %v", err) }
+
+err = db.Close()
+if err != nil { log.Fatalf("error: %v", err) }
+```
+
+### Put data
+
+```go
+err = db.Put("hello", "world")
+if err != nil { log.Fatalf("error: %v", err) }
+```
+
+### Get data
+
+```go
+value, err = db.Get("hello")
+if err != simpledb.NotFound {
+log.Printf("value %s", value)
+}
+```
+
+### Delete data
+
+```go
+err = db.Delete("hello")
+if err != nil { log.Fatalf("error: %v", err) }
+```
+
+The full end to end example can be found in [examples/simpledb.go](/_examples/simpledb.go).
+
 ## Configuration
+
+The database can be configured using options, here are a few that can be used to tune the database:
+
+```go
+db, err := NewSimpleDB(
+        "some_path", // the non-empty and existing base path of the database - only mandatory argument 
+        MemstoreSizeBytes(1024*1024*1024), // the maximum size a memstore should have in bytes
+        CompactionRunInterval(30*time.Second), // how often the compaction process should run  
+        CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
+        CompactionFileThreshold(20), // how many files must be at least compacted together
+        DisableCompactions() // turn off the compaction completely 
+)
+```
 
 ## Concurrency
 

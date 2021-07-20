@@ -94,7 +94,7 @@ for {
 
 ```
 
-You can get the full example from [examples/sstables.go](/examples/sstables.go).
+You can get the full example from [examples/sstables.go](/_examples/sstables.go).
 
 ### Merging two (or more) SSTables
 

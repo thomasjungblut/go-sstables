@@ -222,12 +222,13 @@ func (db *DB) Put(key, value string) error {
 	}
 
 	db.rwLock.Lock()
-	if db.closed {
-		return AlreadyClosed
-	}
-
 	return func() error {
 		defer db.rwLock.Unlock()
+		
+		if db.closed {
+			return AlreadyClosed
+		}
+
 		// we deliberately do not append with fsync here, it's a simple db :)
 		err = db.wal.Append(walBytes)
 		if err != nil {

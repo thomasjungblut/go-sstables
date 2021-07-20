@@ -112,7 +112,6 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	for i := 0; i < len(s.allSSTableReaders); i++ {
 		reader := s.allSSTableReaders[i]
 		// avoid the EmptySStableReader (or empty files) and only include small enough SSTables
-
 		if reader.MetaData().NumRecords > 0 && reader.MetaData().TotalBytes < compactionMaxSizeBytes {
 			paths = append(paths, reader.BasePath())
 			numRecords += reader.MetaData().NumRecords

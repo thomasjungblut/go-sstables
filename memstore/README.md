@@ -24,4 +24,4 @@ log.Printf("memstore size in bytes: %d", size) // yields 3
 ms.Flush(sstables.WriteBasePath(path))
 ``` 
 
-You can get the full example from [examples/memstore.go](/examples/memstore.go).
+You can get the full example from [examples/memstore.go](/_examples/memstore.go).

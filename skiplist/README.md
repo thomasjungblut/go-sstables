@@ -41,5 +41,5 @@ for {
 ```
 
 You can supply any kind of element and comparator to sort arbitrary structs and primitives. 
-You can get the full example from [examples/skiplist.go](/examples/skiplist.go).
+You can get the full example from [examples/skiplist.go](/_examples/skiplist.go).
  

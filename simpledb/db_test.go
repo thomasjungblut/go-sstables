@@ -96,6 +96,19 @@ func TestPutAndGetAndDelete(t *testing.T) {
 	assert.Equal(t, NotFound, err)
 }
 
+func TestCloseDeniesCrudOperations(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpleDB_testCloseDenies")
+	defer cleanDatabaseFolder(t, db)
+	closeDatabase(t, db)
+
+	_, err := db.Get("somehow")
+	assert.Equal(t, AlreadyClosed, err)
+	err = db.Put("somehow", "somewhat")
+	assert.Equal(t, AlreadyClosed, err)
+	err = db.Delete("somehow")
+	assert.Equal(t, AlreadyClosed, err)
+}
+
 func assertGet(t *testing.T, db *DB, key string) {
 	val, err := db.Get(key)
 	assert.Nil(t, err)

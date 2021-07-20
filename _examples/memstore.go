@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func memstoreMain() {
+func main() {
 	path := "/tmp/sstable-ms-ex/"
 	defer os.RemoveAll(path)
 
