@@ -130,7 +130,7 @@ func TestPutAndGetsAndDeletesMixedEndToEnd(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	testWriteAlternatingDeletes(t, db, 5000)
+	testWriteAlternatingDeletes(t, db, 2500)
 }
 
 func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
