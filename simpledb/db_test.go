@@ -156,8 +156,8 @@ func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
 	assert.Nil(t, err)
 
-	//for testing purposes we will flush with a tiny amount of 1mb
-	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(1024*1024))
+	//for testing purposes we will flush with a tiny amount of 2mb
+	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(1024*1024*2))
 	assert.Nil(t, err)
 	assert.Nil(t, db.Open())
 	return db

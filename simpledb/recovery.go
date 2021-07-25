@@ -114,14 +114,6 @@ func (db *DB) reconstructSSTables() error {
 
 		if info.IsDir() && strings.HasPrefix(info.Name(), SSTablePrefix) {
 			tablePaths = append(tablePaths, path)
-			suffix := info.Name()[len(SSTablePrefix)+1:]
-			i, err := strconv.Atoi(suffix)
-			if err != nil {
-				return err
-			}
-			if int64(i) > db.currentGeneration {
-				db.currentGeneration = int64(i)
-			}
 		}
 
 		return nil
@@ -139,12 +131,22 @@ func (db *DB) reconstructSSTables() error {
 		// do not rely on the order of the FS, we do an additional sort to make sure we start reading from 0000 to 9999
 		sort.Strings(tablePaths)
 		for _, p := range tablePaths {
+			suffix := filepath.Base(p)[len(SSTablePrefix)+1:]
+			i, err := strconv.ParseInt(suffix, 10, 64)
+			if err != nil {
+				return err
+			}
+
 			reader, err := sstables.NewSSTableReader(
 				sstables.ReadBasePath(p),
 				sstables.ReadWithKeyComparator(db.cmp),
 			)
 			if err != nil {
 				return err
+			}
+
+			if i > db.currentGeneration {
+				db.currentGeneration = i
 			}
 
 			db.sstableManager.addReader(reader)
@@ -172,6 +174,10 @@ func (db *DB) replayAndSetupWriteAheadLog(err error) error {
 		}),
 	)
 
+	if err != nil {
+		return err
+	}
+
 	replayer, err := wal.NewReplayer(walOpts)
 	if err != nil {
 		return err
@@ -186,24 +192,16 @@ func (db *DB) replayAndSetupWriteAheadLog(err error) error {
 			return err
 		}
 
-		switch u := mutation.Mutation.(type) {
-		case *dbproto.WalMutation_Addition:
-			err := db.memStore.Upsert([]byte(u.Addition.Key), []byte(u.Addition.Value))
-			if err != nil {
-				return err
-			}
-			break
-		case *dbproto.WalMutation_DeleteTombStone:
-			err := db.memStore.Tombstone([]byte(u.DeleteTombStone.Key))
-			if err != nil {
-				return err
-			}
-			break
-		}
-
 		numRecords++
 
-		return nil
+		switch u := mutation.Mutation.(type) {
+		case *dbproto.WalMutation_Addition:
+			err = db.memStore.Upsert([]byte(u.Addition.Key), []byte(u.Addition.Value))
+		case *dbproto.WalMutation_DeleteTombStone:
+			err = db.memStore.Tombstone([]byte(u.DeleteTombStone.Key))
+		}
+
+		return err
 	})
 
 	if err != nil {
@@ -211,7 +209,7 @@ func (db *DB) replayAndSetupWriteAheadLog(err error) error {
 	}
 
 	if numRecords == 0 {
-		// there is nothing to reply, we cut the remainder of the recovery and create a new log from here
+		// there is nothing to replay, we skip the remainder of the recovery and create a new log from here
 		writeAheadLog, err := wal.NewWriteAheadLog(walOpts)
 		if err != nil {
 			return err
@@ -239,7 +237,7 @@ func (db *DB) replayAndSetupWriteAheadLog(err error) error {
 		return err
 	}
 
-	log.Printf("done with recovery starting with fresh WAL directory in %v\n", walBasePath)
+	log.Printf("done with recovery, starting with fresh WAL directory in %v\n", walBasePath)
 	writeAheadLog, err := wal.NewWriteAheadLog(walOpts)
 	if err != nil {
 		return err
