@@ -222,8 +222,6 @@ func findGreaterOrEqual(list *SkipListMap, key interface{}, prevTable []*SkipLis
 			}
 		}
 	}
-
-	panic("should never happen")
 }
 
 func randomHeight(maxHeight int) int {

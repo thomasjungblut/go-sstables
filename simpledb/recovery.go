@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -30,7 +29,7 @@ func (db *DB) repairCompactions() error {
 
 		if info.IsDir() && strings.HasPrefix(info.Name(), SSTableCompactionPathPrefix) {
 			err := func() error {
-				metaPath := path.Join(p, CompactionFinishedSuccessfulFileName)
+				metaPath := filepath.Join(p, CompactionFinishedSuccessfulFileName)
 				_, err := os.Stat(metaPath)
 				if err != nil {
 					return err
@@ -41,6 +40,14 @@ func (db *DB) repairCompactions() error {
 				if err != nil {
 					return err
 				}
+
+				// make sure we always close it, especially when reading malformed metadata
+				defer func(reader rProto.ReaderI) {
+					err = reader.Close()
+					if err != nil {
+						log.Printf("could not properly close metadata file in %s, error: %v", metaPath, err)
+					}
+				}(reader)
 
 				err = reader.Open()
 				if err != nil {
@@ -55,7 +62,7 @@ func (db *DB) repairCompactions() error {
 
 				compactionsToFinish = append(compactionsToFinish, metadata)
 
-				return reader.Close()
+				return nil
 			}()
 
 			if err != nil {
@@ -79,20 +86,23 @@ func (db *DB) repairCompactions() error {
 	}
 
 	for _, meta := range compactionsToFinish {
-		log.Printf("finishing compaction in %v into %v", meta.WritePath, meta.ReplacementPath)
-		err := os.RemoveAll(meta.ReplacementPath)
+		absWritePath := filepath.Join(db.basePath, meta.WritePath)
+		absReplacementPath := filepath.Join(db.basePath, meta.ReplacementPath)
+
+		log.Printf("finishing compaction in %s into %s", absWritePath, absReplacementPath)
+		err := os.RemoveAll(absReplacementPath)
 		if err != nil {
 			return err
 		}
 
-		err = os.Rename(meta.WritePath, meta.ReplacementPath)
+		err = os.Rename(absWritePath, absReplacementPath)
 		if err != nil {
 			return err
 		}
 
 		for _, sstablePath := range meta.SstablePaths {
 			if sstablePath != meta.ReplacementPath {
-				err := os.RemoveAll(sstablePath)
+				err := os.RemoveAll(filepath.Join(db.basePath, sstablePath))
 				if err != nil {
 					return err
 				}
@@ -157,7 +167,7 @@ func (db *DB) reconstructSSTables() error {
 }
 
 func (db *DB) replayAndSetupWriteAheadLog(err error) error {
-	walBasePath := path.Join(db.basePath, WriteAheadFolder)
+	walBasePath := filepath.Join(db.basePath, WriteAheadFolder)
 	err = os.MkdirAll(walBasePath, 0700)
 	if err != nil {
 		return err

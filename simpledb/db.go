@@ -224,7 +224,7 @@ func (db *DB) Put(key, value string) error {
 	db.rwLock.Lock()
 	return func() error {
 		defer db.rwLock.Unlock()
-		
+
 		if db.closed {
 			return AlreadyClosed
 		}
@@ -312,9 +312,9 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	flusherChan := make(chan memStoreFlushAction)
 	doneFlushChan := make(chan bool)
 	doneCompactionChan := make(chan bool)
-	compactionTimerStopChannel := make(chan interface{})
+	compactionTimerStopChannel := make(chan interface{}, 1)
 
-	sstableManager := NewSSTableManager(cmp, rwLock)
+	sstableManager := NewSSTableManager(cmp, rwLock, basePath)
 
 	return &DB{
 		cmp:                         cmp,

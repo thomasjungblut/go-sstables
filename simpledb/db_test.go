@@ -128,7 +128,7 @@ func recordWithSuffix(prefix int, suffix string) string {
 	return builder.String()
 }
 
-func randomString(size int) string {
+func randomString(rand *rand.Rand, size int) string {
 	builder := strings.Builder{}
 	for i := 0; i < size; i++ {
 		builder.WriteRune(rand.Int31n(255))
@@ -137,7 +137,7 @@ func randomString(size int) string {
 	return builder.String()
 }
 
-func randomRecordWithPrefixWithSize(prefix, size int) string {
+func randomRecordWithPrefixWithSize(rand *rand.Rand, prefix, size int) string {
 	builder := strings.Builder{}
 	builder.WriteString(strconv.Itoa(prefix))
 	builder.WriteString("_")
@@ -148,8 +148,8 @@ func randomRecordWithPrefixWithSize(prefix, size int) string {
 	return builder.String()
 }
 
-func randomRecordWithPrefix(prefix int) string {
-	return randomRecordWithPrefixWithSize(prefix, 10000)
+func randomRecordWithPrefix(rand *rand.Rand, prefix int) string {
+	return randomRecordWithPrefixWithSize(rand, prefix, 10000)
 }
 
 func newOpenedSimpleDB(t *testing.T, name string) *DB {

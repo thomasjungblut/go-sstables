@@ -6,6 +6,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 )
@@ -13,6 +14,7 @@ import (
 type SSTableManager struct {
 	cmp               skiplist.KeyComparator
 	databaseLock      *sync.RWMutex
+	basePath          string
 	managerLock       *sync.RWMutex
 	allSSTableReaders []sstables.SSTableReaderI
 	currentReader     sstables.SSTableReaderI
@@ -26,8 +28,8 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		defer s.databaseLock.Unlock()
 		defer s.managerLock.Unlock()
 
-		for _, path := range m.SstablePaths {
-			i := indexOfReader(s.allSSTableReaders, path)
+		for _, p := range m.SstablePaths {
+			i := indexOfReader(s.allSSTableReaders, p)
 			if i >= 0 {
 				err := s.allSSTableReaders[i].Close()
 				if err != nil {
@@ -35,7 +37,7 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 				}
 				// this is actually a "neuralgic" point in terms of recovery, we know that the SSTable backed by newReader
 				// contains the whole data of all the SSTables we're about to remove. So it's safe to delete them here.
-				err = os.RemoveAll(path)
+				err = os.RemoveAll(filepath.Join(s.basePath, p))
 				if err != nil {
 					return err
 				}
@@ -45,15 +47,18 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		// this is another important step in the recovery process, we need to ensure the ordering is preserved in case of crashes and
 		// thus replace the very first written SSTable in the path set. This creates a couple of "holes" in the numbering schema of
 		// the SSTables, but we guarantee that the compaction is in the right place.
-		err := os.Rename(m.WritePath, m.ReplacementPath)
+		err := os.Rename(filepath.Join(s.basePath, m.WritePath), filepath.Join(s.basePath, m.ReplacementPath))
 		if err != nil {
 			return err
 		}
 
 		replacedReader, err := sstables.NewSSTableReader(
-			sstables.ReadBasePath(m.ReplacementPath),
+			sstables.ReadBasePath(filepath.Join(s.basePath, m.ReplacementPath)),
 			sstables.ReadWithKeyComparator(s.cmp),
 		)
+		if err != nil {
+			return err
+		}
 
 		i := indexOfReader(s.allSSTableReaders, m.ReplacementPath)
 		if i < 0 {
@@ -65,6 +70,9 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		for _, p := range m.SstablePaths {
 			if p != m.ReplacementPath {
 				readerIndex := indexOfReader(s.allSSTableReaders, p)
+				if readerIndex < 0 {
+					return fmt.Errorf("couldn't find sstable in current readers. Path: %v", p)
+				}
 				s.allSSTableReaders = removeReaderAt(s.allSSTableReaders, readerIndex)
 			}
 		}
@@ -126,11 +134,12 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	}
 }
 
-func NewSSTableManager(cmp skiplist.KeyComparator, dbLock *sync.RWMutex) *SSTableManager {
+func NewSSTableManager(cmp skiplist.KeyComparator, dbLock *sync.RWMutex, basePath string) *SSTableManager {
 	return &SSTableManager{
 		cmp:           cmp,
 		managerLock:   &sync.RWMutex{},
 		databaseLock:  dbLock,
+		basePath:      basePath,
 		currentReader: sstables.EmptySStableReader{},
 	}
 }
@@ -140,9 +149,9 @@ func removeReaderAt(slice []sstables.SSTableReaderI, i int) []sstables.SSTableRe
 	return append(slice[:i], slice[i+1:]...)
 }
 
-func indexOfReader(slice []sstables.SSTableReaderI, basePath string) int {
+func indexOfReader(slice []sstables.SSTableReaderI, p string) int {
 	for i := 0; i < len(slice); i++ {
-		if slice[i].BasePath() == basePath {
+		if filepath.Base(slice[i].BasePath()) == p {
 			return i
 		}
 	}

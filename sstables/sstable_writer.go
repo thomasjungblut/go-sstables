@@ -11,7 +11,7 @@ import (
 	proto "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 type SSTableStreamWriter struct {
@@ -32,7 +32,7 @@ type SSTableStreamWriter struct {
 }
 
 func (writer *SSTableStreamWriter) Open() error {
-	writer.indexFilePath = path.Join(writer.opts.basePath, IndexFileName)
+	writer.indexFilePath = filepath.Join(writer.opts.basePath, IndexFileName)
 	iWriter, err := rProto.NewWriter(
 		rProto.Path(writer.indexFilePath),
 		rProto.CompressionType(writer.opts.indexCompressionType),
@@ -47,7 +47,7 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 
-	writer.dataFilePath = path.Join(writer.opts.basePath, DataFileName)
+	writer.dataFilePath = filepath.Join(writer.opts.basePath, DataFileName)
 	dWriter, err := recordio.NewFileWriter(
 		recordio.Path(writer.dataFilePath),
 		recordio.CompressionType(writer.opts.dataCompressionType),
@@ -62,7 +62,7 @@ func (writer *SSTableStreamWriter) Open() error {
 		return err
 	}
 
-	writer.metaFilePath = path.Join(writer.opts.basePath, MetaFileName)
+	writer.metaFilePath = filepath.Join(writer.opts.basePath, MetaFileName)
 	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func (writer *SSTableStreamWriter) Close() error {
 	}
 
 	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
-		_, err := writer.bloomFilter.WriteFile(path.Join(writer.opts.basePath, BloomFileName))
+		_, err := writer.bloomFilter.WriteFile(filepath.Join(writer.opts.basePath, BloomFileName))
 		if err != nil {
 			return err
 		}

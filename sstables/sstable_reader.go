@@ -12,7 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 type SSTableReader struct {
@@ -70,7 +70,7 @@ func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) 
 
 func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 	if reader.v0DataReader != nil {
-		dataReader, err := rProto.NewProtoReaderWithPath(path.Join(reader.opts.basePath, DataFileName))
+		dataReader, err := rProto.NewProtoReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +88,7 @@ func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 		}
 		return newV0SStableFullScanIterator(it, dataReader)
 	} else {
-		dataReader, err := recordio.NewFileReaderWithPath(path.Join(reader.opts.basePath, DataFileName))
+		dataReader, err := recordio.NewFileReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
 		if err != nil {
 			return nil, err
 		}
@@ -170,17 +170,17 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		return nil, errors.New("no key comparator supplied")
 	}
 
-	index, err := readIndex(path.Join(opts.basePath, IndexFileName), opts.keyComparator)
+	index, err := readIndex(filepath.Join(opts.basePath, IndexFileName), opts.keyComparator)
 	if err != nil {
 		return nil, err
 	}
 
-	filter, err := readFilterIfExists(path.Join(opts.basePath, BloomFileName))
+	filter, err := readFilterIfExists(filepath.Join(opts.basePath, BloomFileName))
 	if err != nil {
 		return nil, err
 	}
 
-	metaData, err := readMetaDataIfExists(path.Join(opts.basePath, MetaFileName))
+	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	reader := &SSTableReader{opts: opts, bloomFilter: filter, index: index, metaData: metaData}
 
 	if metaData.Version == 0 {
-		v0DataReader, err := rProto.NewMMapProtoReaderWithPath(path.Join(opts.basePath, DataFileName))
+		v0DataReader, err := rProto.NewMMapProtoReaderWithPath(filepath.Join(opts.basePath, DataFileName))
 		if err != nil {
 			return nil, err
 		}
@@ -200,7 +200,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 		reader.v0DataReader = v0DataReader
 	} else {
-		dataReader, err := recordio.NewMemoryMappedReaderWithPath(path.Join(opts.basePath, DataFileName))
+		dataReader, err := recordio.NewMemoryMappedReaderWithPath(filepath.Join(opts.basePath, DataFileName))
 		if err != nil {
 			return nil, err
 		}

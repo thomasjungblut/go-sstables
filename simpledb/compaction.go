@@ -7,7 +7,8 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"io/ioutil"
 	"log"
-	"path"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -57,6 +58,9 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 	if len(paths) <= db.compactionThreshold {
 		return nil, nil
 	}
+
+	// make sure we're always compacting with the right order in mind
+	sort.Strings(paths)
 
 	start := time.Now()
 	writeFolder, err := ioutil.TempDir(db.basePath, SSTableCompactionPathPrefix)
@@ -114,33 +118,47 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 		}
 	}
 
-	compactionMetadata := proto.CompactionMetadata{
-		WritePath:       writeFolder,
+	// in order to be portable, we are taking only relative paths from the db base path
+	// later in reconstruction they are "rebased" over the database base path
+	for i := 0; i < len(paths); i++ {
+		paths[i] = filepath.Base(paths[i])
+	}
+
+	compactionMetadata := &proto.CompactionMetadata{
+		WritePath:       filepath.Base(writeFolder),
 		ReplacementPath: paths[0],
 		SstablePaths:    paths,
 	}
 
 	// at this point the compaction is finished, we save the metadata that this was successful for potential recoveries
-	metaWriter, err := rProto.NewWriter(rProto.Path(path.Join(writeFolder, CompactionFinishedSuccessfulFileName)))
-	if err != nil {
-		return nil, err
-	}
-	err = metaWriter.Open()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = metaWriter.Write(&compactionMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	err = metaWriter.Close()
+	err = saveCompactionMetadata(writeFolder, compactionMetadata)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Printf("done compacting %d sstables in %v. Path: [%s]\n", len(paths), time.Since(start), writeFolder)
 
-	return &compactionMetadata, nil
+	return compactionMetadata, nil
+}
+
+func saveCompactionMetadata(writeFolder string, compactionMetadata *proto.CompactionMetadata) error {
+	metaWriter, err := rProto.NewWriter(rProto.Path(filepath.Join(writeFolder, CompactionFinishedSuccessfulFileName)))
+	if err != nil {
+		return err
+	}
+	err = metaWriter.Open()
+	if err != nil {
+		return err
+	}
+
+	_, err = metaWriter.Write(compactionMetadata)
+	if err != nil {
+		return err
+	}
+
+	err = metaWriter.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -23,12 +23,13 @@ func init() {
 
 func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	t.Parallel()
+	rnd := rand.New(rand.NewSource(0))
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndOverlap")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
 	// writing the same set of keys with a static 5mb record value
-	r := randomString(5 * 1024 * 1024)
+	r := randomString(rnd, 5*1024*1024)
 	numKeys := 100
 	for n := 0; n < 5; n++ {
 		for i := 0; i < numKeys; i++ {
@@ -57,14 +58,15 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 
 func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
 	t.Parallel()
+	rnd := rand.New(rand.NewSource(0))
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndRandomKeys")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	r := randomString(1024 * 1024)
+	r := randomString(rnd, 1024*1024)
 	var keys []string
 	for i := 0; i < 500; i++ {
-		keys = append(keys, randomString(10))
+		keys = append(keys, randomString(rnd, 10))
 		assert.Nil(t, db.Put(keys[i], r))
 	}
 
@@ -87,14 +89,15 @@ func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
 
 func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 	t.Parallel()
+	rnd := rand.New(rand.NewSource(0))
 	db := newOpenedSimpleDB(t, "simpleDB_EndToEndRandomKeysWithReplacement")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	r := randomString(1024 * 1024)
+	r := randomString(rnd, 1024*1024)
 	var keys []string
 	for i := 0; i < 500; i++ {
-		keys = append(keys, randomString(10))
+		keys = append(keys, randomString(rnd, 10))
 		assert.Nil(t, db.Put(keys[i], r))
 	}
 
@@ -148,9 +151,10 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 	for numRoutines := 0; numRoutines < maxRoutines; numRoutines++ {
 		wg.Add(1)
 		go func(start, end int) {
+			rnd := rand.New(rand.NewSource(int64(start)))
 			for i := start; i < end; i++ {
 				is := strconv.Itoa(i)
-				assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))
+				assert.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
 				if i%2 == 0 {
 					assert.Nil(t, db.Delete(is))
 				}
@@ -281,9 +285,10 @@ func crashDatabaseInternally(t *testing.T, db *DB) {
 }
 
 func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
+	rnd := rand.New(rand.NewSource(0))
 	for i := 0; i < n; i++ {
 		is := strconv.Itoa(i)
-		assert.Nil(t, db.Put(is, randomRecordWithPrefix(i)))
+		assert.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
 		// make sure that we currentSSTable the same thing we just put in there
 		assertGet(t, db, is)
 

@@ -25,9 +25,12 @@ type CompactionMetadata struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	WritePath       string   `protobuf:"bytes,1,opt,name=writePath,proto3" json:"writePath,omitempty"`
-	ReplacementPath string   `protobuf:"bytes,2,opt,name=replacementPath,proto3" json:"replacementPath,omitempty"`
-	SstablePaths    []string `protobuf:"bytes,3,rep,name=sstablePaths,proto3" json:"sstablePaths,omitempty"`
+	// database root relative write path of the compaction result
+	WritePath string `protobuf:"bytes,1,opt,name=writePath,proto3" json:"writePath,omitempty"`
+	// database root relative desired replacement path for the compaction result
+	ReplacementPath string `protobuf:"bytes,2,opt,name=replacementPath,proto3" json:"replacementPath,omitempty"`
+	// database root relative set of paths that contributed to that compaction result
+	SstablePaths []string `protobuf:"bytes,3,rep,name=sstablePaths,proto3" json:"sstablePaths,omitempty"`
 }
 
 func (x *CompactionMetadata) Reset() {

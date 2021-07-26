@@ -59,7 +59,7 @@ race-simpledb:
 	@echo
 	@echo "==> Running simpledb race tests <=="
 	$(GO) clean -testcache
-	$(GO) test -v --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
+	$(GO) test -v -timeout 20m --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
 
 .PHONY: generate-test-files
 generate-test-files:
@@ -67,3 +67,12 @@ generate-test-files:
 	@echo "==> Generate Test Files <=="
 	$(GO) clean -testcache
 	export generate_compatfiles=true && $(GO) test $(GOFLAGS) $(TESTS) -run .*TestGenerateTestFiles.*
+
+.PHONY: vet
+vet:
+	@echo
+	@echo "==> Go vet <=="
+	$(GO) vet $(TESTS)
+
+.PHONY: full-test
+full-test: vet unit-test race-simpledb

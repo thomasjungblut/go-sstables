@@ -3,7 +3,7 @@ package wal
 import (
 	"fmt"
 	"github.com/thomasjungblut/go-sstables/recordio"
-	"path"
+	"path/filepath"
 )
 
 // this is an implicitly hardcoded limit of one mio. WAL files, I hope that nobody needs more than that.
@@ -72,7 +72,7 @@ func setupNextWriter(a *Appender) error {
 			"Current limit exceeded: %d", a.nextWriterNumber)
 	}
 
-	writerPath := path.Join(a.walOptions.basePath, fmt.Sprintf(defaultWalFilePattern, a.nextWriterNumber))
+	writerPath := filepath.Join(a.walOptions.basePath, fmt.Sprintf(defaultWalFilePattern, a.nextWriterNumber))
 	currentWriter, err := a.walOptions.writerFactory(writerPath)
 	if err != nil {
 		return err
