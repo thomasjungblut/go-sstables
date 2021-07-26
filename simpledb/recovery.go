@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"fmt"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
@@ -133,7 +134,8 @@ func (db *DB) reconstructSSTables() error {
 	}
 
 	if len(db.sstableManager.allSSTableReaders) != 0 {
-		db.sstableManager.clearReaders()
+		return fmt.Errorf("unexpected number of sstables found during reconstruction,"+
+			" should be none, but were %d", len(db.sstableManager.allSSTableReaders))
 	}
 
 	if len(tablePaths) > 0 {

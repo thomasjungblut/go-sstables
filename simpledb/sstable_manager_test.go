@@ -2,9 +2,13 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
+	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -68,6 +72,31 @@ func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
 	assertCompactionAction(t, 5, []string{"2"}, manager.candidateTablesForCompaction(51))
 	assertCompactionAction(t, 15, []string{"1", "2"}, manager.candidateTablesForCompaction(101))
 	assertCompactionAction(t, 115, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(1500))
+}
+
+func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
+	dir, err := ioutil.TempDir("", "simpledb_compactionReflection")
+	assert.Nil(t, err)
+	// that's our fake compaction path that actually must exist for the logic to work properly
+	const compactionOutputPath = "4"
+	assert.Nil(t, os.MkdirAll(filepath.Join(dir, compactionOutputPath), 0700))
+	writeSSTableInDatabaseFolder(t, &DB{cmp: skiplist.BytesComparator, basePath: dir}, compactionOutputPath)
+
+	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, dir)
+	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "1"})
+	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "2"})
+	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "3"})
+
+	meta := &sdbProto.CompactionMetadata{
+		WritePath:       compactionOutputPath,
+		ReplacementPath: "1",
+		SstablePaths:    []string{"1", "2"},
+	}
+	err = manager.reflectCompactionResult(meta)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, len(manager.allSSTableReaders))
+	assert.Equal(t, "1", filepath.Base(manager.allSSTableReaders[0].BasePath()))
+	assert.Equal(t, "3", filepath.Base(manager.allSSTableReaders[1].BasePath()))
 }
 
 func assertCompactionAction(t *testing.T, numRecords int, paths []string, actualAction compactionAction) {

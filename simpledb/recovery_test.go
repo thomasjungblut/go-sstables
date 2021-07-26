@@ -32,6 +32,16 @@ func TestRecoveryReconstructSSTables(t *testing.T) {
 	assert.Equal(t, 1, len(db.sstableManager.allSSTableReaders))
 }
 
+func TestRecoveryReconstructSSTablesWithExistingReaders(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpledb_recoveryReconstructSSTablesWithExistingReaders")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	db.sstableManager.addReader(sstables.EmptySStableReader{})
+	err := db.reconstructSSTables()
+	assert.NotNil(t, err)
+}
+
 func TestRecoveryReconstructWithWrongPatternFails(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpledb_recoveryReconstructSSTablesWrongPatternFail")
 	defer cleanDatabaseFolder(t, db)
