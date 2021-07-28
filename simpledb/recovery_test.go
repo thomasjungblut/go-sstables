@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
-	"github.com/thomasjungblut/go-sstables/simpledb/proto"
+	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/sstables"
+	"github.com/thomasjungblut/go-sstables/wal"
+	"google.golang.org/protobuf/proto"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -130,7 +132,7 @@ func TestRecoverySuccessfulCompaction(t *testing.T) {
 	absCompactionPath := filepath.Join(db.basePath, compactionPath)
 	replacementTablePath := fmt.Sprintf(SSTablePattern, 1337)
 	writeSSTableInDatabaseFolder(t, db, compactionPath)
-	compMeta := &proto.CompactionMetadata{
+	compMeta := &dbproto.CompactionMetadata{
 		WritePath:       compactionPath,
 		ReplacementPath: replacementTablePath,
 		SstablePaths:    []string{replacementTablePath, otherCompactionPath},
@@ -160,6 +162,66 @@ func TestRecoverySuccessfulCompaction(t *testing.T) {
 
 	// just for the clean up to work
 	assert.Nil(t, db.sstableManager.currentReader.Close())
+}
+
+func TestRecoveryWALHappyPath(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpledb_recoverySuccessfulWAL")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	// create a fake WAL
+	err := createWALWithEntries(db, []*dbproto.WalMutation{
+		{Mutation: &dbproto.WalMutation_Addition{
+			Addition: &dbproto.UpsertMutation{
+				Key:   "hello",
+				Value: "world",
+			},
+		}},
+	})
+
+	assert.Nil(t, err)
+
+	err = db.replayAndSetupWriteAheadLog()
+	assert.Nil(t, err)
+
+	v, err := db.Get("hello")
+	assert.Nil(t, err)
+	assert.Equal(t, "world", v)
+}
+
+func createWALWithEntries(db *DB, mutations []*dbproto.WalMutation) error {
+	// close the current WAL to overwrite the state
+	err := db.wal.Close()
+	if err != nil {
+		return err
+	}
+	p := filepath.Join(db.basePath, WriteAheadFolder)
+	err = os.Remove(filepath.Join(p, "000000.wal"))
+	if err != nil {
+		return err
+	}
+	opts, err := wal.NewWriteAheadLogOptions(wal.BasePath(p))
+	if err != nil {
+		return err
+	}
+	appender, err := wal.NewAppender(opts)
+	if err != nil {
+		return err
+	}
+
+	for i, _ := range mutations {
+		marshal, err := proto.Marshal(mutations[i])
+		if err != nil {
+			return err
+		}
+
+		err = appender.Append(marshal)
+		if err != nil {
+			return err
+		}
+	}
+
+	return appender.Close()
 }
 
 func writeSSTableInDatabaseFolder(t *testing.T, db *DB, p string) {

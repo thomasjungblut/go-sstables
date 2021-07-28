@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCreationWhenDirNotAvailable(t *testing.T) {
@@ -107,6 +108,55 @@ func TestCloseDeniesCrudOperations(t *testing.T) {
 	assert.Equal(t, AlreadyClosed, err)
 	err = db.Delete("somehow")
 	assert.Equal(t, AlreadyClosed, err)
+}
+
+func TestDisableCompactions(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "simpleDB_testDisabledCompactions")
+	assert.Nil(t, err)
+	db, err := NewSimpleDB(tmpDir, DisableCompactions())
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	assert.Nil(t, db.compactionTicker)
+}
+
+func TestCompactionsMaxSize(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsMaxSize")
+	assert.Nil(t, err)
+	db, err := NewSimpleDB(tmpDir, CompactionMaxSizeBytes(1255))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	assert.Equal(t, uint64(1255), db.compactedMaxSizeBytes)
+}
+
+func TestCompactionsRunInterval(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsRunInterval")
+	assert.Nil(t, err)
+	db, err := NewSimpleDB(tmpDir, CompactionRunInterval(1*time.Second))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	assert.Equal(t, 1*time.Second, db.compactionInterval)
+	assert.NotNil(t, db.compactionTicker)
+}
+
+func TestCompactionsFileThreshold(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsFileThreshold")
+	assert.Nil(t, err)
+	db, err := NewSimpleDB(tmpDir, CompactionFileThreshold(1337))
+	assert.Nil(t, err)
+	assert.Nil(t, db.Open())
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	assert.Equal(t, 1337, db.compactionThreshold)
 }
 
 func assertGet(t *testing.T, db *DB, key string) {

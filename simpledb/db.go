@@ -95,7 +95,7 @@ func (db *DB) Open() error {
 	if err != nil {
 		return err
 	}
-	err = db.replayAndSetupWriteAheadLog(err)
+	err = db.replayAndSetupWriteAheadLog()
 	if err != nil {
 		return err
 	}

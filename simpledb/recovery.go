@@ -168,9 +168,9 @@ func (db *DB) reconstructSSTables() error {
 	return nil
 }
 
-func (db *DB) replayAndSetupWriteAheadLog(err error) error {
+func (db *DB) replayAndSetupWriteAheadLog() error {
 	walBasePath := filepath.Join(db.basePath, WriteAheadFolder)
-	err = os.MkdirAll(walBasePath, 0700)
+	err := os.MkdirAll(walBasePath, 0700)
 	if err != nil {
 		return err
 	}
