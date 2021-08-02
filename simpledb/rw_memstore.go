@@ -45,11 +45,16 @@ func (c *RWMemstore) Upsert(key []byte, value []byte) error {
 }
 
 func (c *RWMemstore) Delete(key []byte) error {
-	return c.writeStore.Delete(key)
+	err := c.writeStore.Delete(key)
+	if err == memstore.KeyNotFound {
+		return c.Tombstone(key)
+	}
+
+	return err
 }
 
 func (c *RWMemstore) DeleteIfExists(key []byte) error {
-	return c.writeStore.DeleteIfExists(key)
+	return c.Delete(key)
 }
 
 func (c *RWMemstore) Tombstone(key []byte) error {

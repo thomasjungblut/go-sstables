@@ -58,6 +58,26 @@ func TestRWMemstoreTombstoning(t *testing.T) {
 	}
 }
 
+func TestRWMemstoreDelete(t *testing.T) {
+	rw := setupPrefilledRWMemstore(t)
+
+	for i := 0; i < 10; i++ {
+		k := asStringBytes(i)
+		assert.Nil(t, rw.Delete(k))
+
+		_, err := rw.Get(k)
+		assert.Equal(t, memstore.KeyTombstoned, err)
+	}
+
+	for i := 10; i < 20; i++ {
+		k := asStringBytes(i)
+		assert.Nil(t, rw.DeleteIfExists(k))
+
+		_, err := rw.Get(k)
+		assert.Equal(t, memstore.KeyTombstoned, err)
+	}
+}
+
 func setupPrefilledRWMemstore(t *testing.T) *RWMemstore {
 	rw := &RWMemstore{
 		readStore:  memstore.NewMemStore(),

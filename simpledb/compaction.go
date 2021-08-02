@@ -33,6 +33,7 @@ func backgroundCompaction(db *DB) {
 					return err
 				}
 
+				// nothing that was compacted, wait for the next tick
 				if metadata == nil {
 					continue
 				}

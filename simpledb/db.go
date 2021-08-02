@@ -272,17 +272,7 @@ func (db *DB) Delete(key string) error {
 		return err
 	}
 
-	err = db.memStore.Delete(byteKey)
-	if err != nil {
-		// we deliberately ignore not found errors, there might be a key to delete in the sstable
-		// seeking into the sstable might be quite expensive, it will be dropped by the next merge anyway.
-		// To record that this is actually being deleted we have to tombstone it:
-		if err == memstore.KeyNotFound {
-			return db.memStore.Tombstone(byteKey)
-		}
-		return err
-	}
-	return nil
+	return db.memStore.Delete(byteKey)
 }
 
 // NewSimpleDB creates a new db that requires a directory that exist, it can be empty in case of existing databases.
