@@ -30,10 +30,10 @@ func flushMemstoreContinuously(db *DB) {
 
 func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 	walPath := flushAction.walPath
-	memStoreToFlush := flushAction.memStore
-	numElements := uint64((*memStoreToFlush).Size())
+	memStoreToFlush := *flushAction.memStore
+	numElements := uint64(memStoreToFlush.Size())
 	// we can skip if there is nothing to write, usually that indicates a proper "close" was done.
-	if (*memStoreToFlush).Size() == 0 {
+	if memStoreToFlush.Size() == 0 {
 		log.Printf("no memstore flush necessary due to empty store, skipping\n")
 		return nil
 	}
@@ -47,7 +47,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 		return err
 	}
 
-	err = (*memStoreToFlush).FlushWithTombstones(
+	err = memStoreToFlush.FlushWithTombstones(
 		sstables.WriteBasePath(writePath),
 		sstables.WithKeyComparator(db.cmp),
 		sstables.BloomExpectedNumberOfElements(numElements))
