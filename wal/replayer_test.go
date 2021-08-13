@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 )
 
@@ -31,7 +31,7 @@ func TestReplayFolderDoesNotExist(t *testing.T) {
 func TestReplayerIgnoresNonWalFiles(t *testing.T) {
 	log, recorder := singleRecordWal(t, "wal_replayignorewal")
 
-	err := ioutil.WriteFile(path.Join(log.walOptions.basePath, "some-not-so-wal-file"), []byte{1, 2, 3}, os.ModePerm)
+	err := ioutil.WriteFile(filepath.Join(log.walOptions.basePath, "some-not-so-wal-file"), []byte{1, 2, 3}, os.ModePerm)
 	assert.Nil(t, err)
 
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)

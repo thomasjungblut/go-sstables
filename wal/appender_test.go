@@ -24,7 +24,7 @@ func TestSimpleWriteWithRotationHappyPath(t *testing.T) {
 
 	for i := uint64(0); i < (uint64(3) * (TestMaxWalFileSize / uint64(8))); i++ {
 		record := make([]byte, 8)
-		binary.BigEndian.PutUint64(record, uint64(i))
+		binary.BigEndian.PutUint64(record, i)
 		appendAndRecord(t, log, record, &recorder)
 	}
 
@@ -32,6 +32,26 @@ func TestSimpleWriteWithRotationHappyPath(t *testing.T) {
 	// plus the overhead of headers which accounts for another WAL on overflow
 	// and since this is the next WAL number, it should be total of 5
 	assert.Equal(t, uint(5), log.nextWriterNumber)
+	err := log.Close()
+	assert.Nil(t, err)
+	assertRecorderMatchesReplay(t, log.walOptions, recorder)
+}
+
+func TestSimpleWriteWithRotationMoreThanHundredFiles(t *testing.T) {
+	log := newTestWalAppender(t, "wal_simpleWriteWithRotationMoreThanHundred")
+
+	var recorder [][]byte
+	assert.Equal(t, uint(1), log.nextWriterNumber)
+
+	for i := uint64(0); i < uint64(200); i++ {
+		record := make([]byte, 8)
+		binary.BigEndian.PutUint64(record, i)
+		appendAndRecord(t, log, record, &recorder)
+		_, err := log.Rotate()
+		assert.Nil(t, err)
+	}
+
+	assert.Equal(t, uint(201), log.nextWriterNumber)
 	err := log.Close()
 	assert.Nil(t, err)
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
@@ -63,6 +83,23 @@ func TestWriteBiggerRecordThanMaxFileSize(t *testing.T) {
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
 }
 
+func TestForcedRotation(t *testing.T) {
+	log := newTestWalAppender(t, "wal_forcedRotation")
+
+	var recorder [][]byte
+	assert.Equal(t, uint(1), log.nextWriterNumber)
+	for i := 0; i < 95; i++ {
+		appendAndRecord(t, log, []byte{byte(i)}, &recorder)
+		_, err := log.Rotate()
+		assert.Nil(t, err)
+		assert.Equal(t, uint(i+2), log.nextWriterNumber)
+	}
+
+	assert.Nil(t, log.Close())
+
+	assertRecorderMatchesReplay(t, log.walOptions, recorder)
+}
+
 func singleRecordWal(t *testing.T, tmpDirName string) (*Appender, [][]byte) {
 	log := newTestWalAppender(t, tmpDirName)
 
@@ -71,6 +108,11 @@ func singleRecordWal(t *testing.T, tmpDirName string) (*Appender, [][]byte) {
 	appendAndRecord(t, log, []byte{1}, &recorder)
 	err := log.Close()
 	assert.Nil(t, err)
+
+	t.Cleanup(func() {
+		_ = NewCleaner(log.walOptions).Clean()
+	})
+
 	return log, recorder
 }
 
@@ -81,13 +123,15 @@ func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))
 	assert.Nil(t, err)
 
+	log, err := NewAppender(opts)
+	assert.Nil(t, err)
+
 	t.Cleanup(func() {
+		_ = log.Close()
 		_ = NewCleaner(opts).Clean()
 	})
 
-	log, err := NewAppender(opts)
-	assert.Nil(t, err)
-	return log
+	return log.(*Appender)
 }
 
 func assertRecorderMatchesReplay(t *testing.T, opts *Options, recorder [][]byte) {
