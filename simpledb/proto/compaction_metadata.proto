@@ -1,0 +1,12 @@
+syntax = "proto3";
+package proto;
+option go_package = "github.com/thomasjungblut/simpledb/proto";
+
+message CompactionMetadata {
+    // database root relative write path of the compaction result
+    string writePath = 1;
+    // database root relative desired replacement path for the compaction result
+    string replacementPath = 2;
+    // database root relative set of paths that contributed to that compaction result
+    repeated string sstablePaths = 3;
+}

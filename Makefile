@@ -18,6 +18,8 @@ compile-proto:
 	@echo
 	@echo "==> Compiling Protobuf files <=="
 	protoc --go_out=. --go_opt=paths=source_relative recordio/test_files/text_line.proto
+	protoc --go_out=. --go_opt=paths=source_relative simpledb/proto/wal_mutation.proto
+	protoc --go_out=. --go_opt=paths=source_relative simpledb/proto/compaction_metadata.proto
 	protoc --go_out=. --go_opt=paths=source_relative wal/test_files/seq_number.proto
 	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/hello_world.proto
 	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/mutation.proto
@@ -32,16 +34,45 @@ release:
 
 .PHONY: bench
 bench:
-	$(GO) test -v -benchmem -bench=. ./benchmark
+	$(GO) test -v -benchmem -bench=RecordIO ./benchmark
+	$(GO) test -v -benchmem -bench=SSTable ./benchmark
+
+.PHONY: bench-simpledb
+bench-simpledb:
+	$(GO) test -v -benchmem -bench=SimpleDB ./benchmark
 
 .PHONY: unit-test
 unit-test:
 	@echo
+	@echo "==> Building <=="
+	$(GO) build -race $(TESTS)
 	@echo "==> Running unit tests <=="
+	$(GO) clean -testcache
 	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
+    # separately test simpledb, because the race detector
+    # increases the runtime of the end2end tests too much (10-20m)
+    # the race-simpledb target can be used to test that
+	$(GO) test -v --tags simpleDBe2e $(GOFLAGS) ./simpledb
+
+.PHONY: race-simpledb
+race-simpledb:
+	@echo
+	@echo "==> Running simpledb race tests <=="
+	$(GO) clean -testcache
+	$(GO) test -v -timeout 20m --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
 
 .PHONY: generate-test-files
 generate-test-files:
 	@echo
 	@echo "==> Generate Test Files <=="
+	$(GO) clean -testcache
 	export generate_compatfiles=true && $(GO) test $(GOFLAGS) $(TESTS) -run .*TestGenerateTestFiles.*
+
+.PHONY: vet
+vet:
+	@echo
+	@echo "==> Go vet <=="
+	$(GO) vet $(TESTS)
+
+.PHONY: full-test
+full-test: vet unit-test race-simpledb

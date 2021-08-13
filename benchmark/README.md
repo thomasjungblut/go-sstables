@@ -1,3 +1,5 @@
+## RecordIO
+
 ### RecordIO Write Benchmark
 
 Here's a simple write benchmark on a NVME SSD with 3.5 GB/s sequential read and 2.3 GB/s sequential write throughput.
@@ -36,6 +38,8 @@ BenchmarkRecordIO/SyncRecordSize1M-20                603           2034682 ns/op
 PASS
 ok      github.com/thomasjungblut/go-sstables/benchmark 57.838s
 ```
+
+## SSTable
 
 ### SSTable Read Benchmark
 
@@ -76,3 +80,40 @@ PASS
 ok      github.com/thomasjungblut/go-sstables/benchmark 20.650s
 ```
 
+## SimpleDB
+
+### SimpleDB Read Benchmark
+
+```
+$ make bench-simpledb
+go test -v -benchmem -bench=SimpleDB ./benchmark
+goos: windows
+goarch: amd64
+pkg: github.com/thomasjungblut/go-sstables/benchmark
+BenchmarkSimpleDBReadLatency
+BenchmarkSimpleDBReadLatency/100-20              3547354               315 ns/op        47746.66 MB/s         86 B/op          4 allocs/op
+BenchmarkSimpleDBReadLatency/1000-20             2721176               414 ns/op        36230.03 MB/s         99 B/op          4 allocs/op
+BenchmarkSimpleDBReadLatency/10000-20            1842484               632 ns/op        23849.40 MB/s        281 B/op          4 allocs/op
+BenchmarkSimpleDBReadLatency/100000-20             78621             13038 ns/op        1149.06 MB/s       33951 B/op         20 allocs/op
+
+PASS
+ok      github.com/thomasjungblut/go-sstables/benchmark 83.801s
+```
+
+### SimpleDB Write Benchmark
+
+```
+$ make bench-simpledb
+go test -v -benchmem -bench=SimpleDB ./benchmark
+goos: windows
+goarch: amd64
+pkg: github.com/thomasjungblut/go-sstables/benchmark
+BenchmarkSimpleDBWriteLatency/100-20                1058           8343294 ns/op        1864.65 MB/s    27093557 B/op       5182 allocs/op
+BenchmarkSimpleDBWriteLatency/1000-20               1034           8458750 ns/op        1810.21 MB/s    26472343 B/op       5061 allocs/op
+BenchmarkSimpleDBWriteLatency/10000-20               540           4569896 ns/op        1709.64 MB/s    13695999 B/op       2582 allocs/op
+BenchmarkSimpleDBWriteLatency/100000-20             1110           8667185 ns/op        1899.54 MB/s    28439698 B/op       5443 allocs/op
+BenchmarkSimpleDBWriteLatency/1000000-20            1110           9002177 ns/op        1818.23 MB/s    28434465 B/op       5442 allocs/op
+
+PASS
+ok      github.com/thomasjungblut/go-sstables/benchmark 83.801s
+```

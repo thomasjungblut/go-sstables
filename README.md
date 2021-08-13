@@ -7,6 +7,8 @@ a sorted string table (sstable), a write-ahead-log (WAL), and a memory store (me
 
 You can frequently find those in embedded databases as well, notable examples are [RocksDB](https://github.com/facebook/rocksdb) or [LevelDB](https://github.com/google/leveldb).
 
+There is an example embedded database as part of this library, you can find it in the simpledb folder - please don't use it for any production workload. 
+
 While plain `[]byte` are at the core of this library, there are wrappers and bindings for protobuf to enable more convenient serialization. 
 
 ## Installation
@@ -21,14 +23,19 @@ This is a library as it does not contain any installable binary, which means you
 
 ![rocksdb architecture overview](https://user-images.githubusercontent.com/62277872/119747261-310fb300-be47-11eb-92c3-c11719fa8a0c.png)
 
-This README became quite large, thus the documentation is now separated by package. There you'll find more information on how to use each individual package:
+You will find basically all of those mentioned pieces above and all of them stitched together as SimpleDB. The documentation is now separated by package for easier browsing, each of those READMEs contain examples - there is also [/examples](_examples) when you prefer browsing the code directly.
 
 * [RecordIO](recordio/README.md)
-  * [Benchmark](benchmark/README.md)
-* [Memstore](memstore/README.md)
+  * [Benchmark](benchmark/README.md#recordio)
 * [sstables](sstables/README.md)
+  * [Benchmark](benchmark/README.md#sstable)
+* [Memstore](memstore/README.md)  
 * [SkipList](skiplist/README.md)
 * [WriteAheadLog](wal/README.md)
+* [SimpleDB](simpledb/README.md)
+  * [Benchmark](benchmark/README.md#simpledb)
+
+You can also find all interface and method [documentation on `pkg.go.dev`](https://pkg.go.dev/github.com/thomasjungblut/go-sstables/sstables#section-documentation).
 
 ## Kaitai Support
 
