@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func sstable_main() {
+func main() {
 	path := "/tmp/sstable_example/"
 	os.MkdirAll(path, 0777)
 	defer os.RemoveAll(path)

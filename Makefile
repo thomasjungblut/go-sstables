@@ -19,8 +19,8 @@ compile-proto:
 	@echo "==> Compiling Protobuf files <=="
 	protoc --go_out=. --go_opt=paths=source_relative recordio/test_files/text_line.proto
 	protoc --go_out=. --go_opt=paths=source_relative wal/test_files/seq_number.proto
-	protoc --go_out=. --go_opt=paths=source_relative examples/proto/hello_world.proto
-	protoc --go_out=. --go_opt=paths=source_relative examples/proto/mutation.proto
+	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/hello_world.proto
+	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/mutation.proto
 	protoc --go_out=. --go_opt=paths=source_relative sstables/proto/sstable.proto
 
 .PHONY: release

@@ -158,4 +158,4 @@ seq no: 2
 delete with colname some_col
 ```
 
-You can get the full example from [examples/wal.go](/examples/wal.go).
+You can get the full example from [examples/wal.go](/_examples/wal.go).

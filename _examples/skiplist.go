@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func mainSkipList() {
+func main() {
 
 	skipListMap := skiplist.NewSkipListMap(skiplist.IntComparator)
 	skipListMap.Insert(13, 91)

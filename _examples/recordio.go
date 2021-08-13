@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/thomasjungblut/go-sstables/examples/proto"
+	"github.com/thomasjungblut/go-sstables/_examples/proto"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"io"
@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-func recordioMain() {
+func main() {
 	path := "/tmp/some_file.snap"
 	defer os.Remove(path)
 
