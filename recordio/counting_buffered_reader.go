@@ -9,14 +9,19 @@ type Reset interface {
 	Reset(r io.Reader)
 }
 
-type CountingReaderResetComposite interface {
+type ReaderResetComposite interface {
 	io.ByteReader
 	io.Reader
 	Reset
 }
 
+type CountingReaderResetComposite interface {
+	ReaderResetComposite
+	Count() uint64
+}
+
 type CountingBufferedReader struct {
-	r     CountingReaderResetComposite
+	r     ReaderResetComposite
 	count uint64
 }
 
@@ -49,6 +54,10 @@ func (c *CountingBufferedReader) Reset(r io.Reader) {
 	c.r.Reset(r)
 }
 
-func NewCountingByteReader(reader *bufio.Reader) *CountingBufferedReader {
+func (c *CountingBufferedReader) Count() uint64 {
+	return c.count
+}
+
+func NewCountingByteReader(reader *bufio.Reader) CountingReaderResetComposite {
 	return &CountingBufferedReader{r: reader, count: 0}
 }

@@ -16,7 +16,7 @@ type FileReader struct {
 	header        *Header
 	open          bool
 	closed        bool
-	reader        *CountingBufferedReader
+	reader        CountingReaderResetComposite
 	bufferPool    *pool.BufferPool
 }
 
@@ -73,7 +73,7 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 	if r.header.fileVersion == Version1 {
 		return readNextV1(r)
 	} else {
-		start := r.reader.count
+		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 		if err != nil {
 			return nil, err
@@ -109,7 +109,7 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		}
 
 		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
-		r.currentOffset = r.currentOffset + (r.reader.count - start)
+		r.currentOffset = r.currentOffset + (r.reader.Count() - start)
 		return returnSlice, nil
 	}
 }
@@ -122,7 +122,7 @@ func (r *FileReader) SkipNext() error {
 	if r.header.fileVersion == Version1 {
 		return SkipNextV1(r)
 	} else {
-		start := r.reader.count
+		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 		if err != nil {
 			return err
@@ -134,7 +134,7 @@ func (r *FileReader) SkipNext() error {
 		}
 
 		// here we have to add the header to the offset too, otherwise we will seek not far enough
-		expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.count - start))
+		expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
 		newOffset, err := r.file.Seek(expectedOffset, 0)
 		if err != nil {
 			return err
@@ -239,7 +239,8 @@ func readNextV1(r *FileReader) ([]byte, error) {
 	return recordBuffer, nil
 }
 
-func NewFileReaderWithPath(path string) (*FileReader, error) {
+// NewFileReaderWithPath creates a new recordio file reader that can read RecordIO files at the given path.
+func NewFileReaderWithPath(path string) (ReaderI, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -253,7 +254,9 @@ func NewFileReaderWithPath(path string) (*FileReader, error) {
 	return r, nil
 }
 
-func NewFileReaderWithFile(file *os.File) (*FileReader, error) {
+// NewFileReaderWithPath creates a new recordio file reader that can read RecordIO files with the given file.
+// The file will be managed from here on out (ie closing).
+func NewFileReaderWithFile(file *os.File) (ReaderI, error) {
 	return &FileReader{
 		file:          file,
 		open:          false,

@@ -2,13 +2,14 @@ package proto
 
 import (
 	"errors"
+	"github.com/ncw/directio"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"google.golang.org/protobuf/proto"
 	"os"
 )
 
 type Writer struct {
-	writer *recordio.FileWriter
+	writer recordio.WriterI
 }
 
 func (w *Writer) Open() error {
@@ -46,6 +47,7 @@ type WriterOptions struct {
 	file            *os.File
 	compressionType int
 	bufSizeBytes    int
+	useDirectIO     bool
 }
 
 type WriterOption func(*WriterOptions)
@@ -74,14 +76,21 @@ func WriteBufferSizeBytes(p int) WriterOption {
 	}
 }
 
+func DirectIO() WriterOption {
+	return func(args *WriterOptions) {
+		args.useDirectIO = true
+	}
+}
+
 // create a new writer with the given options. Either Path or File must be supplied, compression is optional and
 // turned off by default.
-func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
+func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 	opts := &WriterOptions{
 		path:            "",
 		file:            nil,
 		compressionType: recordio.CompressionTypeNone,
 		bufSizeBytes:    1024 * 1024 * 4,
+		useDirectIO:     false,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -96,11 +105,19 @@ func NewWriter(writerOptions ...WriterOption) (*Writer, error) {
 		if opts.path == "" {
 			return nil, errors.New("path was not supplied")
 		}
-		f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
-		if err != nil {
-			return nil, err
+		if opts.useDirectIO {
+			f, err := directio.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
+			opts.file = f
+		} else {
+			f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			if err != nil {
+				return nil, err
+			}
+			opts.file = f
 		}
-		opts.file = f
 	}
 
 	writer, err := recordio.NewFileWriter(

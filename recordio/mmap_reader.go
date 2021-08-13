@@ -79,7 +79,7 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 
 		r.bufferPool.Put(headerBufPooled)
 		expectedBytesRead, pooledRecordBuf := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
-		numRead, err = r.mmapReader.ReadAt(pooledRecordBuf, int64(offset)+int64(headerByteReader.count))
+		numRead, err = r.mmapReader.ReadAt(pooledRecordBuf, int64(offset)+int64(headerByteReader.Count()))
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +153,8 @@ func (r *MMapReader) Close() error {
 	return r.mmapReader.Close()
 }
 
-func NewMemoryMappedReaderWithPath(path string) (*MMapReader, error) {
+// NewMemoryMappedReaderWithPath creates a new mmap reader at the given path.
+func NewMemoryMappedReaderWithPath(path string) (ReadAtI, error) {
 	mmapReaderAt, err := mmap.Open(path)
 	if err != nil {
 		return nil, err

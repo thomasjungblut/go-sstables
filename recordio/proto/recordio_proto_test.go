@@ -43,7 +43,7 @@ func TestReadWriteEndToEndSnappyProto(t *testing.T) {
 	endToEndReadWriteProtobuf(writer, t, tmpFile)
 }
 
-func endToEndReadWriteProtobuf(writer *Writer, t *testing.T, tmpFile *os.File) {
+func endToEndReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.File) {
 	// we're reading the file line by line and try to read it back and assert the same content
 	inFile, err := os.Open(TestFile)
 	assert.Nil(t, err)
@@ -114,7 +114,7 @@ func TestRandomReadWriteEndToEndSnappyProto(t *testing.T) {
 	endToEndRandomReadWriteProtobuf(writer, t, tmpFile)
 }
 
-func endToEndRandomReadWriteProtobuf(writer *Writer, t *testing.T, tmpFile *os.File) {
+func endToEndRandomReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.File) {
 	// same idea as above, but we're testing the random read via mmap
 	inFile, err := os.Open(TestFile)
 	assert.Nil(t, err)

@@ -208,7 +208,7 @@ func randomIntegerSlice(len int) []int {
 }
 
 //noinspection GoSnakeCaseUsage
-func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) *skiplist.SkipListMap {
+func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) skiplist.SkipListMapI {
 	list := skiplist.NewSkipListMap(skiplist.BytesComparator)
 	for _, e := range toInsert {
 		key, value := getKeyValueAsBytes(e)
@@ -256,7 +256,7 @@ func assertIteratorMatchesSlice(t *testing.T, it SSTableIteratorI, expectedSlice
 	assert.Nil(t, v)
 }
 
-func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap *skiplist.SkipListMap) {
+func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap skiplist.SkipListMapI) {
 	it, _ := expectedSkipListMap.Iterator()
 	numRead := 0
 	for {
