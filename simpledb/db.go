@@ -65,6 +65,7 @@ type DB struct {
 	compactionInterval    time.Duration
 	compactedMaxSizeBytes uint64
 	enableCompactions     bool
+	enableAsyncWAL        bool
 	closed                bool
 
 	rwLock         *sync.RWMutex
@@ -229,10 +230,16 @@ func (db *DB) Put(key, value string) error {
 			return AlreadyClosed
 		}
 
-		// we deliberately do not append with fsync here, it's a simple db :)
-		err = db.wal.Append(walBytes)
-		if err != nil {
-			return err
+		if db.enableAsyncWAL {
+			err = db.wal.Append(walBytes)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = db.wal.AppendSync(walBytes)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = db.memStore.Upsert(keyBytes, valBytes)
@@ -287,6 +294,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
 		true,
+		true,
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
@@ -314,6 +322,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		compactionThreshold:         extraOpts.compactionFileThreshold,
 		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
 		enableCompactions:           extraOpts.enableCompactions,
+		enableAsyncWAL:              extraOpts.enableAsyncWAL,
 		compactionInterval:          extraOpts.compactionRunInterval,
 		closed:                      false,
 		rwLock:                      rwLock,
@@ -333,6 +342,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 type ExtraOptions struct {
 	memstoreSizeBytes       uint64
 	enableCompactions       bool
+	enableAsyncWAL          bool
 	compactionFileThreshold int
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
@@ -352,6 +362,13 @@ func MemstoreSizeBytes(n uint64) ExtraOption {
 func DisableCompactions() ExtraOption {
 	return func(args *ExtraOptions) {
 		args.enableCompactions = false
+	}
+}
+
+// DisableAsyncWAL will turn off the asynchronous WAL writes, which should give consistent, but slower results.
+func DisableAsyncWAL() ExtraOption {
+	return func(args *ExtraOptions) {
+		args.enableAsyncWAL = false
 	}
 }
 
