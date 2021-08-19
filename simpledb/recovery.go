@@ -220,24 +220,16 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 		return err
 	}
 
-	if numRecords == 0 {
-		// there is nothing to replay, we skip the remainder of the recovery and create a new log from here
-		writeAheadLog, err := wal.NewWriteAheadLog(walOpts)
-		if err != nil {
-			return err
-		}
-		db.wal = writeAheadLog
-		return nil
-	} else {
+	if numRecords != 0 {
+		// we trigger a memstore flush here (even if inefficient) to be able to start from an empty WAL directory
+		// we rotate and flush the wal one last time to get a clean slate
+		err = executeFlush(db, memStoreFlushAction{
+			memStore: swapMemstore(db),
+		})
+
 		elapsedDuration := time.Since(start)
 		log.Printf("done replaying WAL in %v with %d records\n", elapsedDuration, numRecords)
 	}
-
-	// we trigger a memstore flush here (even if inefficient) to be able to start from an empty WAL directory
-	// we rotate and flush the wal one last time to get a clean slate
-	err = executeFlush(db, memStoreFlushAction{
-		memStore: swapMemstore(db),
-	})
 
 	err = os.RemoveAll(walBasePath)
 	if err != nil {

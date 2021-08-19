@@ -77,6 +77,12 @@ func (w *FileWriter) Open() error {
 	w.recordHeaderCache = make([]byte, RecordHeaderV2MaxSizeBytes)
 	w.bufferPool = new(pool.BufferPool)
 
+	// we flush early to get a valid file with header written, this is important in crash scenarios
+	err = w.bufWriter.Flush()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

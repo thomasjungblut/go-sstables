@@ -2,7 +2,7 @@ package benchmark
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/simpledb"
 	"io/ioutil"
 	"math/rand"
@@ -21,13 +21,13 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 	for _, n := range dbSizes {
 		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
 			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.Nil(b, err)
+			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
 			db, err := simpledb.NewSimpleDB(tmpDir,
 				simpledb.MemstoreSizeBytes(1024*1024*1024))
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, db.Close()) }()
-			assert.Nil(b, db.Open())
+			require.Nil(b, err)
+			defer func() { require.Nil(b, db.Close()) }()
+			require.Nil(b, db.Open())
 
 			parallelWriteDB(db, runtime.NumCPU(), n)
 
@@ -54,15 +54,15 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 	for _, n := range dbSizes {
 		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
 			tmpDir, err := ioutil.TempDir("", "simpledb_Bench")
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.Nil(b, err)
+			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
 
 			memstoreSize := uint64(1024 * 1024 * 1024)
 			db, err := simpledb.NewSimpleDB(tmpDir,
 				simpledb.MemstoreSizeBytes(memstoreSize))
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, db.Close()) }()
-			assert.Nil(b, db.Open())
+			require.Nil(b, err)
+			defer func() { require.Nil(b, db.Close()) }()
+			require.Nil(b, db.Open())
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {

@@ -2,6 +2,7 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -22,10 +23,10 @@ func TestSimplePutAndGet(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	assert.Nil(t, db.Put("a", "b"))
+	require.Nil(t, db.Put("a", "b"))
 
 	val, err := db.Get("a")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, "b", val)
 }
 
@@ -59,19 +60,19 @@ func TestDeleteNotFound(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	err := db.Delete("a")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }
 
 func TestPutDeleteGetNotFound(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testDeleteNotFound")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
-	assert.Nil(t, db.Put("a", "b"))
+	require.Nil(t, db.Put("a", "b"))
 
 	val, err := db.Get("a")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, "b", val)
-	assert.Nil(t, db.Delete("a"))
+	require.Nil(t, db.Delete("a"))
 
 	_, err = db.Get("a")
 	assert.Equal(t, NotFound, err)
@@ -85,13 +86,13 @@ func TestPutAndGetAndDelete(t *testing.T) {
 	_, err := db.Get("a")
 	assert.Equal(t, NotFound, err)
 
-	assert.Nil(t, db.Put("a", "b"))
+	require.Nil(t, db.Put("a", "b"))
 
 	val, err := db.Get("a")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, "b", val)
 
-	assert.Nil(t, db.Delete("a"))
+	require.Nil(t, db.Delete("a"))
 
 	_, err = db.Get("a")
 	assert.Equal(t, NotFound, err)
@@ -112,22 +113,22 @@ func TestCloseDeniesCrudOperations(t *testing.T) {
 
 func TestDisableCompactions(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "simpleDB_testDisabledCompactions")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, DisableCompactions())
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	assert.Nil(t, db.compactionTicker)
+	require.Nil(t, db.compactionTicker)
 }
 
 func TestCompactionsMaxSize(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsMaxSize")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionMaxSizeBytes(1255))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
@@ -136,10 +137,10 @@ func TestCompactionsMaxSize(t *testing.T) {
 
 func TestCompactionsRunInterval(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsRunInterval")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionRunInterval(1*time.Second))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
@@ -149,10 +150,10 @@ func TestCompactionsRunInterval(t *testing.T) {
 
 func TestCompactionsFileThreshold(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsFileThreshold")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionFileThreshold(1337))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
@@ -161,7 +162,7 @@ func TestCompactionsFileThreshold(t *testing.T) {
 
 func assertGet(t *testing.T, db *DB, key string) {
 	val, err := db.Get(key)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	if len(val) > 2 {
 		val = val[:len(key)]
 	}
@@ -204,19 +205,26 @@ func randomRecordWithPrefix(rand *rand.Rand, prefix int) string {
 
 func newOpenedSimpleDB(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	//for testing purposes we will flush with a tiny amount of 2mb
 	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(1024*1024*2))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	return db
 }
 
 func closeDatabase(t *testing.T, db *DB) {
-	func() { assert.Nil(t, db.Close()) }()
+	func(t *testing.T, db *DB) { require.Nil(t, db.Close()) }(t, db)
 }
 
 func cleanDatabaseFolder(t *testing.T, db *DB) {
-	func() { assert.Nil(t, os.RemoveAll(db.basePath)) }()
+	func(t *testing.T, db *DB) { require.Nil(t, os.RemoveAll(db.basePath)) }(t, db)
+}
+
+func tryCleanDatabaseFolder(db *DB) {
+	func(db *DB) {
+		_ = db.Close()
+		_ = os.RemoveAll(db.basePath)
+	}(db)
 }

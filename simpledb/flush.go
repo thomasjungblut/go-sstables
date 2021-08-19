@@ -92,7 +92,6 @@ func (db *DB) rotateWalAndFlushMemstore() error {
 		memStore: swapMemstore(db),
 		walPath:  walPath,
 	}
-
 	return nil
 }
 

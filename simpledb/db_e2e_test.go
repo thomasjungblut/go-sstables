@@ -5,6 +5,7 @@ package simpledb
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -34,13 +35,13 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	for n := 0; n < 5; n++ {
 		for i := 0; i < numKeys; i++ {
 			is := strconv.Itoa(i)
-			assert.Nil(t, db.Put(is, recordWithSuffix(i, r)))
+			require.Nil(t, db.Put(is, recordWithSuffix(i, r)))
 			// make sure that we currentSSTable the same thing we just put in there
 			assertGet(t, db, is)
 
 			// delete every second element
 			if i%2 == 0 {
-				assert.Nil(t, db.Delete(is))
+				require.Nil(t, db.Delete(is))
 			}
 		}
 	}
@@ -67,7 +68,7 @@ func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
 	var keys []string
 	for i := 0; i < 500; i++ {
 		keys = append(keys, randomString(rnd, 10))
-		assert.Nil(t, db.Put(keys[i], r))
+		require.Nil(t, db.Put(keys[i], r))
 	}
 
 	assertDatabaseContains(t, db, keys)
@@ -79,7 +80,7 @@ func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
 			expectedKeys = append(expectedKeys, keys[i])
 		} else {
 			deletedKeys = append(deletedKeys, keys[i])
-			assert.Nil(t, db.Delete(keys[i]))
+			require.Nil(t, db.Delete(keys[i]))
 		}
 	}
 
@@ -98,7 +99,7 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 	var keys []string
 	for i := 0; i < 500; i++ {
 		keys = append(keys, randomString(rnd, 10))
-		assert.Nil(t, db.Put(keys[i], r))
+		require.Nil(t, db.Put(keys[i], r))
 	}
 
 	assertDatabaseContains(t, db, keys)
@@ -112,7 +113,7 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 				expectedKeys = append(expectedKeys, keys[i])
 			} else {
 				deletedKeys = append(deletedKeys, keys[i])
-				assert.Nil(t, db.Delete(keys[i]))
+				require.Nil(t, db.Delete(keys[i]))
 			}
 		}
 
@@ -121,7 +122,7 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 
 		// add all of them back
 		for i := 0; i < len(keys); i++ {
-			assert.Nil(t, db.Put(keys[i], r))
+			require.Nil(t, db.Put(keys[i], r))
 		}
 		assertDatabaseContains(t, db, keys)
 	}
@@ -154,9 +155,9 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 			rnd := rand.New(rand.NewSource(int64(start)))
 			for i := start; i < end; i++ {
 				is := strconv.Itoa(i)
-				assert.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
+				require.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
 				if i%2 == 0 {
-					assert.Nil(t, db.Delete(is))
+					require.Nil(t, db.Delete(is))
 				}
 			}
 
@@ -187,11 +188,11 @@ func TestRecoveryFromCloseHappyPath(t *testing.T) {
 
 	n := 500
 	testWriteAlternatingDeletes(t, db, n)
-	assert.Nil(t, db.Close())
+	require.Nil(t, db.Close())
 
 	db, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer closeDatabase(t, db)
 
 	for j := 0; j < n; j++ {
@@ -216,8 +217,8 @@ func TestNaiveCrashRecovery(t *testing.T) {
 	crashDatabaseInternally(t, db)
 
 	db, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
-	assert.Nil(t, err)
-	assert.Nil(t, db.Open())
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
 	defer closeDatabase(t, db)
 
 	for j := 0; j < n; j++ {
@@ -252,9 +253,9 @@ func TestContinuousCrashRecovery(t *testing.T) {
 		var err error
 		db, err = NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024),
 			CompactionRunInterval(1*time.Second), CompactionFileThreshold(2))
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		dbsToClose = append(dbsToClose, db)
-		assert.Nil(t, db.Open())
+		require.Nil(t, db.Open())
 
 		for j := 0; j < n; j++ {
 			key := strconv.Itoa(j)
@@ -267,7 +268,42 @@ func TestContinuousCrashRecovery(t *testing.T) {
 			}
 		}
 	}
+}
 
+func TestCrashRecoveryWithEmptyWAL(t *testing.T) {
+	t.Parallel()
+	firstDb := newOpenedSimpleDB(t, "simpleDB_RecoveryFromCrashWithEmptyWAL")
+	defer tryCleanDatabaseFolder(firstDb)
+
+	n := 500
+	testWriteAlternatingDeletes(t, firstDb, n)
+	crashDatabaseInternally(t, firstDb)
+
+	// this open should recover the WAL + create a new SSTable
+	db, err := NewSimpleDB(firstDb.basePath, MemstoreSizeBytes(1024*1024))
+	require.Nil(t, err)
+	require.Nil(t, db.Open())
+	defer tryCleanDatabaseFolder(db)
+	// we leave this open for now, that should simulate that the WAL is still empty which happens when nothing was written
+	// we have to somehow release the file descriptor though, thus this hackery
+	require.Nil(t, db.wal.Close())
+
+	// that could crash from an empty WAL next open
+	newDb, err := NewSimpleDB(db.basePath, MemstoreSizeBytes(1024*1024))
+	require.Nil(t, err)
+	require.Nil(t, newDb.Open())
+	defer tryCleanDatabaseFolder(newDb)
+
+	for j := 0; j < n; j++ {
+		key := strconv.Itoa(j)
+		if j%2 == 0 {
+			v, err := newDb.Get(key)
+			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equal(t, "", v)
+		} else {
+			assertGet(t, newDb, key)
+		}
+	}
 }
 
 // TODO(thomas): this is super naive
@@ -279,16 +315,16 @@ func crashDatabaseInternally(t *testing.T, db *DB) {
 	db.compactionTicker.Stop()
 	db.compactionTickerStopChannel <- true
 	close(db.compactionTickerStopChannel)
-	assert.Nil(t, db.wal.Close())
+	require.Nil(t, db.wal.Close())
 	db.memStore = nil
-	assert.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
+	require.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
 }
 
 func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
 	rnd := rand.New(rand.NewSource(0))
 	for i := 0; i < n; i++ {
 		is := strconv.Itoa(i)
-		assert.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
+		require.Nil(t, db.Put(is, randomRecordWithPrefix(rnd, i)))
 		// make sure that we currentSSTable the same thing we just put in there
 		assertGet(t, db, is)
 
@@ -305,7 +341,7 @@ func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
 
 		// delete every second element
 		if i%2 == 0 {
-			assert.Nil(t, db.Delete(is))
+			require.Nil(t, db.Delete(is))
 		}
 	}
 }
@@ -313,7 +349,7 @@ func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
 func assertDatabaseContains(t *testing.T, db *DB, keys []string) {
 	for _, k := range keys {
 		v, err := db.Get(k)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assert.NotNilf(t, v, "expecting value for key %v, but was nil", k)
 	}
 }
