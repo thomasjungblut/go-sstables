@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"io/ioutil"
 	"testing"
@@ -17,10 +18,10 @@ func TestWALEndToEndHappyPath(t *testing.T) {
 		record := make([]byte, 8)
 		binary.BigEndian.PutUint64(record, i)
 		err := wal.AppendSync(record)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 	}
 
-	assert.Nil(t, wal.Close())
+	require.Nil(t, wal.Close())
 
 	expected := uint64(0)
 	err := wal.Replay(func(record []byte) error {
@@ -29,7 +30,7 @@ func TestWALEndToEndHappyPath(t *testing.T) {
 		expected++
 		return nil
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, maxNum, expected)
 }
 
@@ -45,7 +46,7 @@ func TestWALCrashRecovery(t *testing.T) {
 		record := make([]byte, 8)
 		binary.BigEndian.PutUint64(record, i)
 		err := wal.AppendSync(record)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		// mind: we do not close the wal between, to test if we are actually fsync'ing properly and
 		// we can always read from whatever was appended already
@@ -57,7 +58,7 @@ func TestWALCrashRecovery(t *testing.T) {
 			return nil
 		})
 		assert.Equal(t, i+1, expected)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 	}
 }
 
@@ -68,7 +69,7 @@ func TestOptionMissingBasePath(t *testing.T) {
 
 func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir),
 		MaximumWalFileSizeBytes(TestMaxWalFileSize),
@@ -79,10 +80,10 @@ func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
 			return recordio.NewFileReaderWithPath(path)
 		}),
 	)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	wal, err := NewWriteAheadLog(opts)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	t.Cleanup(func() {
 		_ = wal.Close()
 		_ = wal.Clean()

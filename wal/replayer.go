@@ -30,7 +30,7 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("error while walking WAL structure under '%s': %w", r.walOptions.basePath, err)
 	}
 
 	// do not rely on the order of the FS, we do an additional sort to make sure we start reading from 0000 to 9999
@@ -46,13 +46,13 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 	for _, path := range walFiles {
 		reader, err := r.walOptions.readerFactory(path)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while creating WAL reader under '%s': %w", path, err)
 		}
 		toClose = append(toClose, reader)
 
 		err = reader.Open()
 		if err != nil {
-			return err
+			return fmt.Errorf("error while opening WAL reader under '%s': %w", path, err)
 		}
 
 		for {
@@ -63,18 +63,18 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 			}
 
 			if err != nil {
-				return err
+				return fmt.Errorf("error while reading WAL records under '%s': %w", path, err)
 			}
 
 			err = process(bytes)
 			if err != nil {
-				return err
+				return fmt.Errorf("error while processing WAL record under '%s': %w", path, err)
 			}
 		}
 
 		err = reader.Close()
 		if err != nil {
-			return err
+			return fmt.Errorf("error while closing WAL reader under '%s': %w", path, err)
 		}
 	}
 
@@ -84,7 +84,7 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 func NewReplayer(walOpts *Options) (WriteAheadLogReplayI, error) {
 	stat, err := os.Stat(walOpts.basePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating replayer by stat the path at '%s': %w", walOpts.basePath, err)
 	}
 
 	if !stat.IsDir() {

@@ -2,8 +2,8 @@ package wal
 
 import (
 	"encoding/binary"
-	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math"
 	"testing"
@@ -33,7 +33,7 @@ func TestSimpleWriteWithRotationHappyPath(t *testing.T) {
 	// and since this is the next WAL number, it should be total of 5
 	assert.Equal(t, uint(5), log.nextWriterNumber)
 	err := log.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
 }
 
@@ -48,12 +48,12 @@ func TestSimpleWriteWithRotationMoreThanHundredFiles(t *testing.T) {
 		binary.BigEndian.PutUint64(record, i)
 		appendAndRecord(t, log, record, &recorder)
 		_, err := log.Rotate()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 	}
 
 	assert.Equal(t, uint(201), log.nextWriterNumber)
 	err := log.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
 }
 
@@ -63,7 +63,7 @@ func TestWriteMoreThanAMillionFilesFails(t *testing.T) {
 	log.nextWriterNumber = 1000000
 	record := make([]byte, TestMaxWalFileSize)
 	err := log.AppendSync(record)
-	assert.Equal(t, errors.New("not supporting more than one million wal files at the minute. Current limit exceeded: 1000000"), err)
+	assert.Contains(t, err.Error(), "not supporting more than one million wal files at the minute. Current limit exceeded: 1000000")
 }
 
 func TestWriteBiggerRecordThanMaxFileSize(t *testing.T) {
@@ -79,7 +79,7 @@ func TestWriteBiggerRecordThanMaxFileSize(t *testing.T) {
 	// that's OK to happen, even if that means in this case one WAL will be entirely empty
 	assert.Equal(t, uint(2), log.nextWriterNumber)
 	err := log.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
 }
 
@@ -91,11 +91,11 @@ func TestForcedRotation(t *testing.T) {
 	for i := 0; i < 95; i++ {
 		appendAndRecord(t, log, []byte{byte(i)}, &recorder)
 		_, err := log.Rotate()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assert.Equal(t, uint(i+2), log.nextWriterNumber)
 	}
 
-	assert.Nil(t, log.Close())
+	require.Nil(t, log.Close())
 
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)
 }
@@ -107,7 +107,7 @@ func singleRecordWal(t *testing.T, tmpDirName string) (*Appender, [][]byte) {
 	assert.Equal(t, uint(1), log.nextWriterNumber)
 	appendAndRecord(t, log, []byte{1}, &recorder)
 	err := log.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	t.Cleanup(func() {
 		_ = NewCleaner(log.walOptions).Clean()
@@ -118,13 +118,13 @@ func singleRecordWal(t *testing.T, tmpDirName string) (*Appender, [][]byte) {
 
 func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
 	tmpDir, err := ioutil.TempDir("", tmpDirName)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	log, err := NewAppender(opts)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	t.Cleanup(func() {
 		_ = log.Close()
@@ -136,7 +136,7 @@ func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
 
 func assertRecorderMatchesReplay(t *testing.T, opts *Options, recorder [][]byte) {
 	repl, err := NewReplayer(opts)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	i := 0
 	err = repl.Replay(func(record []byte) error {
@@ -144,12 +144,12 @@ func assertRecorderMatchesReplay(t *testing.T, opts *Options, recorder [][]byte)
 		i++
 		return nil
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, len(recorder), i)
 }
 
 func appendAndRecord(t *testing.T, wal WriteAheadLogAppendI, record []byte, recorder *[][]byte) {
 	*recorder = append(*recorder, record)
 	err := wal.AppendSync(record)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 }

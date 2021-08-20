@@ -21,46 +21,59 @@ type Appender struct {
 func (a *Appender) Append(record []byte) error {
 	err := checkSizeAndRotate(a, len(record))
 	if err != nil {
-		return err
+		return fmt.Errorf("error while rotating wal writer '%s': %w", a.currentWriterPath, err)
 	}
 	_, err = a.currentWriter.Write(record)
+	if err != nil {
+		return fmt.Errorf("error while appending to wal writer '%s': %w", a.currentWriterPath, err)
+	}
 
-	return err
+	return nil
 }
 
 func (a *Appender) AppendSync(record []byte) error {
 	err := checkSizeAndRotate(a, len(record))
 	if err != nil {
-		return err
+		return fmt.Errorf("error while rotating sync wal writer '%s': %w", a.currentWriterPath, err)
 	}
 	_, err = a.currentWriter.WriteSync(record)
+	if err != nil {
+		return fmt.Errorf("error while appending to sync wal writer '%s': %w", a.currentWriterPath, err)
+	}
 
-	return err
+	return nil
 }
 
 func (a *Appender) Rotate() (string, error) {
 	currentPath := a.currentWriterPath
 	err := a.currentWriter.Close()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error while closing current rotation writer '%s': %w", a.currentWriterPath, err)
 	}
 
 	err = setupNextWriter(a)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error while setting up new rotation writer '%s': %w", a.currentWriterPath, err)
 	}
 
 	return currentPath, nil
 }
 
 func (a *Appender) Close() error {
-	return a.currentWriter.Close()
+	err := a.currentWriter.Close()
+	if err != nil {
+		return fmt.Errorf("error while closing appender and current rotation writer '%s': %w", a.currentWriterPath, err)
+	}
+
+	return nil
 }
 
 func checkSizeAndRotate(a *Appender, nextRecordSize int) error {
 	if (a.currentWriter.Size() + uint64(nextRecordSize)) > a.walOptions.maxWalFileSize {
 		_, err := a.Rotate()
-		return err
+		if err != nil {
+			return fmt.Errorf("error rotating appender at '%s': %w", a.currentWriterPath, err)
+		}
 	}
 
 	return nil
@@ -75,12 +88,12 @@ func setupNextWriter(a *Appender) error {
 	writerPath := filepath.Join(a.walOptions.basePath, fmt.Sprintf(defaultWalFilePattern, a.nextWriterNumber))
 	currentWriter, err := a.walOptions.writerFactory(writerPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while creating new wal appender writer under '%s': %w", writerPath, err)
 	}
 
 	err = currentWriter.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("error while opening new wal appender writer under '%s': %w", writerPath, err)
 	}
 
 	a.nextWriterNumber++
