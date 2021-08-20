@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -19,28 +20,28 @@ func TestGet(t *testing.T) {
 func TestMetaData(t *testing.T) {
 	reader := EmptySStableReader{}
 	assert.Equal(t, 0, int(reader.MetaData().NumRecords))
-	assert.Nil(t, reader.MetaData().MinKey)
-	assert.Nil(t, reader.MetaData().MaxKey)
+	require.Nil(t, reader.MetaData().MinKey)
+	require.Nil(t, reader.MetaData().MaxKey)
 }
 
 func TestScan(t *testing.T) {
 	reader := EmptySStableReader{}
 	it, err := reader.Scan()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	testConsumeEmptyIterator(t, it)
 }
 
 func TestEmptyScanStartingAt(t *testing.T) {
 	reader := EmptySStableReader{}
 	it, err := reader.ScanStartingAt([]byte{1, 2, 3})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	testConsumeEmptyIterator(t, it)
 }
 
 func TestEmptyScanRange(t *testing.T) {
 	reader := EmptySStableReader{}
 	it, err := reader.ScanRange([]byte{1, 2, 3}, []byte{1, 2, 5})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	testConsumeEmptyIterator(t, it)
 }
 

@@ -38,13 +38,13 @@ func (writer *SSTableStreamWriter) Open() error {
 		rProto.CompressionType(writer.opts.indexCompressionType),
 		rProto.WriteBufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
-		return err
+		return fmt.Errorf("error while creating index writer in '%s': %w", writer.opts.basePath, err)
 	}
 	writer.indexWriter = iWriter
 
 	err = writer.indexWriter.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("error while opening index writer in '%s': %w", writer.opts.basePath, err)
 	}
 
 	writer.dataFilePath = filepath.Join(writer.opts.basePath, DataFileName)
@@ -53,19 +53,19 @@ func (writer *SSTableStreamWriter) Open() error {
 		recordio.CompressionType(writer.opts.dataCompressionType),
 		recordio.BufferSizeBytes(writer.opts.writeBufferSizeBytes))
 	if err != nil {
-		return err
+		return fmt.Errorf("error while creating data writer in '%s': %w", writer.opts.basePath, err)
 	}
 
 	writer.dataWriter = dWriter
 	err = writer.dataWriter.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("error while opening data writer in '%s': %w", writer.opts.basePath, err)
 	}
 
 	writer.metaFilePath = filepath.Join(writer.opts.basePath, MetaFileName)
 	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while opening metadata file in '%s': %w", writer.opts.basePath, err)
 	}
 	writer.metaDataFile = metaFile
 	writer.metaData = &sProto.MetaData{
@@ -75,7 +75,7 @@ func (writer *SSTableStreamWriter) Open() error {
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while creating bloomfilter in '%s': %w", writer.opts.basePath, err)
 		}
 		writer.bloomFilter = bf
 	}
@@ -87,9 +87,9 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 	if writer.lastKey != nil {
 		cmpResult := writer.opts.keyComparator(writer.lastKey, key)
 		if cmpResult == 0 {
-			return errors.New("the same key cannot be written more than once")
+			return fmt.Errorf("sstables.WriteNext '%s': the same key cannot be written more than once", writer.opts.basePath)
 		} else if cmpResult > 0 {
-			return errors.New("non-ascending key cannot be written")
+			return fmt.Errorf("sstables.WriteNext '%s': non-ascending key cannot be written", writer.opts.basePath)
 		}
 
 		// the size of the key may be variable, that's why we might allocate a new buffer for the last key
@@ -98,7 +98,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		}
 	} else {
 		if writer.metaData == nil {
-			return errors.New("no metadata available to write into, did you Open the writer already?")
+			return fmt.Errorf("sstables.writeNext '%s': no metadata available to write into, table might not be opened yet", writer.opts.basePath)
 		}
 
 		writer.metaData.MinKey = make([]byte, len(key))
@@ -116,12 +116,12 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 
 	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
 	}
 
 	_, err = writer.indexWriter.Write(&sProto.IndexEntry{Key: key, ValueOffset: recordOffset})
 	if err != nil {
-		return err
+		return fmt.Errorf("error writeNext index writer error in '%s': %w", writer.opts.basePath, err)
 	}
 
 	writer.metaData.NumRecords += 1
@@ -132,18 +132,18 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 func (writer *SSTableStreamWriter) Close() error {
 	err := writer.indexWriter.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("error in closing index writer in '%s': %w", writer.opts.basePath, err)
 	}
 
 	err = writer.dataWriter.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("error in closing data writer in '%s': %w", writer.opts.basePath, err)
 	}
 
 	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
 		_, err := writer.bloomFilter.WriteFile(filepath.Join(writer.opts.basePath, BloomFileName))
 		if err != nil {
-			return err
+			return fmt.Errorf("error in writing bloom filter  in '%s': %w", writer.opts.basePath, err)
 		}
 	}
 
@@ -154,17 +154,17 @@ func (writer *SSTableStreamWriter) Close() error {
 		writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
 		bytes, err := proto.Marshal(writer.metaData)
 		if err != nil {
-			return err
+			return fmt.Errorf("error in serializing metadata in '%s': %w", writer.opts.basePath, err)
 		}
 
 		_, err = writer.metaDataFile.Write(bytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("error in writing metadata in '%s': %w", writer.opts.basePath, err)
 		}
 
 		err = writer.metaDataFile.Close()
 		if err != nil {
-			return err
+			return fmt.Errorf("error in closing metadata in '%s': %w", writer.opts.basePath, err)
 		}
 	}
 	return nil
@@ -187,7 +187,7 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.SkipLis
 			break
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("error in getting next skiplist record in '%s': %w", writer.streamWriter.opts.basePath, err)
 		}
 
 		kBytes, ok := k.([]byte)
@@ -202,13 +202,13 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.SkipLis
 
 		err = writer.streamWriter.WriteNext(kBytes, vBytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("error in writing skiplist record in '%s': %w", writer.streamWriter.opts.basePath, err)
 		}
 	}
 
 	err = writer.streamWriter.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("error closing streamWriter writing skiplist in '%s': %w", writer.streamWriter.opts.basePath, err)
 	}
 
 	return nil

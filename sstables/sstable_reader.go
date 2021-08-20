@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"errors"
+	"fmt"
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
@@ -54,14 +55,14 @@ func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) 
 		value := &proto.DataEntry{}
 		_, err := reader.v0DataReader.ReadNextAt(value, valOffset)
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while getting value at offset %d: %w", reader.opts.basePath, valOffset, err)
 		}
 
 		return value.Value, nil
 	} else {
 		val, err := reader.dataReader.ReadNextAt(valOffset)
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while getting value at offset %d: %w", reader.opts.basePath, valOffset, err)
 		}
 
 		return val, nil
@@ -72,36 +73,36 @@ func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 	if reader.v0DataReader != nil {
 		dataReader, err := rProto.NewProtoReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner: %w", reader.opts.basePath, err)
 		}
 
 		err = dataReader.Open()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while opening a scanner: %w", reader.opts.basePath, err)
 		}
 
 		reader.miscClosers = append(reader.miscClosers, dataReader)
 
 		it, err := reader.index.Iterator()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner iterator: %w", reader.opts.basePath, err)
 		}
 		return newV0SStableFullScanIterator(it, dataReader)
 	} else {
 		dataReader, err := recordio.NewFileReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner: %w", reader.opts.basePath, err)
 		}
 		err = dataReader.Open()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while opening a scanner: %w", reader.opts.basePath, err)
 		}
 
 		reader.miscClosers = append(reader.miscClosers, dataReader)
 
 		it, err := reader.index.Iterator()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner iterator: %w", reader.opts.basePath, err)
 		}
 		return newSStableFullScanIterator(it, dataReader)
 	}
@@ -110,7 +111,7 @@ func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
 	it, err := reader.index.IteratorStartingAt(key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in sstable '%s' in ScanStartingAt: %w", reader.opts.basePath, err)
 	}
 	return &SSTableIterator{reader: reader, keyIterator: it}, nil
 }
@@ -118,7 +119,7 @@ func (reader *SSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error
 func (reader *SSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTableIteratorI, error) {
 	it, err := reader.index.IteratorBetween(keyLower, keyHigher)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in sstable '%s' in ScanRange: %w", reader.opts.basePath, err)
 	}
 	return &SSTableIterator{reader: reader, keyIterator: it}, nil
 }
@@ -127,16 +128,22 @@ func (reader *SSTableReader) Close() error {
 	for _, e := range reader.miscClosers {
 		err := e.Close()
 		if err != nil {
-			return err
+			return fmt.Errorf("error in sstable '%s' while closing miscClosers: %w", reader.opts.basePath, err)
 		}
 	}
 
 	if reader.v0DataReader != nil {
-		return reader.v0DataReader.Close()
+		err := reader.v0DataReader.Close()
+		if err != nil {
+			return fmt.Errorf("error in sstable '%s' while closing dataReader: %w", reader.opts.basePath, err)
+		}
 	}
 
 	if reader.dataReader != nil {
-		return reader.dataReader.Close()
+		err := reader.dataReader.Close()
+		if err != nil {
+			return fmt.Errorf("error in sstable '%s' while closing dataReader: %w", reader.opts.basePath, err)
+		}
 	}
 
 	return nil
@@ -163,26 +170,26 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	}
 
 	if opts.basePath == "" {
-		return nil, errors.New("basePath was not supplied")
+		return nil, errors.New("SSTableReader: basePath was not supplied")
 	}
 
 	if opts.keyComparator == nil {
-		return nil, errors.New("no key comparator supplied")
+		return nil, errors.New("SSTableReader: no key comparator supplied")
 	}
 
 	index, err := readIndex(filepath.Join(opts.basePath, IndexFileName), opts.keyComparator)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading index of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	filter, err := readFilterIfExists(filepath.Join(opts.basePath, BloomFileName))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading filter of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading metadata of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	reader := &SSTableReader{opts: opts, bloomFilter: filter, index: index, metaData: metaData}
@@ -190,24 +197,24 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	if metaData.Version == 0 {
 		v0DataReader, err := rProto.NewMMapProtoReaderWithPath(filepath.Join(opts.basePath, DataFileName))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while creating proto data reader of sstable in '%s': %w", opts.basePath, err)
 		}
 
 		err = v0DataReader.Open()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while opening proto data reader of sstable in '%s': %w", opts.basePath, err)
 		}
 
 		reader.v0DataReader = v0DataReader
 	} else {
 		dataReader, err := recordio.NewMemoryMappedReaderWithPath(filepath.Join(opts.basePath, DataFileName))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while creating data reader of sstable in '%s': %w", opts.basePath, err)
 		}
 
 		err = dataReader.Open()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while opening data reader of sstable in '%s': %w", opts.basePath, err)
 		}
 
 		reader.dataReader = dataReader
@@ -219,12 +226,12 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist.SkipListMapI, error) {
 	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
 	}
 
 	err = reader.Open()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while opening index reader of sstable in '%s': %w", indexPath, err)
 	}
 
 	indexMap := skiplist.NewSkipListMap(keyComparator)
@@ -238,7 +245,7 @@ func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
 
 		indexMap.Insert(record.Key, record.ValueOffset)
@@ -246,7 +253,7 @@ func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist
 
 	err = reader.Close()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while closing index reader of sstable in '%s': %w", indexPath, err)
 	}
 
 	return indexMap, nil
@@ -259,7 +266,7 @@ func readFilterIfExists(filterPath string) (*bloomfilter.Filter, error) {
 
 	filter, _, err := bloomfilter.ReadFile(filterPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading bloom filterin '%s': %w", filterPath, err)
 	}
 
 	return filter, nil
@@ -273,22 +280,22 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 
 	mpf, err := os.Open(metaPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while opening metadata in '%s': %w", metaPath, err)
 	}
 
 	content, err := ioutil.ReadAll(mpf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading metadata in '%s': %w", metaPath, err)
 	}
 
 	err = pb.Unmarshal(content, md)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while parsing metadata in '%s': %w", metaPath, err)
 	}
 
 	err = mpf.Close()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while closing metadata in '%s': %w", metaPath, err)
 	}
 
 	return md, nil

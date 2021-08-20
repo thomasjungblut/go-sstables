@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"sort"
 	"testing"
@@ -37,7 +38,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer cleanWriterDir(t, writer)
 		expectedNumbers = append(expectedNumbers, streamedWriteElements(t, writer, numElementsPerFile)...)
 		reader, iterator := getFullScanIterator(t, writer.opts.basePath)
@@ -47,7 +48,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer cleanWriterDir(t, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator)
@@ -55,7 +56,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
 	}, outWriter)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -89,7 +90,7 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		writersToClean = append(writersToClean, writer)
 
 		// all numbers returned here should be the exact same
@@ -101,7 +102,7 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	writersToClean = append(writersToClean, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator)
@@ -116,7 +117,7 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 			// always pick the first one
 			return key, values[0]
 		})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -132,7 +133,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer cleanWriterDir(t, writer)
 
 		// since the ranges overlap we have to make them unique to get our final expected set of numbers
@@ -150,7 +151,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer cleanWriterDir(t, outWriter)
 
 	reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
@@ -163,7 +164,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
 	}, outWriter, reduceFunc)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -176,7 +177,7 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 	numElementsPerFile := 250
 	for i := 0; i < numFiles; i++ {
 		writer, err := newTestSSTableStreamWriter()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer cleanWriterDir(t, writer)
 
 		streamedWriteAscendingIntegersWithStart(t, writer, i*25, numElementsPerFile)
@@ -187,7 +188,7 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 	}
 
 	outWriter, err := newTestSSTableStreamWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer cleanWriterDir(t, outWriter)
 
 	reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
@@ -200,6 +201,6 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
 	}, outWriter, reduceFunc)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, []int{})
 }

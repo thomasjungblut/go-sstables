@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"sort"
 	"testing"
@@ -83,7 +84,7 @@ func TestInitContextFail(t *testing.T) {
 		Iterators:       []SSTableIteratorI{},
 		IteratorContext: []interface{}{"a", "b"},
 	})
-	assert.Equal(t, errors.New("merge context iterator length does not equal iterator context length"), err)
+	assert.Equal(t, errors.New("merge context iterator length (0) does not equal iterator context length (2)"), err)
 }
 
 func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
@@ -106,7 +107,7 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 		Iterators:       input,
 		IteratorContext: context,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, nonEmptyLists, pq.size)
 
 	var actual []int

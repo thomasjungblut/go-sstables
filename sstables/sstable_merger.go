@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"fmt"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
@@ -17,12 +18,12 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 	pq := NewPriorityQueue(m.comp)
 	err := pq.Init(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("merge error while initializing the heap: %w", err)
 	}
 
 	err = writer.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("merge error while opening writer: %w", err)
 	}
 
 	for {
@@ -31,19 +32,19 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 			if err == Done {
 				break
 			} else {
-				return err
+				return fmt.Errorf("merge error during heap next: %w", err)
 			}
 		}
 
 		err = writer.WriteNext(k, v)
 		if err != nil {
-			return err
+			return fmt.Errorf("merge error while writing next record: %w", err)
 		}
 	}
 
 	err = writer.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("merge error while closing the writer: %w", err)
 	}
 
 	return nil
@@ -106,7 +107,7 @@ func (m SSTableMerger) MergeCompactIterator(ctx MergeContext,
 	pq := NewPriorityQueue(m.comp)
 	err := pq.Init(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("merge compact error while initializing the heap: %w", err)
 	}
 
 	var prevKey []byte
@@ -130,12 +131,12 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 
 	iterator, err := m.MergeCompactIterator(ctx, reduce)
 	if err != nil {
-		return err
+		return fmt.Errorf("merge compact error while initializing the iterator: %w", err)
 	}
 
 	err = writer.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("merge compact error while opening the writer: %w", err)
 	}
 
 	for {
@@ -144,7 +145,7 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 			if err == Done {
 				break
 			} else {
-				return err
+				return fmt.Errorf("merge compact error while iterating: %w", err)
 			}
 		}
 		err = writer.WriteNext(k, v)
@@ -152,7 +153,7 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 
 	err = writer.Close()
 	if err != nil {
-		return err
+		return fmt.Errorf("merge compact error while closing the writer: %w", err)
 	}
 
 	return nil

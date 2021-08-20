@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestSuperSimpleHappyPathReadReadRecordIOV1(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -31,7 +32,7 @@ func TestSuperSimpleHappyPathReadRecordIOV2(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -50,13 +51,13 @@ func TestSuperSimpleHappyPathReadRecordIOV2Overlapping(t *testing.T) {
 	reader1, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
@@ -75,7 +76,7 @@ func TestSuperSimpleHappyPathBloomRead(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -95,7 +96,7 @@ func TestSuperSimpleHappyPathWithMetaData(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -114,7 +115,7 @@ func TestSuperNegativeContainsHappyPath(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -129,7 +130,7 @@ func TestSuperNegativeContainsHappyPathBloom(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -144,7 +145,7 @@ func TestSuperFullScan(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -154,7 +155,7 @@ func TestSuperFullScan(t *testing.T) {
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	it, err := reader.Scan()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 }
 
@@ -162,13 +163,13 @@ func TestSuperFullScanOverlapping(t *testing.T) {
 	reader1, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
@@ -178,7 +179,7 @@ func TestSuperFullScanOverlapping(t *testing.T) {
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	it, err := reader.Scan()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 }
 
@@ -186,7 +187,7 @@ func TestSuperScanStartingAt(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -197,23 +198,23 @@ func TestSuperScanStartingAt(t *testing.T) {
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	// whole sequence when out of bounds to the left
 	it, err := reader.ScanStartingAt(intToByteSlice(0))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 
 	// staggered test
 	for i, start := range expected {
 		sliced := expected[i:]
 		it, err := reader.ScanStartingAt(intToByteSlice(start))
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assertIteratorMatchesSlice(t, it, sliced)
 	}
 
 	// test out of range iteration, which should yield an empty iterator
 	it, err = reader.ScanStartingAt(intToByteSlice(10))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	require.Nil(t, k)
+	require.Nil(t, v)
 	assert.Equal(t, Done, err)
 }
 
@@ -221,7 +222,7 @@ func TestSuperScanRange(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
@@ -232,17 +233,17 @@ func TestSuperScanRange(t *testing.T) {
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
 	// whole sequence when out of bounds to the left and right
 	it, err := reader.ScanRange(intToByteSlice(0), intToByteSlice(10))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 
 	// whole sequence when in bounds for inclusiveness
 	it, err = reader.ScanRange(intToByteSlice(1), intToByteSlice(7))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 
 	// only 4 when requesting between 4 and 4
 	it, err = reader.ScanRange(intToByteSlice(4), intToByteSlice(4))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, []int{4})
 
 	// error when higher key and lower key are inconsistent
@@ -253,7 +254,7 @@ func TestSuperScanRange(t *testing.T) {
 	for i, start := range expected {
 		sliced := expected[i:]
 		it, err := reader.ScanRange(intToByteSlice(start), intToByteSlice(10))
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assertIteratorMatchesSlice(t, it, sliced)
 	}
 
@@ -261,7 +262,7 @@ func TestSuperScanRange(t *testing.T) {
 	for i, start := range expected {
 		it, err := reader.ScanRange(intToByteSlice(start), intToByteSlice(expected[len(expected)-i-1]))
 		if i <= (len(expected) / 2) {
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			sliced := expected[i : len(expected)-i]
 			assertIteratorMatchesSlice(t, it, sliced)
 		} else {
@@ -271,10 +272,10 @@ func TestSuperScanRange(t *testing.T) {
 
 	// test out of range iteration, which should yield an empty iterator
 	it, err = reader.ScanRange(intToByteSlice(10), intToByteSlice(100))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	require.Nil(t, k)
+	require.Nil(t, v)
 	assert.Equal(t, Done, err)
 }
 
@@ -296,22 +297,22 @@ func TestScanReduceFunc(t *testing.T) {
 
 func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 	writer, err := newTestSSTableSimpleWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer cleanWriterDir(t, writer.streamWriter)
 
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{0, 1, 2, 4, 8, 9, 10}))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	reader1, err := NewSSTableReader(
 		ReadBasePath(writer.streamWriter.opts.basePath),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
 		ReadWithKeyComparator(skiplist.BytesComparator))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
@@ -328,22 +329,22 @@ func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 
 	// whole sequence when out of bounds to the left and right
 	it, err := reader.ScanRange(intToByteSlice(0), intToByteSlice(25))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 
 	// whole sequence when in bounds for inclusiveness
 	it, err = reader.ScanRange(intToByteSlice(0), intToByteSlice(10))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, expected)
 
 	// only 4 when requesting between 4 and 4
 	it, err = reader.ScanRange(intToByteSlice(4), intToByteSlice(4))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, []int{4})
 
 	// only 3-7
 	it, err = reader.ScanRange(intToByteSlice(3), intToByteSlice(7))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertIteratorMatchesSlice(t, it, []int{3, 4, 5, 6, 7})
 
 	// error when higher key and lower key are inconsistent
@@ -354,7 +355,7 @@ func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 	for i, start := range expected {
 		sliced := expected[i:]
 		it, err := reader.ScanRange(intToByteSlice(start), intToByteSlice(25))
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		assertIteratorMatchesSlice(t, it, sliced)
 	}
 
@@ -362,7 +363,7 @@ func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 	for i, start := range expected {
 		it, err := reader.ScanRange(intToByteSlice(start), intToByteSlice(expected[len(expected)-i-1]))
 		if i <= (len(expected) / 2) {
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			sliced := expected[i : len(expected)-i]
 			assertIteratorMatchesSlice(t, it, sliced)
 		} else {
@@ -372,9 +373,9 @@ func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 
 	// test out of range iteration, which should yield an empty iterator
 	it, err = reader.ScanRange(intToByteSlice(11), intToByteSlice(100))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	require.Nil(t, k)
+	require.Nil(t, v)
 	assert.Equal(t, Done, err)
 }

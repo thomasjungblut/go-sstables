@@ -1,7 +1,7 @@
 package sstables
 
 import (
-	"errors"
+	"fmt"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
@@ -40,7 +40,7 @@ func (pq PriorityQueue) swap(i, j int) {
 
 func (pq *PriorityQueue) Init(ctx MergeContext) error {
 	if len(ctx.Iterators) != len(ctx.IteratorContext) {
-		return errors.New("merge context iterator length does not equal iterator context length")
+		return fmt.Errorf("merge context iterator length (%d) does not equal iterator context length (%d)", len(ctx.Iterators), len(ctx.IteratorContext))
 	}
 	// reserve the 0th element for nil, makes it easier to implement the rest of the logic
 	pq.heap = []*Element{nil}
@@ -52,7 +52,7 @@ func (pq *PriorityQueue) Init(ctx MergeContext) error {
 			pq.size++
 			pq.upHeap(pq.size)
 		} else if err != Done {
-			return err
+			return fmt.Errorf("INIT couldn't fill next heap entry: %w", err)
 		}
 	}
 
@@ -71,7 +71,7 @@ func (pq *PriorityQueue) Next() ([]byte, []byte, interface{}, error) {
 	err := fillNext(top)
 	// if we encounter a real error, we're returning immediately
 	if err != nil && err != Done {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("NEXT couldn't fill next heap entry: %w", err)
 	}
 
 	// remove the element from the heap completely if its iterator is exhausted
