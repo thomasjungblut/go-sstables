@@ -34,42 +34,42 @@ type FileWriter struct {
 
 func (w *FileWriter) Open() error {
 	if w.open {
-		return errors.New("already opened")
+		return fmt.Errorf("file writer for '%s' is already opened", w.file.Name())
 	}
 
 	if w.closed {
-		return errors.New("already closed")
+		return fmt.Errorf("file writer for '%s' is already closed", w.file.Name())
 	}
 
 	stat, err := w.file.Stat()
 	if err != nil {
-		return err
+		return fmt.Errorf("file stat for '%s' failed with %w", w.file.Name(), err)
 	}
 
 	if stat.Size() != 0 {
-		return errors.New("file is not empty")
+		return fmt.Errorf("file at '%s' is not empty", w.file.Name())
 	}
 
 	// make sure we are at the start of the file
 	newOffset, err := w.file.Seek(0, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("seeking in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	if newOffset != 0 {
-		return fmt.Errorf("seek did not return offset 0, it was: %d", newOffset)
+		return fmt.Errorf("seeking for offset 0 in '%s' failed, found offset: %d", w.file.Name(), newOffset)
 	}
 
 	w.bufWriter.Reset(w.file)
 
 	offset, err := writeFileHeader(w)
 	if err != nil {
-		return err
+		return fmt.Errorf("writing header in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	w.compressor, err = NewCompressorForType(w.compressionType)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating compressor with type '%d' in file at '%s' failed with %w", w.compressionType, w.file.Name(), err)
 	}
 
 	w.currentOffset = uint64(offset)
@@ -80,7 +80,7 @@ func (w *FileWriter) Open() error {
 	// we flush early to get a valid file with header written, this is important in crash scenarios
 	err = w.bufWriter.Flush()
 	if err != nil {
-		return err
+		return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	return nil
@@ -161,7 +161,7 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 
 		compressedRecord, err := w.compressor.CompressWithBuf(recordToWrite, poolBuffer)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to compress record in file at '%s' failed with %w", w.file.Name(), err)
 		}
 		recordToWrite = compressedRecord
 		compressedSize = uint64(len(compressedRecord))
@@ -170,27 +170,27 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	prevOffset := w.currentOffset
 	headerBytesWritten, err := writeRecordHeaderV2(w, uncompressedSize, compressedSize)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to write record header in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	recordBytesWritten, err := w.bufWriter.Write(recordToWrite)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to write record in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	if recordBytesWritten != len(recordToWrite) {
-		return 0, errors.New("mismatch in written record len")
+		return 0, fmt.Errorf("mismatch in written record len for file '%s', expected %d but were %d", w.file.Name(), recordToWrite, recordBytesWritten)
 	}
 
 	if sync {
 		err = w.bufWriter.Flush()
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to flush sync in file at '%s' failed with %w", w.file.Name(), err)
 		}
 
 		err = w.file.Sync()
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
 		}
 	}
 
@@ -203,9 +203,13 @@ func (w *FileWriter) Close() error {
 	w.open = false
 	err := w.bufWriter.Flush()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to flush close in file at '%s' failed with %w", w.file.Name(), err)
 	}
-	return w.file.Close()
+	err = w.file.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close file at '%s' failed with %w", w.file.Name(), err)
+	}
+	return nil
 }
 
 func (w *FileWriter) Size() uint64 {
@@ -278,23 +282,23 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	}
 
 	if (opts.file != nil) && (opts.path != "") {
-		return nil, errors.New("either os.File or string path must be supplied, never both")
+		return nil, errors.New("NewFileWriter: either os.File or string path must be supplied, never both")
 	}
 
 	if opts.file == nil {
 		if opts.path == "" {
-			return nil, errors.New("path was not supplied")
+			return nil, errors.New("NewFileWriter: path was not supplied")
 		}
 		if opts.useDirectIO {
 			f, err := directio.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to open file with directIO at '%s' failed with %w", opts.path, err)
 			}
 			opts.file = f
 		} else {
 			f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to open file at '%s' failed with %w", opts.path, err)
 			}
 			opts.file = f
 		}

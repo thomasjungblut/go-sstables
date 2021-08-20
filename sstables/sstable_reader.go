@@ -233,7 +233,7 @@ func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist
 		record := &proto.IndexEntry{}
 		_, err := reader.ReadNext(record)
 		// io.EOF signals that no records are left to be read
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 

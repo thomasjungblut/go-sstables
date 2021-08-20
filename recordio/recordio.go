@@ -65,22 +65,23 @@ type WriterI interface {
 
 type ReaderI interface {
 	OpenClosableI
-	// Reads the next record, EOF error when it reaches the end signalled by (nil, io.EOF)
+	// Reads the next record, EOF error when it reaches the end signalled by (nil, io.EOF). It can be wrapped however, so always check using errors.Is(err, io.EOF).
 	ReadNext() ([]byte, error)
-	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error
+	// skips the next record, EOF error when it reaches the end signalled by io.EOF as the error. It can be wrapped however, so always check using errors.Is(err, io.EOF).
 	SkipNext() error
 }
 
 // this type is thread-safe
 type ReadAtI interface {
 	OpenClosableI
-	// Reads the next record at the given offset, EOF error when it reaches the end signalled by (nil, io.EOF), implementation must be thread-safe
+	// Reads the next record at the given offset, EOF error when it reaches the end signalled by (nil, io.EOF).
+	// It can be wrapped however, so always check using errors.Is(err, io.EOF). Implementation must be thread-safe.
 	ReadNextAt(offset uint64) ([]byte, error)
 }
 
 // Returns an instance of the desired compressor defined by its identifier.
 // An error is returned if the desired compressor is not implemented.
-// Currently only CompressionTypeNone,CompressionTypeSnappy and CompressionTypeGZIP are available.
+// Only CompressionTypeNone, CompressionTypeSnappy and CompressionTypeGZIP are available currently.
 func NewCompressorForType(compType int) (compressor.CompressionI, error) {
 	switch compType {
 	case CompressionTypeNone:

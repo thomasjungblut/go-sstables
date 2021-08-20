@@ -2,12 +2,10 @@ package recordio
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	pool "github.com/libp2p/go-buffer-pool"
 	"io"
 	"os"
-	"strconv"
 )
 
 type FileReader struct {
@@ -22,21 +20,21 @@ type FileReader struct {
 
 func (r *FileReader) Open() error {
 	if r.open {
-		return errors.New("already opened")
+		return fmt.Errorf("file reader for '%s' is already opened", r.file.Name())
 	}
 
 	if r.closed {
-		return errors.New("already closed")
+		return fmt.Errorf("file reader for '%s' is already closed", r.file.Name())
 	}
 
 	// make sure we are at the start of the file
 	newOffset, err := r.file.Seek(0, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while seeking file '%s' to zero: %w", r.file.Name(), err)
 	}
 
 	if newOffset != 0 {
-		return errors.New("seek did not return offset 0, it was: " + strconv.FormatInt(newOffset, 10))
+		return fmt.Errorf("seeking in '%s' did not return offset 0, it was %d", r.file.Name(), newOffset)
 	}
 
 	r.reader = NewCountingByteReader(bufio.NewReaderSize(r.file, DefaultBufferSize))
@@ -45,16 +43,16 @@ func (r *FileReader) Open() error {
 	bytes := make([]byte, FileHeaderSizeBytes)
 	numRead, err := io.ReadFull(r.reader, bytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while reading header bytes of '%s': %w", r.file.Name(), err)
 	}
 
 	if numRead != len(bytes) {
-		return fmt.Errorf("not enough bytes in the header found, expected %d but were %d", len(bytes), numRead)
+		return fmt.Errorf("not enough bytes found in the header, expected %d but were %d", len(bytes), numRead)
 	}
 
 	r.header, err = readFileHeaderFromBuffer(bytes)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while parsing header of '%s': %w", r.file.Name(), err)
 	}
 
 	r.currentOffset = uint64(len(bytes))
@@ -67,7 +65,7 @@ func (r *FileReader) Open() error {
 
 func (r *FileReader) ReadNext() ([]byte, error) {
 	if !r.open || r.closed {
-		return nil, errors.New("reader was either not opened yet or is closed already")
+		return nil, fmt.Errorf("file reader for '%s' was either not opened yet or is closed already", r.file.Name())
 	}
 
 	if r.header.fileVersion == Version1 {
@@ -76,17 +74,17 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 		}
 
 		expectedBytesRead, pooledRecordBuffer := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
 		numRead, err := io.ReadFull(r.reader, pooledRecordBuffer)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while reading into record buffer of '%s': %w", r.file.Name(), err)
 		}
 
 		if uint64(numRead) != expectedBytesRead {
-			return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
+			return nil, fmt.Errorf("not enough bytes in the record of '%s' found, expected %d but were %d", r.file.Name(), expectedBytesRead, numRead)
 		}
 
 		var returnSlice []byte
@@ -116,7 +114,7 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 
 func (r *FileReader) SkipNext() error {
 	if !r.open || r.closed {
-		return errors.New("reader was either not opened yet or is closed already")
+		return fmt.Errorf("file reader for '%s' was either not opened yet or is closed already", r.file.Name())
 	}
 
 	if r.header.fileVersion == Version1 {
@@ -125,7 +123,7 @@ func (r *FileReader) SkipNext() error {
 		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 		}
 
 		expectedBytesSkipped := payloadSizeUncompressed
@@ -137,11 +135,11 @@ func (r *FileReader) SkipNext() error {
 		expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
 		newOffset, err := r.file.Seek(expectedOffset, 0)
 		if err != nil {
-			return err
+			return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
 		}
 
 		if newOffset != expectedOffset {
-			return errors.New("seek did not return expected offset, it was: " + strconv.FormatInt(newOffset, 10))
+			return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
 		}
 
 		r.reader.Reset(r.file)
@@ -156,7 +154,7 @@ func SkipNextV1(r *FileReader) error {
 	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
 	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
 	if numRead != RecordHeaderSizeBytes {
@@ -166,7 +164,7 @@ func SkipNextV1(r *FileReader) error {
 	r.currentOffset = r.currentOffset + uint64(numRead)
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(headerBuf)
 	if err != nil {
-		return nil
+		return fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 	}
 
 	r.bufferPool.Put(headerBuf)
@@ -179,11 +177,11 @@ func SkipNextV1(r *FileReader) error {
 	expectedOffset := int64(r.currentOffset + expectedBytesSkipped)
 	newOffset, err := r.file.Seek(expectedOffset, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
 	}
 
 	if newOffset != expectedOffset {
-		return errors.New("seek did not return expected offset, it was: " + strconv.FormatInt(newOffset, 10))
+		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
 	}
 
 	// reset the buffered reader after the seek
@@ -204,34 +202,34 @@ func readNextV1(r *FileReader) ([]byte, error) {
 	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
 	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
 	if numRead != RecordHeaderSizeBytes {
-		return nil, fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
+		return nil, fmt.Errorf("not enough bytes in the record header of '%s' found, expected %d but were %d", r.file.Name(), RecordHeaderSizeBytes, numRead)
 	}
 
 	r.currentOffset = r.currentOffset + uint64(numRead)
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(headerBuf)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 	}
 	r.bufferPool.Put(headerBuf)
 
 	expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
 	numRead, err = io.ReadFull(r.reader, recordBuffer)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while reading into record buffer of '%s': %w", r.file.Name(), err)
 	}
 
 	if uint64(numRead) != expectedBytesRead {
-		return nil, fmt.Errorf("not enough bytes in the record found, expected %d but were %d", expectedBytesRead, numRead)
+		return nil, fmt.Errorf("not enough bytes in the record found of '%s', expected %d but were %d", r.file.Name(), expectedBytesRead, numRead)
 	}
 
 	if r.header.compressor != nil {
 		recordBuffer, err = r.header.compressor.Decompress(recordBuffer)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error while decompressing record of '%s': %w", r.file.Name(), err)
 		}
 	}
 
@@ -243,12 +241,12 @@ func readNextV1(r *FileReader) ([]byte, error) {
 func NewFileReaderWithPath(path string) (ReaderI, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while opening recordio '%s': %w", path, err)
 	}
 
 	r, err := NewFileReaderWithFile(f)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error while creating new recordio '%s': %w", path, err)
 	}
 
 	return r, nil

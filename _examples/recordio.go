@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/_examples/proto"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
@@ -34,7 +35,7 @@ func simpleRead(path string) {
 		record := &proto.HelloWorld{}
 		_, err := reader.ReadNext(record)
 		// io.EOF signals that no records are left to be read
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 

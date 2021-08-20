@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"errors"
 	"fmt"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"io"
@@ -57,7 +58,7 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 		for {
 			bytes, err := reader.ReadNext()
 			// io.EOF signals that no records are left to be read
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 

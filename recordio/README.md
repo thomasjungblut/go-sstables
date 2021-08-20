@@ -40,7 +40,7 @@ By default, the `recordio.NewFileWriter` will not use any compression, but if co
 
 ### Reading
 
-Reading follows the general lifecycle as well. The reading works by reading the next byte slices until `io.EOF` is returned - which is a familiar pattern from other "iterables".
+Reading follows the general lifecycle as well. The reading works by reading the next byte slices until `io.EOF` (or a wrapped alternative) is returned - which is a familiar pattern from other "iterables".
 
 ```go
 import (
@@ -55,8 +55,8 @@ if err != nil { log.Fatalf("error: %v", err) }
 
 for {
     _, err := reader.ReadNext()
-    // io.EOF signals that no records are left to be read
-    if err == io.EOF {
+    // io.EOF signals that no records are left to be read, could be wrapped - so always check using errors.Is()
+    if errors.Is(err, io.EOF) {
         break
     }
 

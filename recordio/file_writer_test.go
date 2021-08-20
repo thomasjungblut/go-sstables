@@ -3,6 +3,7 @@ package recordio
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -29,7 +30,7 @@ func TestWriterWriteNil(t *testing.T) {
 	defer closeFileReader(t, reader)
 
 	buf, err := reader.ReadNext()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, []byte{}, buf)
 	readNextExpectEOF(t, reader)
 }
@@ -41,7 +42,7 @@ func TestSingleWriteSize(t *testing.T) {
 	size := writer.Size()
 	assert.Equal(t, uint64(0x1a), size)
 	stat, err := os.Stat(writer.file.Name())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, int64(0x1a), stat.Size())
 	assert.Equal(t, size, uint64(stat.Size()))
 }
@@ -53,26 +54,26 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	offset, err := writer.Write(randomRecordOfSize(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	assert.Equal(t, uint64(0x12), writer.Size())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(10))
 	assert.Equal(t, uint64(0x12), offset)
 	assert.Equal(t, uint64(0x21), writer.Size())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(25))
 	assert.Equal(t, uint64(0x21), offset)
 	assert.Equal(t, uint64(0x3f), writer.Size())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	assert.Equal(t, uint64(0x3f), writer.currentOffset)
 	assert.Equal(t, uint64(0x3f), writer.Size())
 
 	err = writer.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	stat, err := os.Stat(writer.file.Name())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, int64(63), stat.Size())
 
 	reader := newReaderOnTopOfWriter(t, writer)
@@ -90,9 +91,9 @@ func TestWriterForbidsClosedWrites(t *testing.T) {
 	// file is closed, should not allow us to write anymore
 	offset, err := writer.Write(make([]byte, 0))
 	assert.Equal(t, uint64(0), offset)
-	assert.Equal(t, errors.New("writer was either not opened yet or is closed already"), err)
+	assert.Contains(t, err.Error(), "writer was either not opened yet or is closed already")
 	err = writer.Open()
-	assert.Equal(t, errors.New("already closed"), err)
+	assert.Contains(t, err.Error(), "already closed")
 }
 
 func TestWriterForbidsDoubleOpens(t *testing.T) {
@@ -101,7 +102,7 @@ func TestWriterForbidsDoubleOpens(t *testing.T) {
 	defer closeFileWriter(t, writer)
 
 	err := writer.Open()
-	assert.Equal(t, errors.New("already opened"), err)
+	assert.Contains(t, err.Error(), "already opened")
 }
 
 func TestWriterForbidsWritesOnUnopenedFiles(t *testing.T) {
@@ -109,45 +110,45 @@ func TestWriterForbidsWritesOnUnopenedFiles(t *testing.T) {
 	defer removeFileWriterFile(t, writer)
 	defer closeFileWriter(t, writer)
 
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	_, err = writer.Write(make([]byte, 0))
 	assert.Equal(t, errors.New("writer was either not opened yet or is closed already"), err)
 }
 
 func TestUnsupportedCompressionType(t *testing.T) {
 	w, err := newCompressedTestWriter(5)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = w.Open()
-	assert.Equal(t, errors.New("unsupported compression type 5"), err)
+	assert.Equal(t, errors.New("unsupported compression type 5"), errors.Unwrap(err))
 }
 
 func TestWriterOpenNonEmptyFile(t *testing.T) {
 	writer := singleWrite(t)
 	stat, err := os.Stat(writer.file.Name())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.NotEqual(t, 8, stat.Size())
 	defer removeFileWriterFile(t, writer)
 
 	writer, err = newWriterStruct(Path(writer.file.Name()))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer closeFileWriter(t, writer)
 
 	err = writer.Open()
-	assert.Equal(t, errors.New("file is not empty"), err)
+	assert.Contains(t, err.Error(), "not empty")
 }
 
 func TestWriterDoublePathFileInit(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	defer os.Remove(tmpFile.Name())
 	_, err = NewFileWriter(Path("/tmp/abc"), File(tmpFile))
-	assert.Equal(t, errors.New("either os.File or string path must be supplied, never both"), err)
+	assert.Equal(t, errors.New("NewFileWriter: either os.File or string path must be supplied, never both"), err)
 }
 
 func TestWriterInitNoPath(t *testing.T) {
 	_, err := NewFileWriter()
-	assert.Equal(t, errors.New("path was not supplied"), err)
+	assert.Equal(t, errors.New("NewFileWriter: path was not supplied"), err)
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
@@ -213,42 +214,42 @@ func simpleWriteBytes(t *testing.T, record []byte) *FileWriter {
 	offset, err := writer.Write(record)
 	// first offset should always be 8 bytes (for version and compression type in the file header)
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = writer.Close()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	return writer
 }
 
 func newOpenedWriter(t *testing.T) *FileWriter {
 	writer, err := newUncompressedTestWriter()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	err = writer.Open()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	return writer
 }
 
 func readNextExpectRandomBytesOfLen(t *testing.T, reader *FileReader, expectedLen int) {
 	buf, err := reader.ReadNext()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, expectedLen, len(buf))
 }
 
 func readNextExpectAscendingBytesOfLen(t *testing.T, reader *FileReader, expectedLen int) {
 	buf, err := reader.ReadNext()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assertAscendingBytes(t, buf, expectedLen)
 }
 
 func readNextExpectEOF(t *testing.T, reader *FileReader) {
 	buf, err := reader.ReadNext()
-	assert.Nil(t, buf)
-	assert.Equal(t, io.EOF, err)
+	require.Nil(t, buf)
+	assert.Equal(t, io.EOF, errors.Unwrap(err))
 }
 
 func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
 	reader, err := NewFileReaderWithPath(writer.file.Name())
-	assert.Nil(t, err)
-	assert.Nil(t, reader.Open())
+	require.Nil(t, err)
+	require.Nil(t, reader.Open())
 	return reader.(*FileReader)
 }
 

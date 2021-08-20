@@ -100,7 +100,7 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator))
 	assert.Nil(t, err)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{}))
-	assert.Equal(t, errors.New("unsupported compression type 25"), err)
+	assert.Equal(t, errors.New("unsupported compression type 25"), errors.Unwrap(err))
 	assert.Nil(t, writer.streamWriter.Close())
 }
 
