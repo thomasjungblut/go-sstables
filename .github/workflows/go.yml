@@ -2,9 +2,9 @@ name: Go
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
 
@@ -16,7 +16,7 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: 1.15
-    - name: Test
-      run: make unit-test
     - name: Go vet
       run: make vet
+    - name: Test
+      run: make unit-test

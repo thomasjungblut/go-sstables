@@ -62,7 +62,7 @@ func TestFlushEmptyMemstore(t *testing.T) {
 	db := &DB{currentGeneration: 0}
 	err := executeFlush(db, action)
 	assert.Nil(t, err)
-	assert.Equal(t, int64(0), db.currentGeneration)
+	assert.Equal(t, uint64(0), db.currentGeneration)
 }
 
 func TestFlushPathsSortCorrectly(t *testing.T) {

@@ -53,7 +53,7 @@ func TestRecoveryReconstructWithWrongPatternFails(t *testing.T) {
 
 	err := db.reconstructSSTables()
 	assert.Equal(t, &strconv.NumError{
-		Func: "ParseInt",
+		Func: "ParseUint",
 		Num:  "000000000001337-",
 		Err:  strconv.ErrSyntax,
 	}, err)

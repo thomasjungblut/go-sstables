@@ -1,6 +1,7 @@
 # go option
 GO        ?= go
 TAGS      :=
+BUILDFLAGS := -race
 TESTS     := ./...
 TESTFLAGS := -race
 LDFLAGS   :=
@@ -45,10 +46,10 @@ bench-simpledb:
 unit-test:
 	@echo
 	@echo "==> Building <=="
-	$(GO) build -race $(TESTS)
+	$(GO) build $(BUILDFLAGS) -race $(TESTS)
 	@echo "==> Running unit tests <=="
 	$(GO) clean -testcache
-	$(GO) test $(GOFLAGS) $(TESTS) $(TESTFLAGS)
+	$(GO) test $(GOFLAGS) $(TESTFLAGS) $(TESTS)
     # separately test simpledb, because the race detector
     # increases the runtime of the end2end tests too much (10-20m)
     # the race-simpledb target can be used to test that
