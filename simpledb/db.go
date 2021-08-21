@@ -59,7 +59,7 @@ type memStoreFlushAction struct {
 type DB struct {
 	// NOTE: the generation to be 64-bit aligned for 32-bit targets (e.g. ARM), so be careful when moving this field anywhere else.
 	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
-	currentGeneration int64
+	currentGeneration uint64
 
 	cmp                   skiplist.KeyComparator
 	basePath              string
@@ -317,6 +317,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	sstableManager := NewSSTableManager(cmp, rwLock, basePath)
 
 	return &DB{
+		currentGeneration:           uint64(0),
 		cmp:                         cmp,
 		basePath:                    basePath,
 		currentSSTablePath:          "",
@@ -335,7 +336,6 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		doneFlushChannel:            doneFlushChan,
 		compactionTickerStopChannel: compactionTimerStopChannel,
 		doneCompactionChannel:       doneCompactionChan,
-		currentGeneration:           0,
 	}, nil
 }
 

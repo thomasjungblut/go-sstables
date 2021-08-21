@@ -40,7 +40,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 
 	start := time.Now()
 
-	gen := atomic.AddInt64(&db.currentGeneration, 1)
+	gen := atomic.AddUint64(&db.currentGeneration, uint64(1))
 	writePath := filepath.Join(db.basePath, fmt.Sprintf(SSTablePattern, gen))
 	err := os.MkdirAll(writePath, 0700)
 	if err != nil {
