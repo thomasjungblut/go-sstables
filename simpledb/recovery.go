@@ -144,7 +144,7 @@ func (db *DB) reconstructSSTables() error {
 		sort.Strings(tablePaths)
 		for _, p := range tablePaths {
 			suffix := filepath.Base(p)[len(SSTablePrefix)+1:]
-			i, err := strconv.ParseInt(suffix, 10, 64)
+			i, err := strconv.ParseUint(suffix, 10, 64)
 			if err != nil {
 				return err
 			}
