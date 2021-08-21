@@ -57,6 +57,10 @@ type memStoreFlushAction struct {
 }
 
 type DB struct {
+	// NOTE: the generation to be 64-bit aligned for 32-bit targets (e.g. ARM), so be careful when moving this field anywhere else.
+	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
+	currentGeneration int64
+
 	cmp                   skiplist.KeyComparator
 	basePath              string
 	currentSSTablePath    string
@@ -79,8 +83,6 @@ type DB struct {
 	compactionTicker            *time.Ticker
 	compactionTickerStopChannel chan interface{}
 	doneCompactionChannel       chan bool
-
-	currentGeneration int64
 }
 
 func (db *DB) Open() error {
