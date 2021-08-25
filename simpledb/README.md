@@ -52,9 +52,16 @@ if err != nil { log.Fatalf("error: %v", err) }
 
 ```go
 value, err = db.Get("hello")
-if err != simpledb.NotFound {
-log.Printf("value %s", value)
+if err != nil { 
+   if err == simpledb.NotFound {
+      log.Printf("no value found!")
+   } else {
+      log.Fatalf("error: %v", err) 
+   }
 }
+
+log.Printf("value %s", value)
+
 ```
 
 ### Delete data
