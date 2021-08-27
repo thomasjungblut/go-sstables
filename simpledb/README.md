@@ -53,15 +53,14 @@ if err != nil { log.Fatalf("error: %v", err) }
 ```go
 value, err = db.Get("hello")
 if err != nil {
-if err == simpledb.NotFound {
-log.Printf("no value found!")
-} else {
-log.Fatalf("error: %v", err)
-}
+    if err == simpledb.NotFound {
+        log.Printf("no value found!")
+    } else {
+        log.Fatalf("error: %v", err)
+    }
 }
 
 log.Printf("value %s", value)
-
 ```
 
 ### Delete data
@@ -79,13 +78,13 @@ The database can be configured using options, here are a few that can be used to
 
 ```go
 db, err := NewSimpleDB(
-"some_path", // the non-empty and existing base path of the database - only mandatory argument
-DisableAsyncWAL(), // this enables fsync after every modification -> safe option for data consistency, but affects performance greatly
-MemstoreSizeBytes(1024*1024*1024),     // the maximum size a memstore should have in bytes
-CompactionRunInterval(30*time.Second), // how often the compaction process should run  
-CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
-CompactionFileThreshold(20), // how many files must be at least compacted together
-DisableCompactions()         // turn off the compaction completely
+    "some_path", // the non-empty and existing base path of the database - only mandatory argument
+    DisableAsyncWAL(), // this enables fsync after every modification -> safe option for data consistency, but affects performance greatly
+    MemstoreSizeBytes(1024*1024*1024),     // the maximum size a memstore should have in bytes
+    CompactionRunInterval(30*time.Second), // how often the compaction process should run  
+    CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
+    CompactionFileThreshold(20), // how many files must be at least compacted together
+    DisableCompactions()         // turn off the compaction completely
 )
 ```
 
@@ -137,5 +136,4 @@ The latter can be run using `make crash-simpledb`, which will start a webserver 
 REST. The test code will then try a couple of deterministic and random patterns while killing the database and checking
 its results continuously.
 
-The test suite is reusable for other databases, as long as they implement the REST interface.
-.
+The test suite is reusable for other databases, as long as they implement the REST interface. .
