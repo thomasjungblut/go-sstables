@@ -2,12 +2,6 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/thomasjungblut/go-sstables/recordio"
-	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
-	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/sstables"
-	"github.com/thomasjungblut/go-sstables/wal"
-	"google.golang.org/protobuf/proto"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +9,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
+	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"github.com/thomasjungblut/go-sstables/wal"
+	"google.golang.org/protobuf/proto"
 )
 
 func (db *DB) repairCompactions() error {

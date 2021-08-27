@@ -2,6 +2,10 @@ package simpledb
 
 import (
 	"errors"
+	"io/ioutil"
+	"sync"
+	"time"
+
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
@@ -9,9 +13,6 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
 	"google.golang.org/protobuf/proto"
-	"io/ioutil"
-	"sync"
-	"time"
 )
 
 const SSTablePrefix = "sstable"
@@ -276,9 +277,16 @@ func (db *DB) Delete(key string) error {
 		return AlreadyClosed
 	}
 
-	err = db.wal.Append(bytes)
-	if err != nil {
-		return err
+	if db.enableAsyncWAL {
+		err = db.wal.Append(bytes)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = db.wal.AppendSync(bytes)
+		if err != nil {
+			return err
+		}
 	}
 
 	return db.memStore.Delete(byteKey)

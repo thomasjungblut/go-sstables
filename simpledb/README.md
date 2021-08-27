@@ -1,7 +1,7 @@
 # SimpleDB
 
-SimpleDB is a simple embedded key-value database built using the primitives in this repository. It's an example project to show
-how the different pieces can fit together and is not meant to be a production-ready database
+SimpleDB is a simple embedded key-value database built using the primitives in this repository. It's an example project
+to show how the different pieces can fit together and is not meant to be a production-ready database
 like [RocksDB](https://github.com/facebook/rocksdb) or [LevelDB](https://github.com/google/leveldb).
 
 ## Interface
@@ -52,12 +52,12 @@ if err != nil { log.Fatalf("error: %v", err) }
 
 ```go
 value, err = db.Get("hello")
-if err != nil { 
-   if err == simpledb.NotFound {
-      log.Printf("no value found!")
-   } else {
-      log.Fatalf("error: %v", err) 
-   }
+if err != nil {
+if err == simpledb.NotFound {
+log.Printf("no value found!")
+} else {
+log.Fatalf("error: %v", err)
+}
 }
 
 log.Printf("value %s", value)
@@ -79,12 +79,13 @@ The database can be configured using options, here are a few that can be used to
 
 ```go
 db, err := NewSimpleDB(
-        "some_path", // the non-empty and existing base path of the database - only mandatory argument 
-        MemstoreSizeBytes(1024*1024*1024), // the maximum size a memstore should have in bytes
-        CompactionRunInterval(30*time.Second), // how often the compaction process should run  
-        CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
-        CompactionFileThreshold(20), // how many files must be at least compacted together
-        DisableCompactions() // turn off the compaction completely 
+"some_path", // the non-empty and existing base path of the database - only mandatory argument
+DisableAsyncWAL(), // this enables fsync after every modification -> safe option for data consistency, but affects performance greatly
+MemstoreSizeBytes(1024*1024*1024),     // the maximum size a memstore should have in bytes
+CompactionRunInterval(30*time.Second), // how often the compaction process should run  
+CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
+CompactionFileThreshold(20), // how many files must be at least compacted together
+DisableCompactions()         // turn off the compaction completely
 )
 ```
 
@@ -125,4 +126,16 @@ In case the crash happened during a compaction, there are two places where we ca
 while the compaction is ongoing (there is no compaction_successful flag file in the folder yet), in this case we can
 discard the compaction result. If there is a compaction that has finished successfully, we can try to recover that by
 completing the steps in the sstable_manager. The flag file contains several meta information for that case and can be
-used to trigger the remainder of the logic again. 
+used to trigger the remainder of the logic again.
+
+## Crash Testing
+
+To exercise the above assumptions there are two kinds of tests: in-process crashing by mutation some state to simulate a
+crash and the other is a real `kill -9` style crash test where a database is spawned as an external process.
+
+The latter can be run using `make crash-simpledb`, which will start a webserver that exposes the database methods via
+REST. The test code will then try a couple of deterministic and random patterns while killing the database and checking
+its results continuously.
+
+The test suite is reusable for other databases, as long as they implement the REST interface.
+.

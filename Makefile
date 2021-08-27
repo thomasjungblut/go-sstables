@@ -60,7 +60,14 @@ race-simpledb:
 	@echo
 	@echo "==> Running simpledb race tests <=="
 	$(GO) clean -testcache
-	$(GO) test -v -timeout 20m --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
+	$(GO) test -v -timeout 30m --tags simpleDBe2e $(GOFLAGS) ./simpledb $(TESTFLAGS)
+
+.PHONY: crash-simpledb
+crash-simpledb:
+	@echo
+	@echo "==> Running simpledb crash tests <=="
+	$(GO) clean -testcache
+	$(GO) test -v -timeout 30m --tags simpleDBcrash $(GOFLAGS) ./simpledb/_crash_tests $(TESTFLAGS)
 
 .PHONY: generate-test-files
 generate-test-files:
@@ -76,4 +83,4 @@ vet:
 	$(GO) vet $(TESTS)
 
 .PHONY: full-test
-full-test: vet unit-test race-simpledb
+full-test: vet unit-test race-simpledb crash-simpledb

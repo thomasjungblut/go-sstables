@@ -14,9 +14,9 @@ The current implementation is still a bit naive for these reasons:
 Creating a WAL is pretty easy, you effectively just need to supply a directory for it to store the individual WALs as an option:
 
 ```go
-opts, err := NewWriteAheadLogOptions(BasePath("some_directory"))
+opts, err := wal.NewWriteAheadLogOptions(wal.BasePath("some_directory"))
 if err != nil { log.Fatalf("error: %v", err) }
-wal, err := NewWriteAheadLog(opts)
+wal, err := wal.NewWriteAheadLog(opts)
 ```
 
 There are several options that you can make use of:
