@@ -2,13 +2,14 @@ package recordio
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWriterHappyPathOpenWriteClose(t *testing.T) {
@@ -122,21 +123,6 @@ func TestUnsupportedCompressionType(t *testing.T) {
 	assert.Equal(t, errors.New("unsupported compression type 5"), errors.Unwrap(err))
 }
 
-func TestWriterOpenNonEmptyFile(t *testing.T) {
-	writer := singleWrite(t)
-	stat, err := os.Stat(writer.file.Name())
-	require.Nil(t, err)
-	assert.NotEqual(t, 8, stat.Size())
-	defer removeFileWriterFile(t, writer)
-
-	writer, err = newWriterStruct(Path(writer.file.Name()))
-	require.Nil(t, err)
-	defer closeFileWriter(t, writer)
-
-	err = writer.Open()
-	assert.Contains(t, err.Error(), "not empty")
-}
-
 func TestWriterDoublePathFileInit(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
 	require.Nil(t, err)
@@ -148,7 +134,7 @@ func TestWriterDoublePathFileInit(t *testing.T) {
 
 func TestWriterInitNoPath(t *testing.T) {
 	_, err := NewFileWriter()
-	assert.Equal(t, errors.New("NewFileWriter: path was not supplied"), err)
+	assert.Equal(t, errors.New("NewFileWriter: either os.File or string path must be supplied, never both"), err)
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {

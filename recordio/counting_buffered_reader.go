@@ -1,7 +1,6 @@
 package recordio
 
 import (
-	"bufio"
 	"io"
 )
 
@@ -58,6 +57,6 @@ func (c *CountingBufferedReader) Count() uint64 {
 	return c.count
 }
 
-func NewCountingByteReader(reader *bufio.Reader) CountingReaderResetComposite {
+func NewCountingByteReader(reader ReaderResetComposite) CountingReaderResetComposite {
 	return &CountingBufferedReader{r: reader, count: 0}
 }

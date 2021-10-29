@@ -1,30 +1,28 @@
 package recordio
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	pool "github.com/libp2p/go-buffer-pool"
-	"github.com/ncw/directio"
-	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 	"os"
+
+	pool "github.com/libp2p/go-buffer-pool"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
-/*
- * This type defines a binary file format (little endian).
- * The file header has a 32 bit version number and a 32 bit compression type enum according to the table above.
- * Each record written in the file follows the following format (sequentially):
- * - MagicNumber (encoding/binary/Uvarint) to separate records from each other.
- * - Uncompressed data payload size (encoding/binary/Uvarint).
- * - Compressed data payload size (encoding/binary/Uvarint), or 0 if the data is not compressed.
- * - Payload as plain bytes, possibly compressed
- */
+// FileWriter defines a binary file format (little endian).
+// The file header has a 32 bit version number and a 32 bit compression type enum according to the table above.
+// Each record written in the file follows the following format (sequentially):
+// - MagicNumber (encoding/binary/Uvarint) to separate records from each other.
+// - Uncompressed data payload size (encoding/binary/Uvarint).
+// - Compressed data payload size (encoding/binary/Uvarint), or 0 if the data is not compressed.
+// - Payload as plain bytes, possibly compressed
 type FileWriter struct {
-	open              bool
-	closed            bool
+	open   bool
+	closed bool
+
 	file              *os.File
-	bufWriter         *bufio.Writer
+	bufWriter         WriterCloserFlusher
 	currentOffset     uint64
 	compressionType   int
 	compressor        compressor.CompressionI
@@ -40,27 +38,6 @@ func (w *FileWriter) Open() error {
 	if w.closed {
 		return fmt.Errorf("file writer for '%s' is already closed", w.file.Name())
 	}
-
-	stat, err := w.file.Stat()
-	if err != nil {
-		return fmt.Errorf("file stat for '%s' failed with %w", w.file.Name(), err)
-	}
-
-	if stat.Size() != 0 {
-		return fmt.Errorf("file at '%s' is not empty", w.file.Name())
-	}
-
-	// make sure we are at the start of the file
-	newOffset, err := w.file.Seek(0, 0)
-	if err != nil {
-		return fmt.Errorf("seeking in file at '%s' failed with %w", w.file.Name(), err)
-	}
-
-	if newOffset != 0 {
-		return fmt.Errorf("seeking for offset 0 in '%s' failed, found offset: %d", w.file.Name(), newOffset)
-	}
-
-	w.bufWriter.Reset(w.file)
 
 	offset, err := writeFileHeader(w)
 	if err != nil {
@@ -136,12 +113,12 @@ func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, pay
 	return written, nil
 }
 
-// Appends a record of bytes, returns the current offset this item was written to
+// Write appends a record of bytes, returns the current offset this item was written to
 func (w *FileWriter) Write(record []byte) (uint64, error) {
 	return writeInternal(w, record, false)
 }
 
-// Appends a record of bytes and forces a disk sync, returns the current offset this item was written to
+// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
 func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
 	return writeInternal(w, record, true)
 }
@@ -260,14 +237,14 @@ func BufferSizeBytes(p int) FileWriterOption {
 	}
 }
 
-// Experimental: this flag enables DirectIO while writing, this currently might not work due to the misaligned allocations
+// DirectIO is experimental: this flag enables DirectIO while writing, this currently might not work due to the misaligned allocations
 func DirectIO() FileWriterOption {
 	return func(args *FileWriterOptions) {
 		args.useDirectIO = true
 	}
 }
 
-// creates a new writer with the given options, either Path or File must be supplied, compression is optional.
+// NewFileWriter creates a new writer with the given options, either Path or File must be supplied, compression is optional.
 func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	opts := &FileWriterOptions{
 		path:            "",
@@ -281,35 +258,30 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		writeOption(opts)
 	}
 
-	if (opts.file != nil) && (opts.path != "") {
+	if (opts.file == nil) == (opts.path == "") {
 		return nil, errors.New("NewFileWriter: either os.File or string path must be supplied, never both")
 	}
 
-	if opts.file == nil {
-		if opts.path == "" {
-			return nil, errors.New("NewFileWriter: path was not supplied")
-		}
-		if opts.useDirectIO {
-			f, err := directio.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
-			if err != nil {
-				return nil, fmt.Errorf("failed to open file with directIO at '%s' failed with %w", opts.path, err)
-			}
-			opts.file = f
-		} else {
-			f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
-			if err != nil {
-				return nil, fmt.Errorf("failed to open file at '%s' failed with %w", opts.path, err)
-			}
-			opts.file = f
-		}
+	if opts.path == "" {
+		opts.path = opts.file.Name()
 	}
 
-	bufWriter := bufio.NewWriterSize(opts.file, opts.bufferSizeBytes)
-	return newCompressedFileWriterWithFile(opts.file, bufWriter, opts.compressionType)
+	var factory ReaderWriterCloserFactory
+	if opts.useDirectIO {
+		factory = DirectIOFactory{}
+	} else {
+		factory = PlainIOFactory{}
+	}
+
+	file, writer, err := factory.CreateNewWriter(opts.path, opts.bufferSizeBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new Writer at '%s' failed with %w", opts.path, err)
+	}
+	return newCompressedFileWriterWithFile(file, writer, opts.compressionType)
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter *bufio.Writer, compType int) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriterCloserFlusher, compType int) (WriterI, error) {
 	return &FileWriter{
 		file:            file,
 		bufWriter:       bufWriter,

@@ -2,11 +2,12 @@ package recordio
 
 import (
 	"bufio"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // containing all the end to end tests
@@ -18,7 +19,14 @@ func TestReadWriteEndToEnd(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, t, tmpFile)
+	reader := func() ReaderI {
+		reader, err := NewFileReaderWithPath(tmpFile.Name())
+		require.NoError(t, err)
+		require.NoError(t, reader.Open())
+		return reader
+	}
+
+	endToEndReadWrite(writer, reader, t, tmpFile)
 }
 
 func TestReadWriteEndToEndGzip(t *testing.T) {
@@ -28,7 +36,14 @@ func TestReadWriteEndToEndGzip(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeGZIP))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, t, tmpFile)
+	reader := func() ReaderI {
+		reader, err := NewFileReaderWithPath(tmpFile.Name())
+		require.NoError(t, err)
+		require.NoError(t, reader.Open())
+		return reader
+	}
+
+	endToEndReadWrite(writer, reader, t, tmpFile)
 }
 
 func TestReadWriteEndToEndSnappy(t *testing.T) {
@@ -38,10 +53,34 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeSnappy))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, t, tmpFile)
+	reader := func() ReaderI {
+		reader, err := NewFileReaderWithPath(tmpFile.Name())
+		require.NoError(t, err)
+		require.NoError(t, reader.Open())
+		return reader
+	}
+
+	endToEndReadWrite(writer, reader, t, tmpFile)
 }
 
-func endToEndReadWrite(writer WriterI, t *testing.T, tmpFile *os.File) {
+func TestReadWriteEndToEndDirectIO(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
+	writer, err := NewFileWriter(File(tmpFile), DirectIO())
+	require.NoError(t, err)
+
+	reader := func() ReaderI {
+		reader, err := newFileReaderWithFactory(tmpFile.Name(), DirectIOFactory{})
+		require.NoError(t, err)
+		require.NoError(t, reader.Open())
+		return reader
+	}
+
+	endToEndReadWrite(writer, reader, t, tmpFile)
+}
+
+func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T, tmpFile *os.File) {
 	// we're reading the file line by line and try to read it back and assert the same content
 	inFile, err := os.Open("test_files/berlin52.tsp")
 	require.NoError(t, err)
@@ -60,9 +99,7 @@ func endToEndReadWrite(writer WriterI, t *testing.T, tmpFile *os.File) {
 	require.NoError(t, writer.Close())
 	require.NoError(t, inFile.Close())
 
-	reader, err := NewFileReaderWithPath(tmpFile.Name())
-	require.NoError(t, err)
-	require.NoError(t, reader.Open())
+	reader := readerFunc()
 
 	inFile, err = os.Open("test_files/berlin52.tsp")
 	require.NoError(t, err)
