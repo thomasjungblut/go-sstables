@@ -19,14 +19,7 @@ func TestReadWriteEndToEnd(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile))
 	require.NoError(t, err)
 
-	reader := func() ReaderI {
-		reader, err := NewFileReaderWithPath(tmpFile.Name())
-		require.NoError(t, err)
-		require.NoError(t, reader.Open())
-		return reader
-	}
-
-	endToEndReadWrite(writer, reader, t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
 }
 
 func TestReadWriteEndToEndGzip(t *testing.T) {
@@ -36,14 +29,7 @@ func TestReadWriteEndToEndGzip(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeGZIP))
 	require.NoError(t, err)
 
-	reader := func() ReaderI {
-		reader, err := NewFileReaderWithPath(tmpFile.Name())
-		require.NoError(t, err)
-		require.NoError(t, reader.Open())
-		return reader
-	}
-
-	endToEndReadWrite(writer, reader, t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
 }
 
 func TestReadWriteEndToEndSnappy(t *testing.T) {
@@ -53,17 +39,16 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeSnappy))
 	require.NoError(t, err)
 
-	reader := func() ReaderI {
-		reader, err := NewFileReaderWithPath(tmpFile.Name())
-		require.NoError(t, err)
-		require.NoError(t, reader.Open())
-		return reader
-	}
-
-	endToEndReadWrite(writer, reader, t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
 }
 
 func TestReadWriteEndToEndDirectIO(t *testing.T) {
+	available, err := IsDirectIOAvailable()
+	require.NoError(t, err)
+	if !available {
+		t.SkipNow()
+	}
+
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
@@ -136,4 +121,13 @@ func closeMMapReader(t *testing.T, reader *MMapReader) {
 
 func removeFileWriterFile(t *testing.T, writer *FileWriter) {
 	func() { require.NoError(t, os.Remove(writer.file.Name())) }()
+}
+
+func openedReaderFunc(t *testing.T, tmpFile *os.File) func() ReaderI {
+	return func() ReaderI {
+		reader, err := NewFileReaderWithPath(tmpFile.Name())
+		require.NoError(t, err)
+		require.NoError(t, reader.Open())
+		return reader
+	}
 }
