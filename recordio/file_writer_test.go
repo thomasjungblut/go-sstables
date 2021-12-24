@@ -201,8 +201,7 @@ func simpleWriteBytes(t *testing.T, record []byte) *FileWriter {
 	// first offset should always be 8 bytes (for version and compression type in the file header)
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	require.Nil(t, err)
-	err = writer.Close()
-	require.Nil(t, err)
+	require.Nil(t, writer.Close())
 	return writer
 }
 

@@ -29,7 +29,7 @@ func (d DirectIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File
 	}
 
 	block := directio.AlignedBlock(bufSize)
-	return writeFile, NewWriterBuf(writeFile, block), nil
+	return writeFile, NewAlignedWriterBuf(writeFile, block), nil
 }
 
 // IsDirectIOAvailable tests whether DirectIO is available (on the OS / filesystem).

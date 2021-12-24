@@ -2,6 +2,7 @@ package recordio
 
 import (
 	"bufio"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -99,6 +100,9 @@ func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T, 
 	}
 	require.NoError(t, scanner.Err())
 	assert.Equal(t, 59, numRead)
+	// ensure that the reader does not find anything beyond this
+	_, err = reader.ReadNext()
+	require.ErrorIs(t, err, io.EOF)
 	require.NoError(t, reader.Close())
 	require.NoError(t, inFile.Close())
 }

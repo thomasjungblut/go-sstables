@@ -1,8 +1,10 @@
 package recordio
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
@@ -63,6 +65,23 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 		if err != nil {
+			// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
+			// This would indicate a properly written file and the actual end - and not a malformed record.
+			if errors.Is(err, MagicNumberMismatchErr) {
+				remainder, err := ioutil.ReadAll(r.reader)
+				if err != nil {
+					return nil, fmt.Errorf("error while parsing record header seeking for file end of '%s': %w", r.file.Name(), err)
+				}
+				for _, b := range remainder {
+					if b != 0 {
+						return nil, fmt.Errorf("error while parsing record header for zeros towards the file end of '%s': %w", r.file.Name(), MagicNumberMismatchErr)
+					}
+				}
+
+				// no other bytes than zeros have been read so far, that must've been the valid end of the file.
+				return nil, io.EOF
+			}
+
 			return nil, fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 		}
 
@@ -236,6 +255,12 @@ func NewFileReaderWithPath(path string) (ReaderI, error) {
 // NewFileReaderWithFile creates a new recordio file reader that can read RecordIO files with the given file.
 // The file will be managed from here on out (ie closing).
 func NewFileReaderWithFile(file *os.File) (ReaderI, error) {
+	// we're closing the existing file, as it's being recreated by the factory below
+	err := file.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error while closing existing file handle at '%s': %w", file.Name(), err)
+	}
+
 	return newFileReaderWithFactory(file.Name(), PlainIOFactory{})
 }
 

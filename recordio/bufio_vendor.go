@@ -18,12 +18,13 @@ type WriterCloserFlusher interface {
 // Flush method to guarantee all data has been forwarded to
 // the underlying io.Writer.
 // This is the same writer as bufio.Writer, but it allows us to supply the buffer from the outside.
-// Namely, it only has a new constructor in NewWriterBuf and implements Close()
+// Namely, it has a new constructor in NewWriterBuf & NewAlignedWriterBuf, implements Close() and supports block aligned flushes.
 type Writer struct {
-	err error
-	buf []byte
-	n   int
-	wr  io.WriteCloser
+	err        error
+	buf        []byte
+	n          int
+	wr         io.WriteCloser
+	alignFlush bool
 }
 
 func (b *Writer) Close() error {
@@ -38,6 +39,14 @@ func NewWriterBuf(w io.WriteCloser, buf []byte) WriterCloserFlusher {
 	return &Writer{
 		buf: buf,
 		wr:  w,
+	}
+}
+
+func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriterCloserFlusher {
+	return &Writer{
+		buf:        buf,
+		wr:         w,
+		alignFlush: true,
 	}
 }
 
@@ -60,7 +69,16 @@ func (b *Writer) Flush() error {
 	if b.n == 0 {
 		return nil
 	}
-	n, err := b.wr.Write(b.buf[0:b.n])
+
+	toFlush := b.buf[0:b.n]
+	// zero the remainder of the buffer for safety before an aligned flush
+	if b.alignFlush {
+		for i := b.n; i < len(b.buf); i++ {
+			b.buf[i] = 0
+		}
+		toFlush = b.buf
+	}
+	n, err := b.wr.Write(toFlush)
 	if n < b.n && err == nil {
 		err = io.ErrShortWrite
 	}

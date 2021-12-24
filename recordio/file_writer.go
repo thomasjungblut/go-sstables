@@ -28,6 +28,7 @@ type FileWriter struct {
 	compressor        compressor.CompressionI
 	recordHeaderCache []byte
 	bufferPool        *pool.BufferPool
+	directIOEnabled   bool
 }
 
 func (w *FileWriter) Open() error {
@@ -55,9 +56,12 @@ func (w *FileWriter) Open() error {
 	w.bufferPool = new(pool.BufferPool)
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
-	err = w.bufWriter.Flush()
-	if err != nil {
-		return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
+	// when directIO is enabled however, we can't write misaligned blocks - thus this is not executed
+	if !w.directIOEnabled {
+		err = w.bufWriter.Flush()
+		if err != nil {
+			return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
+		}
 	}
 
 	return nil
@@ -115,15 +119,6 @@ func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, pay
 
 // Write appends a record of bytes, returns the current offset this item was written to
 func (w *FileWriter) Write(record []byte) (uint64, error) {
-	return writeInternal(w, record, false)
-}
-
-// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
-func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
-	return writeInternal(w, record, true)
-}
-
-func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 	if !w.open || w.closed {
 		return 0, errors.New("writer was either not opened yet or is closed already")
 	}
@@ -159,20 +154,32 @@ func writeInternal(w *FileWriter, record []byte, sync bool) (uint64, error) {
 		return 0, fmt.Errorf("mismatch in written record len for file '%s', expected %d but were %d", w.file.Name(), recordToWrite, recordBytesWritten)
 	}
 
-	if sync {
-		err = w.bufWriter.Flush()
-		if err != nil {
-			return 0, fmt.Errorf("failed to flush sync in file at '%s' failed with %w", w.file.Name(), err)
-		}
-
-		err = w.file.Sync()
-		if err != nil {
-			return 0, fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
-		}
-	}
-
 	w.currentOffset = prevOffset + uint64(headerBytesWritten) + uint64(recordBytesWritten)
 	return prevOffset, nil
+}
+
+// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
+func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
+	if w.directIOEnabled {
+		return 0, errors.New("currently not supporting directIO with sync writing")
+	}
+
+	offset, err := w.Write(record)
+	if err != nil {
+		return 0, fmt.Errorf("failed to write record to file at '%s' failed with %w", w.file.Name(), err)
+	}
+
+	err = w.bufWriter.Flush()
+	if err != nil {
+		return 0, fmt.Errorf("failed to flush sync in file at '%s' failed with %w", w.file.Name(), err)
+	}
+
+	err = w.file.Sync()
+	if err != nil {
+		return 0, fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
+	}
+
+	return offset, nil
 }
 
 func (w *FileWriter) Close() error {
@@ -273,18 +280,27 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		factory = PlainIOFactory{}
 	}
 
+	// we have to close the passed file handle because we're going to create a new one based on paths
+	if opts.file != nil {
+		err := opts.file.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to close existing file handle at '%s' failed with %w", opts.path, err)
+		}
+	}
+
 	file, writer, err := factory.CreateNewWriter(opts.path, opts.bufferSizeBytes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Writer at '%s' failed with %w", opts.path, err)
 	}
-	return newCompressedFileWriterWithFile(file, writer, opts.compressionType)
+	return newCompressedFileWriterWithFile(file, writer, opts.compressionType, opts.useDirectIO)
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriterCloserFlusher, compType int) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriterCloserFlusher, compType int, directIOEnabled bool) (WriterI, error) {
 	return &FileWriter{
 		file:            file,
 		bufWriter:       bufWriter,
+		directIOEnabled: directIOEnabled,
 		open:            false,
 		closed:          false,
 		compressionType: compType,

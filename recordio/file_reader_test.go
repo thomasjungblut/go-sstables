@@ -1,7 +1,6 @@
 package recordio
 
 import (
-	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -137,7 +136,7 @@ func TestReaderMagicNumberMismatch(t *testing.T) {
 	require.Nil(t, err)
 
 	_, err = reader.ReadNext()
-	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
+	assert.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
 func TestReaderForbidsClosedReader(t *testing.T) {
