@@ -1,7 +1,6 @@
 package recordio
 
 import (
-	"bufio"
 	"errors"
 	"io"
 )
@@ -19,6 +18,7 @@ type WriterCloserFlusher interface {
 // the underlying io.Writer.
 // This is the same writer as bufio.Writer, but it allows us to supply the buffer from the outside.
 // Namely, it has a new constructor in NewWriterBuf & NewAlignedWriterBuf, implements Close() and supports block aligned flushes.
+// Additionally, several methods that were not needed are removed to reduce the test surface of the original.
 type Writer struct {
 	err        error
 	buf        []byte
@@ -97,9 +97,6 @@ func (b *Writer) Flush() error {
 // Available returns how many bytes are unused in the buffer.
 func (b *Writer) Available() int { return len(b.buf) - b.n }
 
-// Buffered returns the number of bytes that have been written into the current buffer.
-func (b *Writer) Buffered() int { return b.n }
-
 // Write writes the contents of p into the buffer.
 // It returns the number of bytes written.
 // If nn < len(p), it also returns an error explaining
@@ -107,7 +104,7 @@ func (b *Writer) Buffered() int { return b.n }
 func (b *Writer) Write(p []byte) (nn int, err error) {
 	for len(p) > b.Available() && b.err == nil {
 		var n int
-		if b.Buffered() == 0 {
+		if b.n == 0 {
 			// Large write, empty buffer.
 			// Write directly from p to avoid copy.
 			n, b.err = b.wr.Write(p)
@@ -155,6 +152,9 @@ func NewReaderBuf(rd io.Reader, buf []byte) *Reader {
 
 // Size returns the size of the underlying buffer in bytes.
 func (b *Reader) Size() int { return len(b.buf) }
+
+// Buffered returns the number of bytes that can be read from the current buffer.
+func (b *Reader) Buffered() int { return b.w - b.r }
 
 // Reset discards any buffered data, resets all state, and switches
 // the buffered reader to read from r.
@@ -208,39 +208,6 @@ func (b *Reader) readErr() error {
 	err := b.err
 	b.err = nil
 	return err
-}
-
-// Discard skips the next n bytes, returning the number of bytes discarded.
-//
-// If Discard skips fewer than n bytes, it also returns an error.
-// If 0 <= n <= b.Buffered(), Discard is guaranteed to succeed without
-// reading from the underlying io.Reader.
-func (b *Reader) Discard(n int) (discarded int, err error) {
-	if n < 0 {
-		return 0, bufio.ErrNegativeCount
-	}
-	if n == 0 {
-		return
-	}
-	remain := n
-	for {
-		skip := b.Buffered()
-		if skip == 0 {
-			b.fill()
-			skip = b.Buffered()
-		}
-		if skip > remain {
-			skip = remain
-		}
-		b.r += skip
-		remain -= skip
-		if remain == 0 {
-			return n, nil
-		}
-		if b.err != nil {
-			return n - remain, b.readErr()
-		}
-	}
 }
 
 // Read reads data into p.
@@ -311,6 +278,3 @@ func (b *Reader) ReadByte() (byte, error) {
 	b.lastByte = int(c)
 	return c, nil
 }
-
-// Buffered returns the number of bytes that can be read from the current buffer.
-func (b *Reader) Buffered() int { return b.w - b.r }

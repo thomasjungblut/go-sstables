@@ -5,6 +5,7 @@ package recordio
 import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -26,6 +27,31 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeCompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_comp2", CompressionTypeSnappy)
 	writeCompressedSingleRecordAugmented(t, prefix+"recordio_UncompressedSingleRecord_comp3", 3) //unknown compression type
 	writeUncompressedSingleRecordAugmentedMagicNumber(t, prefix+"recordio_UncompressedSingleRecord_mnm")
+
+	writeDirectIOUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_directio")
+	writeDirectIOUncompressedSingleRecordRandomTrailer(t, prefix+"recordio_UncompressedSingleRecord_directio_trailer")
+}
+
+func writeDirectIOUncompressedSingleRecord(t *testing.T, path string) {
+	_ = os.Remove(path)
+	w, err := NewFileWriter(Path(path), BufferSizeBytes(4096), DirectIO())
+	require.NoError(t, err)
+	require.NoError(t, w.Open())
+
+	// this should produce a zeroed overhang, as directIO flushes the whole block
+	_, err = w.Write([]byte{13, 06, 29, 07})
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+}
+
+func writeDirectIOUncompressedSingleRecordRandomTrailer(t *testing.T, path string) {
+	writeDirectIOUncompressedSingleRecord(t, path)
+	bytes, err := ioutil.ReadFile(path)
+	require.NoError(t, err)
+	// write some garbled data in between, so we know this file might be corrupted instead of properly written by directIO
+	binary.PutUvarint(bytes[1024:1028], 1337)
+	err = ioutil.WriteFile(path, bytes, 0666)
+	require.NoError(t, err)
 }
 
 func writeUncompressedSingleRecordAugmentedMagicNumber(t *testing.T, path string) {

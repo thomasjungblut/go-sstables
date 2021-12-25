@@ -249,7 +249,7 @@ func readNextV1(r *FileReader) ([]byte, error) {
 
 // NewFileReaderWithPath creates a new recordio file reader that can read RecordIO files at the given path.
 func NewFileReaderWithPath(path string) (ReaderI, error) {
-	return newFileReaderWithFactory(path, PlainIOFactory{})
+	return newFileReaderWithFactory(path, BufferedIOFactory{})
 }
 
 // NewFileReaderWithFile creates a new recordio file reader that can read RecordIO files with the given file.
@@ -261,7 +261,7 @@ func NewFileReaderWithFile(file *os.File) (ReaderI, error) {
 		return nil, fmt.Errorf("error while closing existing file handle at '%s': %w", file.Name(), err)
 	}
 
-	return newFileReaderWithFactory(file.Name(), PlainIOFactory{})
+	return newFileReaderWithFactory(file.Name(), BufferedIOFactory{})
 }
 
 // NewFileReaderWithFactory creates a new recordio file reader under a path and a given ReaderWriterCloserFactory.

@@ -119,15 +119,36 @@ func TestWriterForbidsWritesOnUnopenedFiles(t *testing.T) {
 func TestUnsupportedCompressionType(t *testing.T) {
 	w, err := newCompressedTestWriter(5)
 	require.Nil(t, err)
+	defer removeFileWriterFile(t, w)
+	defer closeFileWriter(t, w)
+
 	err = w.Open()
 	assert.Equal(t, errors.New("unsupported compression type 5"), errors.Unwrap(err))
+}
+
+func TestWriterOpenNonEmptyFile(t *testing.T) {
+	writer := singleWrite(t)
+	stat, err := os.Stat(writer.file.Name())
+	require.Nil(t, err)
+	assert.NotEqual(t, 8, stat.Size())
+	defer removeFileWriterFile(t, writer)
+
+	w, err := NewFileWriter(Path(writer.file.Name()))
+	require.NoError(t, err)
+	writer = w.(*FileWriter)
+
+	require.Nil(t, err)
+	defer closeFileWriter(t, writer)
+
+	err = writer.Open()
+	require.NoError(t, err)
 }
 
 func TestWriterDoublePathFileInit(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
 	require.Nil(t, err)
+	defer closeCleanFile(t, tmpFile)
 
-	defer os.Remove(tmpFile.Name())
 	_, err = NewFileWriter(Path("/tmp/abc"), File(tmpFile))
 	assert.Equal(t, errors.New("NewFileWriter: either os.File or string path must be supplied, never both"), err)
 }
@@ -135,6 +156,56 @@ func TestWriterDoublePathFileInit(t *testing.T) {
 func TestWriterInitNoPath(t *testing.T) {
 	_, err := NewFileWriter()
 	assert.Equal(t, errors.New("NewFileWriter: either os.File or string path must be supplied, never both"), err)
+}
+
+func TestWriterCrashCreatesValidHeader(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeader")
+	require.Nil(t, err)
+	defer closeCleanFile(t, tmpFile)
+
+	w, err := NewFileWriter(Path(tmpFile.Name()))
+	require.NoError(t, err)
+	fw := w.(*FileWriter)
+
+	require.NoError(t, w.Open())
+	require.NoError(t, fw.file.Close())
+
+	// this should yield a valid file with no record
+	reader := newReaderOnTopOfWriter(t, fw)
+	defer closeFileReader(t, reader)
+
+	readNextExpectEOF(t, reader)
+}
+
+func TestWriterCrashCreatesNoValidHeaderWithDirectIO(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeaderDirectIO")
+	require.Nil(t, err)
+	defer closeCleanFile(t, tmpFile)
+
+	w, err := NewFileWriter(Path(tmpFile.Name()), DirectIO())
+	require.NoError(t, err)
+	require.NoError(t, w.Open())
+	require.NoError(t, w.(*FileWriter).file.Close())
+
+	reader, err := NewFileReaderWithPath(tmpFile.Name())
+	require.Nil(t, err)
+	defer closeOpenClosable(t, reader)
+
+	require.ErrorIs(t, reader.Open(), io.EOF)
+}
+
+func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_WriterNotAllowsSyncsWithDirectIO")
+	require.Nil(t, err)
+	defer closeCleanFile(t, tmpFile)
+
+	w, err := NewFileWriter(Path(tmpFile.Name()), DirectIO())
+	require.NoError(t, err)
+	defer closeOpenClosable(t, w)
+
+	require.NoError(t, w.Open())
+	_, err = w.WriteSync([]byte{1})
+	require.ErrorIs(t, err, DirectIOSyncWriteErr)
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
@@ -236,12 +307,4 @@ func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
 	require.Nil(t, err)
 	require.Nil(t, reader.Open())
 	return reader.(*FileReader)
-}
-
-func newWriterStruct(writerOptions ...FileWriterOption) (*FileWriter, error) {
-	writer, err := NewFileWriter(writerOptions...)
-	if err != nil {
-		return nil, err
-	}
-	return writer.(*FileWriter), nil
 }

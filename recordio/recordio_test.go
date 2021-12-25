@@ -123,6 +123,11 @@ func closeMMapReader(t *testing.T, reader *MMapReader) {
 	func() { require.NoError(t, reader.Close()) }()
 }
 
+func closeCleanFile(t *testing.T, f *os.File) {
+	require.NoError(t, f.Close())
+	require.NoError(t, os.Remove(f.Name()))
+}
+
 func removeFileWriterFile(t *testing.T, writer *FileWriter) {
 	func() { require.NoError(t, os.Remove(writer.file.Name())) }()
 }

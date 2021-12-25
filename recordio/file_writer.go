@@ -31,6 +31,8 @@ type FileWriter struct {
 	directIOEnabled   bool
 }
 
+var DirectIOSyncWriteErr = errors.New("currently not supporting directIO with sync writing")
+
 func (w *FileWriter) Open() error {
 	if w.open {
 		return fmt.Errorf("file writer for '%s' is already opened", w.file.Name())
@@ -161,7 +163,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 // WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
 func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
 	if w.directIOEnabled {
-		return 0, errors.New("currently not supporting directIO with sync writing")
+		return 0, DirectIOSyncWriteErr
 	}
 
 	offset, err := w.Write(record)
@@ -277,7 +279,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	if opts.useDirectIO {
 		factory = DirectIOFactory{}
 	} else {
-		factory = PlainIOFactory{}
+		factory = BufferedIOFactory{}
 	}
 
 	// we have to close the passed file handle because we're going to create a new one based on paths
