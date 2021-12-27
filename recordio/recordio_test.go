@@ -44,10 +44,11 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 }
 
 func TestReadWriteEndToEndDirectIO(t *testing.T) {
-	available, err := IsDirectIOAvailable()
+	ok, err := IsDirectIOAvailable()
 	require.NoError(t, err)
-	if !available {
-		t.SkipNow()
+	if !ok {
+		t.Skip("directio not available here")
+		return
 	}
 
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")

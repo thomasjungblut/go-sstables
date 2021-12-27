@@ -7,7 +7,7 @@ import (
 type BufferedIOFactory struct {
 }
 
-func (d BufferedIOFactory) CreateNewReader(filePath string, bufSize int) (*os.File, CountingReaderResetComposite, error) {
+func (d BufferedIOFactory) CreateNewReader(filePath string, bufSize int) (*os.File, ByteReaderResetCount, error) {
 	readFile, err := os.OpenFile(filePath, os.O_RDONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, nil, err
@@ -17,7 +17,7 @@ func (d BufferedIOFactory) CreateNewReader(filePath string, bufSize int) (*os.Fi
 	return readFile, NewCountingByteReader(NewReaderBuf(readFile, block)), nil
 }
 
-func (d BufferedIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File, WriterCloserFlusher, error) {
+func (d BufferedIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File, WriteCloserFlusher, error) {
 	writeFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, nil, err

@@ -83,8 +83,8 @@ type ReadAtI interface {
 }
 
 type ReaderWriterCloserFactory interface {
-	CreateNewReader(filePath string, bufSize int) (*os.File, CountingReaderResetComposite, error)
-	CreateNewWriter(filePath string, bufSize int) (*os.File, WriterCloserFlusher, error)
+	CreateNewReader(filePath string, bufSize int) (*os.File, ByteReaderResetCount, error)
+	CreateNewWriter(filePath string, bufSize int) (*os.File, WriteCloserFlusher, error)
 }
 
 // NewCompressorForType returns an instance of the desired compressor defined by its identifier.

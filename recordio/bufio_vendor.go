@@ -5,9 +5,10 @@ import (
 	"io"
 )
 
-type WriterCloserFlusher interface {
+type WriteCloserFlusher interface {
 	io.WriteCloser
 	Flush() error
+	Size() int
 }
 
 // Writer implements buffering for an io.Writer object.
@@ -35,14 +36,14 @@ func (b *Writer) Close() error {
 	return b.wr.Close()
 }
 
-func NewWriterBuf(w io.WriteCloser, buf []byte) WriterCloserFlusher {
+func NewWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
 	return &Writer{
 		buf: buf,
 		wr:  w,
 	}
 }
 
-func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriterCloserFlusher {
+func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
 	return &Writer{
 		buf:        buf,
 		wr:         w,

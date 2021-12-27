@@ -22,7 +22,7 @@ type FileWriter struct {
 	closed bool
 
 	file              *os.File
-	bufWriter         WriterCloserFlusher
+	bufWriter         WriteCloserFlusher
 	currentOffset     uint64
 	compressionType   int
 	compressor        compressor.CompressionI
@@ -298,7 +298,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriterCloserFlusher, compType int, directIOEnabled bool) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, directIOEnabled bool) (WriterI, error) {
 	return &FileWriter{
 		file:            file,
 		bufWriter:       bufWriter,

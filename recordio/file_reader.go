@@ -17,7 +17,7 @@ type FileReader struct {
 	currentOffset uint64
 	file          *os.File
 	header        *Header
-	reader        CountingReaderResetComposite
+	reader        ByteReaderResetCount
 	bufferPool    *pool.BufferPool
 }
 
