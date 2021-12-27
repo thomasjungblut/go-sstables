@@ -3,7 +3,6 @@ package recordio
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/fs"
 	"io/ioutil"
 	"testing"
 )
@@ -26,9 +25,6 @@ func TestDirectIOFactory_CreateNewReader(t *testing.T) {
 	defer closeCleanFile(t, file)
 
 	assert.Equal(t, 4096, buf.Size())
-	stat, err := file.Stat()
-	require.NoError(t, err)
-	assert.Equal(t, fs.FileMode(0666), stat.Mode())
 }
 
 func TestDirectIOFactory_CreateNewWriter(t *testing.T) {
@@ -49,7 +45,4 @@ func TestDirectIOFactory_CreateNewWriter(t *testing.T) {
 	defer closeCleanFile(t, file)
 
 	assert.Equal(t, 4096, buf.Size())
-	stat, err := file.Stat()
-	require.NoError(t, err)
-	assert.Equal(t, fs.FileMode(0666), stat.Mode())
 }
