@@ -76,6 +76,6 @@ func TestReaderHappyResetAndRead(t *testing.T) {
 	assert.Equal(t, 12, int(reader.Count())) // 12 because we have been skipping that many bytes in reading
 }
 
-func testReader() CountingReaderResetComposite {
+func testReader() ByteReaderResetCount {
 	return NewCountingByteReader(bufio.NewReader(bytes.NewReader(testBuf)))
 }

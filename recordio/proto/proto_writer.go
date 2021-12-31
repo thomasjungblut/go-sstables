@@ -2,10 +2,11 @@ package proto
 
 import (
 	"errors"
+	"os"
+
 	"github.com/ncw/directio"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"google.golang.org/protobuf/proto"
-	"os"
 )
 
 type Writer struct {
@@ -106,13 +107,13 @@ func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 			return nil, errors.New("path was not supplied")
 		}
 		if opts.useDirectIO {
-			f, err := directio.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			f, err := directio.OpenFile(opts.path, os.O_WRONLY|os.O_CREATE, 0666)
 			if err != nil {
 				return nil, err
 			}
 			opts.file = f
 		} else {
-			f, err := os.OpenFile(opts.path, os.O_RDWR|os.O_CREATE, 0666)
+			f, err := os.OpenFile(opts.path, os.O_WRONLY|os.O_CREATE, 0666)
 			if err != nil {
 				return nil, err
 			}

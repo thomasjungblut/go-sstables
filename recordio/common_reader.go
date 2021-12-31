@@ -14,6 +14,8 @@ type Header struct {
 	fileVersion     uint32
 }
 
+var MagicNumberMismatchErr = fmt.Errorf("magic number mismatch")
+
 func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	if len(buffer) != FileHeaderSizeBytes {
 		return nil, fmt.Errorf("file header buffer size mismatch, expected %d but was %d", FileHeaderSizeBytes, len(buffer))
@@ -45,7 +47,7 @@ func readRecordHeaderV1(buffer []byte) (uint64, uint64, error) {
 
 	magicNumber := binary.LittleEndian.Uint32(buffer[0:4])
 	if magicNumber != MagicNumberSeparator {
-		return 0, 0, fmt.Errorf("magic number mismatch")
+		return 0, 0, MagicNumberMismatchErr
 	}
 
 	payloadSizeUncompressed := binary.LittleEndian.Uint64(buffer[4:12])
@@ -59,7 +61,7 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 		return 0, 0, err
 	}
 	if magicNumber != MagicNumberSeparatorLong {
-		return 0, 0, fmt.Errorf("magic number mismatch")
+		return 0, 0, MagicNumberMismatchErr
 	}
 
 	payloadSizeUncompressed, err := binary.ReadUvarint(r)

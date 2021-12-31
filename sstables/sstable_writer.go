@@ -3,15 +3,16 @@ package sstables
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
+	"os"
+	"path/filepath"
+
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	sProto "github.com/thomasjungblut/go-sstables/sstables/proto"
 	proto "google.golang.org/protobuf/proto"
-	"hash/fnv"
-	"os"
-	"path/filepath"
 )
 
 type SSTableStreamWriter struct {
@@ -63,7 +64,7 @@ func (writer *SSTableStreamWriter) Open() error {
 	}
 
 	writer.metaFilePath = filepath.Join(writer.opts.basePath, MetaFileName)
-	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_RDWR|os.O_CREATE, 0666)
+	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return fmt.Errorf("error while opening metadata file in '%s': %w", writer.opts.basePath, err)
 	}

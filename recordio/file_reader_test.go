@@ -1,9 +1,9 @@
 package recordio
 
 import (
-	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"io"
 	"testing"
 )
 
@@ -137,7 +137,35 @@ func TestReaderMagicNumberMismatch(t *testing.T) {
 	require.Nil(t, err)
 
 	_, err = reader.ReadNext()
-	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
+	assert.ErrorIs(t, err, MagicNumberMismatchErr)
+}
+
+func TestReaderDirectIO(t *testing.T) {
+	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_directio", t)
+	err := reader.Open()
+	defer closeFileReader(t, reader)
+	require.Nil(t, err)
+
+	record, err := reader.ReadNext()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{13, 06, 29, 07}, record)
+
+	_, err = reader.ReadNext()
+	require.ErrorIs(t, err, io.EOF)
+}
+
+func TestReaderDirectIOTrailer(t *testing.T) {
+	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_directio_trailer", t)
+	err := reader.Open()
+	defer closeFileReader(t, reader)
+	require.Nil(t, err)
+
+	record, err := reader.ReadNext()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{13, 06, 29, 07}, record)
+
+	_, err = reader.ReadNext()
+	assert.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
 func TestReaderForbidsClosedReader(t *testing.T) {
