@@ -54,14 +54,6 @@ func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
 // Size returns the size of the underlying buffer in bytes.
 func (b *Writer) Size() int { return len(b.buf) }
 
-// Reset discards any unflushed buffered data, clears any error, and
-// resets b to write its output to w.
-func (b *Writer) Reset(w io.WriteCloser) {
-	b.err = nil
-	b.n = 0
-	b.wr = w
-}
-
 // Flush writes any buffered data to the underlying io.Writer.
 func (b *Writer) Flush() error {
 	if b.err != nil {

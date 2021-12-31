@@ -180,3 +180,33 @@ if err != nil { log.Fatalf("error: %v", err) }
 ``` 
 
 You can get the full example from [examples/recordio.go](/_examples/recordio.go).
+
+## DirectIO (experimental)
+
+DirectIO is useful when you want to bypass the operating system memory caches when writing something to disk directly. This can be useful in database applications like bulk-imports, where you don't want to pollute/churn existing memory for pages that were recently written and won't be read anytime soon.
+
+DirectIO can be enabled when creating a new writer by setting:
+
+````go
+import "github.com/thomasjungblut/go-sstables/recordio"
+
+writer, err := recordio.NewFileWriter(
+	recordio.Path("some/path/records.rio"), 
+	recordio.DirectIO(), 
+	recordio.BufferSizeBytes(4096))
+if err != nil { log.Fatalf("error: %v", err) }
+````
+
+It's highly recommended to check what buffer/block sizes are available on the target system, usually those need to be a power of two. It's very important to test a full open/write/close cycle as well, otherwise you might encounter rather strange error messages like `The parameter is incorrect.`, which sadly isn't very meaningful and difficult to debug. Usually this either means that DirectIO wasn't available to begin with, or the block sizes are not aligned with what the operating system expects to be written.
+
+You can check whether your OS is theoretically capable to enable DirectIO using:
+
+````go
+import "github.com/thomasjungblut/go-sstables/recordio"
+
+// true if yes, otherwise not
+available, err := recordio.IsDirectIOAvailable()
+````
+
+In this package the DirectIO support comes through a library called [ncw/directio](https://github.com/ncw/directio), which has good support across Linux, macOS and Windows under a single interface. The caveats of each platform, for example the buffer/block sizes, need to still be taken into account.  
+Another caveat is that the block alignment causes to write a certain amount of waste. Let's imagine you have blocks of 1024 bytes and only want to write 1025 bytes, with DirectIO enabled you will end up with a file of size 2048 (2 blocks) instead of a file with only 1025 bytes with DirectIO disabled. The DirectIO file will be padded with zeroes towards the end and the in-library readers honor this format and not assume a corrupted file format. 

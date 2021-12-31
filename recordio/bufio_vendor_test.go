@@ -32,6 +32,19 @@ func TestCreateNewBufferWithSlice(t *testing.T) {
 	assert.Equal(t, []byte{13, 6, 91, 22, 0, 0}, sink.buf)
 }
 
+func TestCreateNewBufferCloseFlushes(t *testing.T) {
+	sink := &closingWriter{make([]byte, 6)}
+	wBuf := NewWriterBuf(sink, make([]byte, 4))
+	assert.Equal(t, 4, wBuf.Size())
+
+	_, err := wBuf.Write([]byte{13, 6, 91, 22})
+	require.NoError(t, err)
+	// buffer should not been flushed so far
+	assert.Equal(t, []byte{0, 0, 0, 0, 0, 0}, sink.buf)
+	require.NoError(t, wBuf.Close())
+	assert.Equal(t, []byte{13, 6, 91, 22, 0, 0}, sink.buf)
+}
+
 func TestCreateNewBufferWithAlignedSlice(t *testing.T) {
 	sink := &closingWriter{make([]byte, 8)}
 	wBuf := NewAlignedWriterBuf(sink, make([]byte, 4))
