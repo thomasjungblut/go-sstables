@@ -218,6 +218,4 @@ Since version 5.x the linux kernel supports a new asynchronous approach to execu
 
 You can read more about io_uring at [https://kernel.dk/io_uring.pdf](https://kernel.dk/io_uring.pdf).
 
-
-
-
+In case you have SELinux enabled, you might hit "permission denied" errors when initializing the uring try to test with permissive mode enabled temporarily. 

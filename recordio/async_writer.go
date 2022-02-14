@@ -1,3 +1,5 @@
+//go:build linux
+
 package recordio
 
 import (
@@ -17,22 +19,13 @@ type AsyncWriter struct {
 	offset uint64
 }
 
-// TODO(thomas): not thread-safe yet
+// TODO(thomas): not thread-safe (yet)
 func (w *AsyncWriter) Write(p []byte) (int, error) {
 	for w.submittedSQEs >= w.ringSize {
-		// wait for at least one event to free from the queue
-		cqe, err := w.ring.SubmitAndWaitCQEvents(1)
+		err := w.submitAwaitOne()
 		if err != nil {
 			return 0, err
 		}
-
-		err = cqe.Error()
-		if err != nil {
-			return 0, err
-		}
-
-		atomic.AddInt32(&w.submittedSQEs, -1)
-		w.ring.SeenCQE(cqe)
 	}
 
 	err := w.ring.QueueSQE(uring.Write(w.file.Fd(), p, w.offset), 0, 0)
@@ -47,15 +40,30 @@ func (w *AsyncWriter) Write(p []byte) (int, error) {
 }
 
 func (w *AsyncWriter) Flush() error {
-	for w.submittedSQEs >= 0 {
+	for w.submittedSQEs > 0 {
 		// wait for at least one event to free from the queue
-		cqe, err := w.ring.SubmitAndWaitCQEvents(1)
+		err := w.submitAwaitOne()
 		if err != nil {
 			return err
 		}
+	}
 
-		atomic.AddInt32(&w.submittedSQEs, -1)
-		w.ring.SeenCQE(cqe)
+	return nil
+}
+
+func (w *AsyncWriter) submitAwaitOne() error {
+	// TODO(thomas): most likely there are more CQ events waiting, we should try to drain them optimistically to avoid overflowing memory buffers
+	cqe, err := w.ring.SubmitAndWaitCQEvents(1)
+	if err != nil {
+		return err
+	}
+
+	atomic.AddInt32(&w.submittedSQEs, -1)
+	w.ring.SeenCQE(cqe)
+
+	err = cqe.Error()
+	if err != nil {
+		return err
 	}
 
 	return nil
