@@ -5,7 +5,6 @@ package recordio
 import (
 	"github.com/godzie44/go-uring/uring"
 	"os"
-	"sync/atomic"
 )
 
 // AsyncWriter takes an uring and executes all writes asynchronously. There are only two barriers: flush and close.
@@ -28,13 +27,19 @@ func (w *AsyncWriter) Write(p []byte) (int, error) {
 		}
 	}
 
-	err := w.ring.QueueSQE(uring.Write(w.file.Fd(), p, w.offset), 0, 0)
+	// TODO(thomas): we would need to make a defensive copy for p, which actually is not optimal
+	// the reason is the buffer pooling (or the header reuse). It so happens that the original backing array was written
+	// a couple times before the ring was submitted. That caused some funny offsets to be written and eventually fail reading.
+	pc := make([]byte, len(p))
+	copy(pc, p)
+
+	err := w.ring.QueueSQE(uring.Write(w.file.Fd(), pc, w.offset), 0, 0)
 	if err != nil {
 		return 0, err
 	}
 
-	atomic.AddInt32(&w.submittedSQEs, 1)
-	atomic.AddUint64(&w.offset, uint64(len(p)))
+	w.submittedSQEs++
+	w.offset += uint64(len(p))
 
 	return len(p), nil
 }
@@ -58,7 +63,7 @@ func (w *AsyncWriter) submitAwaitOne() error {
 		return err
 	}
 
-	atomic.AddInt32(&w.submittedSQEs, -1)
+	w.submittedSQEs--
 	w.ring.SeenCQE(cqe)
 
 	err = cqe.Error()
@@ -92,20 +97,20 @@ func (w *AsyncWriter) Close() error {
 	return w.file.Close()
 }
 
-func NewAsyncWriter(filePath string, numRingEntries uint32, opts ...uring.SetupOption) (WriteCloserFlusher, error) {
+func NewAsyncWriter(filePath string, numRingEntries uint32, opts ...uring.SetupOption) (WriteCloserFlusher, *os.File, error) {
 	ring, err := uring.New(numRingEntries, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	writeFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = ring.RegisterFiles([]int{int(writeFile.Fd())})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	writer := &AsyncWriter{
@@ -114,5 +119,5 @@ func NewAsyncWriter(filePath string, numRingEntries uint32, opts ...uring.SetupO
 		ring:     ring,
 	}
 
-	return writer, nil
+	return writer, writeFile, nil
 }

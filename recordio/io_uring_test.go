@@ -1,4 +1,4 @@
-package iouring
+package recordio
 
 import (
 	"github.com/stretchr/testify/require"
