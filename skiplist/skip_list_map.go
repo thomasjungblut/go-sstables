@@ -7,22 +7,22 @@ import (
 	"math/rand"
 )
 
-// Typical comparator contract (similar to Java):
+// KeyComparator Typical comparator contract (similar to Java):
 // < 0 when a < b
 // == 0 when a == b
 // > 0 when a > b
 type KeyComparator func(a interface{}, b interface{}) int
 
-// iterator pattern as described in https://github.com/GoogleCloudPlatform/google-cloud-go/wiki/Iterator-Guidelines
+// Done iterator pattern as described in https://github.com/GoogleCloudPlatform/google-cloud-go/wiki/Iterator-Guidelines
 var Done = errors.New("no more items in iterator")
 var NotFound = errors.New("key was not found")
 
-// example comparator for plain byte arrays
+// BytesComparator example comparator for plain byte arrays
 func BytesComparator(a interface{}, b interface{}) int {
 	return bytes.Compare(a.([]byte), b.([]byte))
 }
 
-// example comparator for plain integers
+// IntComparator example comparator for plain integers
 func IntComparator(a interface{}, b interface{}) int {
 	aInt := a.(int)
 	bInt := b.(int)
@@ -37,7 +37,7 @@ func IntComparator(a interface{}, b interface{}) int {
 }
 
 type SkipListIteratorI interface {
-	// returns the next key, value in sequence
+	// Next returns the next key, value in sequence
 	// returns Done as the error when the iterator is exhausted
 	Next() (interface{}, interface{}, error)
 }
@@ -76,20 +76,20 @@ type SkipListMapI interface {
 	// REQUIRES: nothing that compares equal to key is currently in the list.
 	Insert(key interface{}, value interface{})
 
-	// Returns true if an entry that compares equal to key is in the list.
+	// Contains Returns true if an entry that compares equal to key is in the list.
 	Contains(key interface{}) bool
 
-	// Returns the value element that compares equal to the key supplied or returns NotFound if it does not exist.
+	// Get Returns the value element that compares equal to the key supplied or returns NotFound if it does not exist.
 	Get(key interface{}) (interface{}, error)
 
-	// Returns an iterator over the whole sorted sequence
+	// Iterator Returns an iterator over the whole sorted sequence
 	Iterator() (SkipListIteratorI, error)
 
-	// Returns an iterator over the sorted sequence starting at the given key (inclusive if key is in the list).
+	// IteratorStartingAt Returns an iterator over the sorted sequence starting at the given key (inclusive if key is in the list).
 	// Using a key that is out of the sequence range will result in either an empty iterator or the full sequence.
 	IteratorStartingAt(key interface{}) (SkipListIteratorI, error)
 
-	// Returns an iterator over the sorted sequence starting at the given keyLower (inclusive if key is in the list)
+	// IteratorBetween Returns an iterator over the sorted sequence starting at the given keyLower (inclusive if key is in the list)
 	// and until the given keyHigher was reached (inclusive if key is in the list).
 	// Using keys that are out of the sequence range will result in either an empty iterator or the full sequence.
 	// If keyHigher is lower than keyLower an error will be returned
