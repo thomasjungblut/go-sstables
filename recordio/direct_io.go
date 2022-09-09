@@ -1,9 +1,12 @@
 package recordio
 
 import (
-	"github.com/ncw/directio"
+	"errors"
 	"io/ioutil"
 	"os"
+	"syscall"
+
+	"github.com/ncw/directio"
 )
 
 type DirectIOFactory struct {
@@ -51,8 +54,11 @@ func IsDirectIOAvailable() (available bool, err error) {
 	tmpFile, err = directio.OpenFile(tmpFile.Name(), os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		// this syscall specifically signals that DirectIO is not supported
-		// if errors.Is(err, syscall.EINVAL)
-		return
+		if errors.Is(err, syscall.EINVAL) {
+			available = false
+			err = nil
+			return
+		}
 	}
 
 	// at this point we can be sure a file can be opened with DirectIO flags correctly

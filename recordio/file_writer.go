@@ -7,6 +7,7 @@ import (
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
+
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
@@ -21,14 +22,14 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file              *os.File
-	bufWriter         WriteCloserFlusher
-	currentOffset     uint64
-	compressionType   int
-	compressor        compressor.CompressionI
-	recordHeaderCache []byte
-	bufferPool        *pool.BufferPool
-	directIOEnabled   bool
+	file               *os.File
+	bufWriter          WriteCloserFlusher
+	currentOffset      uint64
+	compressionType    int
+	compressor         compressor.CompressionI
+	recordHeaderCache  []byte
+	bufferPool         *pool.BufferPool
+	alignedBlockWrites bool
 }
 
 var DirectIOSyncWriteErr = errors.New("currently not supporting directIO with sync writing")
@@ -59,7 +60,7 @@ func (w *FileWriter) Open() error {
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
 	// when directIO is enabled however, we can't write misaligned blocks - thus this is not executed
-	if !w.directIOEnabled {
+	if !w.alignedBlockWrites {
 		err = w.bufWriter.Flush()
 		if err != nil {
 			return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
@@ -160,9 +161,10 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	return prevOffset, nil
 }
 
-// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
+// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to.
+// When directIO is enabled however, we can't write misaligned blocks and immediately returns DirectIOSyncWriteErr
 func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
-	if w.directIOEnabled {
+	if w.alignedBlockWrites {
 		return 0, DirectIOSyncWriteErr
 	}
 
@@ -209,7 +211,7 @@ type FileWriterOptions struct {
 	file            *os.File
 	compressionType int
 	bufferSizeBytes int
-	useDirectIO     bool
+	enableDirectIO  bool
 }
 
 type FileWriterOption func(*FileWriterOptions)
@@ -246,10 +248,11 @@ func BufferSizeBytes(p int) FileWriterOption {
 	}
 }
 
-// DirectIO is experimental: this flag enables DirectIO while writing, this currently might not work due to the misaligned allocations
+// DirectIO is experimental: this flag enables DirectIO while writing. This has some limitation when writing headers and
+// disables the ability to use WriteSync.
 func DirectIO() FileWriterOption {
 	return func(args *FileWriterOptions) {
-		args.useDirectIO = true
+		args.enableDirectIO = true
 	}
 }
 
@@ -260,7 +263,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		file:            nil,
 		compressionType: CompressionTypeNone,
 		bufferSizeBytes: DefaultBufferSize,
-		useDirectIO:     false,
+		enableDirectIO:  false,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -276,7 +279,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	}
 
 	var factory ReaderWriterCloserFactory
-	if opts.useDirectIO {
+	if opts.enableDirectIO {
 		factory = DirectIOFactory{}
 	} else {
 		factory = BufferedIOFactory{}
@@ -294,18 +297,18 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Writer at '%s' failed with %w", opts.path, err)
 	}
-	return newCompressedFileWriterWithFile(file, writer, opts.compressionType, opts.useDirectIO)
+	return newCompressedFileWriterWithFile(file, writer, opts.compressionType, opts.enableDirectIO)
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, directIOEnabled bool) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
 	return &FileWriter{
-		file:            file,
-		bufWriter:       bufWriter,
-		directIOEnabled: directIOEnabled,
-		open:            false,
-		closed:          false,
-		compressionType: compType,
-		currentOffset:   0,
+		file:               file,
+		bufWriter:          bufWriter,
+		alignedBlockWrites: alignedBlockWrites,
+		open:               false,
+		closed:             false,
+		compressionType:    compType,
+		currentOffset:      0,
 	}, nil
 }

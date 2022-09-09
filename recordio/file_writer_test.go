@@ -178,6 +178,13 @@ func TestWriterCrashCreatesValidHeader(t *testing.T) {
 }
 
 func TestWriterCrashCreatesNoValidHeaderWithDirectIO(t *testing.T) {
+	ok, err := IsDirectIOAvailable()
+	require.NoError(t, err)
+	if !ok {
+		t.Skip("directio not available here")
+		return
+	}
+
 	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeaderDirectIO")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
@@ -195,6 +202,13 @@ func TestWriterCrashCreatesNoValidHeaderWithDirectIO(t *testing.T) {
 }
 
 func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
+	ok, err := IsDirectIOAvailable()
+	require.NoError(t, err)
+	if !ok {
+		t.Skip("directio not available here")
+		return
+	}
+
 	tmpFile, err := ioutil.TempFile("", "recordio_WriterNotAllowsSyncsWithDirectIO")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
