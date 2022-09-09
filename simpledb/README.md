@@ -9,7 +9,7 @@ like [RocksDB](https://github.com/facebook/rocksdb) or [LevelDB](https://github.
 There are three methods, namely `Get`, `Put` and `Delete` to query and add data to the database. For simplicity's sake
 the whole interface is based on strings.
 
-`Get` is retrieving the value for the given key. If there is no value for the given key it will return NotFound as the
+`Get` is retrieving the value for the given key. If there is no value for the given key it will return ErrNotFound as the
 error, and an empty string value. Otherwise, the error will contain any other usual io error that can be expected.
 
 `Put` adds the given value for the given key. If this key already exists, it will overwrite the already existing value
@@ -53,7 +53,7 @@ if err != nil { log.Fatalf("error: %v", err) }
 ```go
 value, err = db.Get("hello")
 if err != nil {
-    if err == simpledb.NotFound {
+    if err == simpledb.ErrNotFound {
         log.Printf("no value found!")
     } else {
         log.Fatalf("error: %v", err)

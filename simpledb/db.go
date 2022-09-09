@@ -6,13 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
-	"google.golang.org/protobuf/proto"
 )
 
 const SSTablePrefix = "sstable"
@@ -25,15 +26,17 @@ const NumSSTablesToTriggerCompaction int = 10
 const DefaultCompactionMaxSizeBytes uint64 = 5 * 1024 * 1024 * 1024 // 5gb
 const DefaultCompactionInterval = 5 * time.Second
 
-var NotFound = errors.New("NotFound")
-var AlreadyClosed = errors.New("database is already closed")
-var EmptyKeyValue = errors.New("neither empty keys nor values are allowed")
+var ErrNotFound = errors.New("ErrNotFound")
+var ErrNotOpenedYet = errors.New("database has not been opened yet, please call Open() first")
+var ErrAlreadyOpen = errors.New("database is already open")
+var ErrAlreadyClosed = errors.New("database is already closed")
+var ErrEmptyKeyValue = errors.New("neither empty keys nor values are allowed")
 
 type DatabaseI interface {
 	recordio.OpenClosableI
 
 	// Get returns the value for the given key. If there is no value for the given
-	// key it will return NotFound as the error and an empty string value. Otherwise
+	// key it will return ErrNotFound as the error and an empty string value. Otherwise
 	// the error will contain any other usual io error that can be expected.
 	Get(key string) (string, error)
 
@@ -71,6 +74,7 @@ type DB struct {
 	compactedMaxSizeBytes uint64
 	enableCompactions     bool
 	enableAsyncWAL        bool
+	open                  bool
 	closed                bool
 
 	rwLock         *sync.RWMutex
@@ -89,6 +93,10 @@ type DB struct {
 func (db *DB) Open() error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
+
+	if db.open {
+		return ErrAlreadyOpen
+	}
 
 	err := db.repairCompactions()
 	if err != nil {
@@ -111,6 +119,8 @@ func (db *DB) Open() error {
 		go backgroundCompaction(db)
 	}
 
+	db.open = true
+
 	return nil
 }
 
@@ -119,8 +129,13 @@ func (db *DB) Close() error {
 
 	err := func() error {
 		defer db.rwLock.Unlock()
+
+		if !db.open {
+			return ErrNotOpenedYet
+		}
+
 		if db.closed {
-			return AlreadyClosed
+			return ErrAlreadyClosed
 		}
 
 		db.closed = true
@@ -165,8 +180,12 @@ func (db *DB) Get(key string) (string, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
+	if !db.open {
+		return "", ErrNotOpenedYet
+	}
+
 	if db.closed {
-		return "", AlreadyClosed
+		return "", ErrAlreadyClosed
 	}
 
 	// we have to read the sstable first and then augment it with
@@ -187,14 +206,14 @@ func (db *DB) Get(key string) (string, error) {
 	if err != nil {
 		if err == memstore.KeyNotFound {
 			if sstableNotFound {
-				return "", NotFound
+				return "", ErrNotFound
 			} else {
 				return string(ssTableVal), nil
 			}
 		} else if err == memstore.KeyTombstoned {
 			// regardless of what we found on the sstable:
 			// if the memstore says it's tombstoned it's considered deleted
-			return "", NotFound
+			return "", ErrNotFound
 		} else {
 			return "", err
 		}
@@ -206,7 +225,7 @@ func (db *DB) Get(key string) (string, error) {
 
 func (db *DB) Put(key, value string) error {
 	if len(key) == 0 || len(value) == 0 {
-		return EmptyKeyValue
+		return ErrEmptyKeyValue
 	}
 
 	// string to byte conversion takes 7% of the method execution time
@@ -229,8 +248,12 @@ func (db *DB) Put(key, value string) error {
 	return func() error {
 		defer db.rwLock.Unlock()
 
+		if !db.open {
+			return ErrNotOpenedYet
+		}
+
 		if db.closed {
-			return AlreadyClosed
+			return ErrAlreadyClosed
 		}
 
 		if db.enableAsyncWAL {
@@ -273,8 +296,12 @@ func (db *DB) Delete(key string) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
+	if !db.open {
+		return ErrNotOpenedYet
+	}
+
 	if db.closed {
-		return AlreadyClosed
+		return ErrAlreadyClosed
 	}
 
 	if db.enableAsyncWAL {
@@ -304,7 +331,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
 		true,
-		true,
+		false,
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
@@ -375,15 +402,15 @@ func DisableCompactions() ExtraOption {
 	}
 }
 
-// DisableAsyncWAL will turn off the asynchronous WAL writes, which should give consistent, but slower results.
-func DisableAsyncWAL() ExtraOption {
+// EnableAsyncWAL will turn on the asynchronous WAL writes, which should give faster writes at the expense of safety.
+func EnableAsyncWAL() ExtraOption {
 	return func(args *ExtraOptions) {
-		args.enableAsyncWAL = false
+		args.enableAsyncWAL = true
 	}
 }
 
 // CompactionRunInterval configures how often the compaction ticker tries to compact sstables.
-// By default it's every DefaultCompactionInterval.
+// By default, it's every DefaultCompactionInterval.
 func CompactionRunInterval(interval time.Duration) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionRunInterval = interval

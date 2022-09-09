@@ -1,3 +1,4 @@
+//go:build simpleDBcrash
 // +build simpleDBcrash
 
 package main
@@ -17,6 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
@@ -168,7 +170,7 @@ func assertContains(t *testing.T, keys []string) {
 func assertNotContains(t *testing.T, keys []string) {
 	for _, k := range keys {
 		v, err := get(k)
-		assert.Equal(t, simpledb.NotFound, err, "expected '%s' to be deleted, but was '%s'", k, v)
+		assert.Equal(t, simpledb.ErrNotFound, err, "expected '%s' to be deleted, but was '%s'", k, v)
 	}
 	log.Printf("successfully asserted %d keys don't exist\n", len(keys))
 }
@@ -194,7 +196,7 @@ func killAndWait(t *testing.T, c *exec.Cmd) {
 	// wait until the DB is not responding anymore
 	for {
 		_, err := get("SOME_KEY")
-		if err != nil && err != simpledb.NotFound {
+		if err != nil && err != simpledb.ErrNotFound {
 			break
 		}
 
@@ -223,7 +225,7 @@ func spawnNewDatabaseServer(t *testing.T, path string) *exec.Cmd {
 	// wait until the DB is up
 	for {
 		_, err := get("SOME_KEY")
-		if err != nil && err == simpledb.NotFound {
+		if err != nil && err == simpledb.ErrNotFound {
 			break
 		}
 
@@ -241,7 +243,7 @@ func get(key string) (string, error) {
 	}
 
 	if response.StatusCode == http.StatusNotFound {
-		return "", simpledb.NotFound
+		return "", simpledb.ErrNotFound
 	}
 
 	if response.StatusCode != http.StatusOK {

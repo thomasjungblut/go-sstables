@@ -2,8 +2,6 @@ package benchmark
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"github.com/thomasjungblut/go-sstables/simpledb"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -13,6 +11,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
 func BenchmarkSimpleDBReadLatency(b *testing.B) {
@@ -36,7 +38,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				k := strconv.Itoa(i)
 				val, err := db.Get(k)
-				if err != simpledb.NotFound {
+				if err != simpledb.ErrNotFound {
 					b.SetBytes(int64(len(k) + len(val)))
 				}
 				i++

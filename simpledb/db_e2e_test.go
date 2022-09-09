@@ -1,11 +1,10 @@
+//go:build simpleDBe2e
 // +build simpleDBe2e
 
 // disabling the race detector as this is a 10-20 minute thing for the below tests
 package simpledb
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -13,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // those are end2end tests for the whole package, some are very heavyweight
@@ -50,7 +52,7 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 		key := strconv.Itoa(i)
 		if i%2 == 0 {
 			_, err := db.Get(key)
-			assert.Equalf(t, NotFound, err, "found element %d", i)
+			assert.Equalf(t, ErrNotFound, err, "found element %d", i)
 		} else {
 			assertGet(t, db, key)
 		}
@@ -174,7 +176,7 @@ func TestPutAndGetsAndDeletesMixedConcurrent(t *testing.T) {
 		key := strconv.Itoa(j)
 		if j%2 == 0 {
 			_, err := db.Get(key)
-			assert.Equal(t, NotFound, err)
+			assert.Equal(t, ErrNotFound, err)
 		} else {
 			assertGet(t, db, key)
 		}
@@ -199,7 +201,7 @@ func TestRecoveryFromCloseHappyPath(t *testing.T) {
 		key := strconv.Itoa(j)
 		if j%2 == 0 {
 			v, err := db.Get(key)
-			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equalf(t, ErrNotFound, err, "found %d in the table where it should've been deleted", j)
 			assert.Equal(t, "", v)
 		} else {
 			assertGet(t, db, key)
@@ -225,7 +227,7 @@ func TestNaiveCrashRecovery(t *testing.T) {
 		key := strconv.Itoa(j)
 		if j%2 == 0 {
 			v, err := db.Get(key)
-			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equalf(t, ErrNotFound, err, "found %d in the table where it should've been deleted", j)
 			assert.Equal(t, "", v)
 		} else {
 			assertGet(t, db, key)
@@ -261,7 +263,7 @@ func TestContinuousCrashRecovery(t *testing.T) {
 			key := strconv.Itoa(j)
 			if j%2 == 0 {
 				v, err := db.Get(key)
-				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+				assert.Equalf(t, ErrNotFound, err, "found %d in the table where it should've been deleted", j)
 				assert.Equal(t, "", v)
 			} else {
 				assertGet(t, db, key)
@@ -298,7 +300,7 @@ func TestCrashRecoveryWithEmptyWAL(t *testing.T) {
 		key := strconv.Itoa(j)
 		if j%2 == 0 {
 			v, err := newDb.Get(key)
-			assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+			assert.Equalf(t, ErrNotFound, err, "found %d in the table where it should've been deleted", j)
 			assert.Equal(t, "", v)
 		} else {
 			assertGet(t, newDb, key)
@@ -332,7 +334,7 @@ func testWriteAlternatingDeletes(t *testing.T, db *DB, n int) {
 			key := strconv.Itoa(j)
 			if j%2 == 0 {
 				v, err := db.Get(key)
-				assert.Equalf(t, NotFound, err, "found %d in the table where it should've been deleted", j)
+				assert.Equalf(t, ErrNotFound, err, "found %d in the table where it should've been deleted", j)
 				assert.Equal(t, "", v)
 			} else {
 				assertGet(t, db, key)
@@ -357,7 +359,7 @@ func assertDatabaseContains(t *testing.T, db *DB, keys []string) {
 func assertDatabaseNotContains(t *testing.T, db *DB, keys []string) {
 	for _, k := range keys {
 		v, err := db.Get(k)
-		assert.Equalf(t, NotFound, err, "found %v in the table where it should've been deleted", k)
+		assert.Equalf(t, ErrNotFound, err, "found %v in the table where it should've been deleted", k)
 		assert.Equal(t, "", v)
 	}
 }
