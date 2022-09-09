@@ -21,7 +21,7 @@ type Server struct {
 func (s *Server) handleGet(w http.ResponseWriter, key string) {
 	get, err := s.db.Get(key)
 	if err != nil {
-		if err == simpledb.NotFound {
+		if err == simpledb.ErrNotFound {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		} else {
@@ -97,7 +97,6 @@ func main() {
 
 	// make sure we sync to WAL all the time and have a small memstore size for flushing often
 	db, err := simpledb.NewSimpleDB(baseDir,
-		simpledb.DisableAsyncWAL(),
 		simpledb.CompactionFileThreshold(5),
 		simpledb.CompactionRunInterval(1*time.Second),
 		simpledb.MemstoreSizeBytes(1024*1024*4))

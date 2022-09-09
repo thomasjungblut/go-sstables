@@ -1,8 +1,6 @@
 package simpledb
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -10,12 +8,42 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreationWhenDirNotAvailable(t *testing.T) {
 	// apologies if such a directory actually exists in your filesystem
 	_, err := NewSimpleDB("ääääääüüüü")
 	assert.True(t, os.IsNotExist(err), "folder apparently exists")
+}
+
+func TestOperationUnopened(t *testing.T) {
+	db := newSimpleDBWithTemp(t, "simpleDB_testClosingUnopened")
+	defer cleanDatabaseFolder(t, db)
+
+	assert.Equal(t, db.Close(), ErrNotOpenedYet)
+	assert.Equal(t, db.Put("a", "b"), ErrNotOpenedYet)
+	assert.Equal(t, db.Delete("a"), ErrNotOpenedYet)
+	_, err := db.Get("a")
+	assert.Equal(t, err, ErrNotOpenedYet)
+}
+
+func TestOpenErrOnOpenedDb(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGet")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	assert.Equal(t, db.Open(), ErrAlreadyOpen)
+}
+
+func TestDoubleClose(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGet")
+	defer cleanDatabaseFolder(t, db)
+	closeDatabase(t, db)
+
+	assert.Equal(t, db.Close(), ErrAlreadyClosed)
 }
 
 func TestSimplePutAndGet(t *testing.T) {
@@ -36,7 +64,7 @@ func TestGetNotFound(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	_, err := db.Get("a")
-	assert.Equal(t, NotFound, err)
+	assert.Equal(t, ErrNotFound, err)
 }
 
 func TestEmptyPutDisallowed(t *testing.T) {
@@ -45,13 +73,13 @@ func TestEmptyPutDisallowed(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	err := db.Put("a", "")
-	assert.Equal(t, EmptyKeyValue, err)
+	assert.Equal(t, ErrEmptyKeyValue, err)
 
 	err = db.Put("", "")
-	assert.Equal(t, EmptyKeyValue, err)
+	assert.Equal(t, ErrEmptyKeyValue, err)
 
 	err = db.Put("", "a")
-	assert.Equal(t, EmptyKeyValue, err)
+	assert.Equal(t, ErrEmptyKeyValue, err)
 }
 
 func TestDeleteNotFound(t *testing.T) {
@@ -75,7 +103,7 @@ func TestPutDeleteGetNotFound(t *testing.T) {
 	require.Nil(t, db.Delete("a"))
 
 	_, err = db.Get("a")
-	assert.Equal(t, NotFound, err)
+	assert.Equal(t, ErrNotFound, err)
 }
 
 func TestPutAndGetAndDelete(t *testing.T) {
@@ -84,7 +112,7 @@ func TestPutAndGetAndDelete(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	_, err := db.Get("a")
-	assert.Equal(t, NotFound, err)
+	assert.Equal(t, ErrNotFound, err)
 
 	require.Nil(t, db.Put("a", "b"))
 
@@ -95,7 +123,7 @@ func TestPutAndGetAndDelete(t *testing.T) {
 	require.Nil(t, db.Delete("a"))
 
 	_, err = db.Get("a")
-	assert.Equal(t, NotFound, err)
+	assert.Equal(t, ErrNotFound, err)
 }
 
 func TestCloseDeniesCrudOperations(t *testing.T) {
@@ -104,11 +132,11 @@ func TestCloseDeniesCrudOperations(t *testing.T) {
 	closeDatabase(t, db)
 
 	_, err := db.Get("somehow")
-	assert.Equal(t, AlreadyClosed, err)
+	assert.Equal(t, ErrAlreadyClosed, err)
 	err = db.Put("somehow", "somewhat")
-	assert.Equal(t, AlreadyClosed, err)
+	assert.Equal(t, ErrAlreadyClosed, err)
 	err = db.Delete("somehow")
-	assert.Equal(t, AlreadyClosed, err)
+	assert.Equal(t, ErrAlreadyClosed, err)
 }
 
 func TestDisableCompactions(t *testing.T) {
@@ -203,13 +231,18 @@ func randomRecordWithPrefix(rand *rand.Rand, prefix int) string {
 	return randomRecordWithPrefixWithSize(rand, prefix, 10000)
 }
 
-func newOpenedSimpleDB(t *testing.T, name string) *DB {
+func newSimpleDBWithTemp(t *testing.T, name string) *DB {
 	tmpDir, err := ioutil.TempDir("", name)
 	require.Nil(t, err)
 
 	//for testing purposes we will flush with a tiny amount of 2mb
 	db, err := NewSimpleDB(tmpDir, MemstoreSizeBytes(1024*1024*2))
 	require.Nil(t, err)
+	return db
+}
+
+func newOpenedSimpleDB(t *testing.T, name string) *DB {
+	db := newSimpleDBWithTemp(t, name)
 	require.Nil(t, db.Open())
 	return db
 }

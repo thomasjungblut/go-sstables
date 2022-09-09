@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/thomasjungblut/go-sstables/simpledb"
 	"log"
 	"os"
+
+	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
 func main() {
@@ -34,7 +35,7 @@ func main() {
 	log.Printf("get 'hello' = %s", get)
 
 	_, err = db.Get("not found")
-	if err == simpledb.NotFound {
+	if err == simpledb.ErrNotFound {
 		log.Printf("not found!")
 	}
 
