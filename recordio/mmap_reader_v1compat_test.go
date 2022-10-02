@@ -64,11 +64,6 @@ func TestMMapReaderV1CompressionSnappyHeader(t *testing.T) {
 	assert.Equal(t, 2, reader.header.compressionType)
 }
 
-func TestMMapReaderV1CompressionUnknown(t *testing.T) {
-	reader := newTestMMapReader("test_files/v1_compat/recordio_UncompressedSingleRecord_comp3", t)
-	expectErrorStringOnOpen(t, reader, "unknown compression type [3]")
-}
-
 func TestMMapReaderForbidsClosedReaderV1(t *testing.T) {
 	reader := newTestMMapReader("test_files/v1_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Close()

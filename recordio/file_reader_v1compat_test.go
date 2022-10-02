@@ -127,11 +127,6 @@ func TestReaderCompressionSnappyHeaderV1(t *testing.T) {
 	assert.Equal(t, 2, reader.header.compressionType)
 }
 
-func TestReaderCompressionUnknownV1(t *testing.T) {
-	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_comp3", t)
-	expectErrorStringOnOpen(t, reader, "unknown compression type [3]")
-}
-
 func TestReaderMagicNumberMismatchV1(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_mnm", t)
 	err := reader.Open()

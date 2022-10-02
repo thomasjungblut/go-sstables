@@ -64,8 +64,8 @@ func TestMMapReaderCompressionSnappyHeader(t *testing.T) {
 }
 
 func TestMMapReaderCompressionUnknown(t *testing.T) {
-	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp3", t)
-	expectErrorStringOnOpen(t, reader, "unknown compression type [3]")
+	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp300", t)
+	expectErrorStringOnOpen(t, reader, "unknown compression type [300]")
 }
 
 func TestMMapReaderForbidsClosedReader(t *testing.T) {

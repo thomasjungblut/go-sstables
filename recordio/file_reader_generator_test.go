@@ -25,7 +25,7 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeVersionMismatchAugmented(t, prefix+"recordio_UncompressedSingleRecord_v256", 256)
 	writeCompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_comp1", CompressionTypeGZIP)
 	writeCompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_comp2", CompressionTypeSnappy)
-	writeCompressedSingleRecordAugmented(t, prefix+"recordio_UncompressedSingleRecord_comp3", 3) //unknown compression type
+	writeCompressedSingleRecordAugmented(t, prefix+"recordio_UncompressedSingleRecord_comp300", 300) //unknown compression type
 	writeUncompressedSingleRecordAugmentedMagicNumber(t, prefix+"recordio_UncompressedSingleRecord_mnm")
 
 	writeDirectIOUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_directio")

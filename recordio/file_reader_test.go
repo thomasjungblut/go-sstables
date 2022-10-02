@@ -126,8 +126,8 @@ func TestReaderCompressionSnappyHeader(t *testing.T) {
 }
 
 func TestReaderCompressionUnknown(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp3", t)
-	expectErrorStringOnOpen(t, reader, "unknown compression type [3]")
+	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp300", t)
+	expectErrorStringOnOpen(t, reader, "unknown compression type [300]")
 }
 
 func TestReaderMagicNumberMismatch(t *testing.T) {
@@ -190,6 +190,7 @@ func TestReaderForbidsDoubleOpens(t *testing.T) {
 func expectErrorStringOnOpen(t *testing.T, reader OpenClosableI, expectedError string) {
 	err := reader.Open()
 	defer closeOpenClosable(t, reader)
+	require.NotNil(t, err)
 	assert.Contains(t, err.Error(), expectedError)
 }
 

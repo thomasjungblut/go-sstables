@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// containing all the end to end tests
+// containing all the end-to-end tests
 
 func TestReadWriteEndToEnd(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
@@ -20,7 +20,7 @@ func TestReadWriteEndToEnd(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t)
 }
 
 func TestReadWriteEndToEndGzip(t *testing.T) {
@@ -30,7 +30,7 @@ func TestReadWriteEndToEndGzip(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeGZIP))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t)
 }
 
 func TestReadWriteEndToEndSnappy(t *testing.T) {
@@ -40,7 +40,17 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeSnappy))
 	require.NoError(t, err)
 
-	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t, tmpFile)
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t)
+}
+
+func TestReadWriteEndToEndLzw(t *testing.T) {
+	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappy")
+	require.NoError(t, err)
+	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
+	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeLzw))
+	require.NoError(t, err)
+
+	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t)
 }
 
 func TestReadWriteEndToEndDirectIO(t *testing.T) {
@@ -64,10 +74,10 @@ func TestReadWriteEndToEndDirectIO(t *testing.T) {
 		return reader
 	}
 
-	endToEndReadWrite(writer, reader, t, tmpFile)
+	endToEndReadWrite(writer, reader, t)
 }
 
-func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T, tmpFile *os.File) {
+func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T) {
 	// we're reading the file line by line and try to read it back and assert the same content
 	inFile, err := os.Open("test_files/berlin52.tsp")
 	require.NoError(t, err)

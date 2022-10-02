@@ -27,6 +27,7 @@ const (
 	CompressionTypeNone   = iota
 	CompressionTypeGZIP   = iota
 	CompressionTypeSnappy = iota
+	CompressionTypeLzw    = iota
 )
 
 // DefaultBufferSize is four mebibyte and can be customized using the option BufferSizeBytes.
@@ -98,6 +99,8 @@ func NewCompressorForType(compType int) (compressor.CompressionI, error) {
 		return &compressor.SnappyCompressor{}, nil
 	case CompressionTypeGZIP:
 		return &compressor.GzipCompressor{}, nil
+	case CompressionTypeLzw:
+		return &compressor.LzwCompressor{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported compression type %d", compType)
 	}
