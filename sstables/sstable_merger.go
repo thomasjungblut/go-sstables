@@ -2,21 +2,44 @@ package sstables
 
 import (
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/pq"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
+
+type SSTableMergeIteratorContext struct {
+	ctx      int
+	iterator SSTableIteratorI
+}
+
+func (s SSTableMergeIteratorContext) Next() ([]byte, []byte, error) {
+	k, v, err := s.iterator.Next()
+	if err == Done {
+		return nil, nil, pq.Done
+	}
+	return k, v, nil
+}
+
+func (s SSTableMergeIteratorContext) Context() int {
+	return s.ctx
+}
+
+func NewMergeIteratorContext(context int, iterator SSTableIteratorI) SSTableMergeIteratorContext {
+	return SSTableMergeIteratorContext{
+		ctx:      context,
+		iterator: iterator,
+	}
+}
 
 type SSTableMerger struct {
 	comp skiplist.Comparator[[]byte]
 }
 
-type MergeContext struct {
-	Iterators       []SSTableIteratorI
-	IteratorContext []interface{}
-}
-
-func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) error {
-	pq := NewPriorityQueue(m.comp)
-	err := pq.Init(ctx)
+func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI) error {
+	var iteratorWithContext []pq.IteratorWithContext[[]byte, []byte, int]
+	for _, iterator := range iterators {
+		iteratorWithContext = append(iteratorWithContext, iterator)
+	}
+	pqq, err := pq.NewPriorityQueue[[]byte, []byte, int](m.comp, iteratorWithContext)
 	if err != nil {
 		return fmt.Errorf("merge error while initializing the heap: %w", err)
 	}
@@ -27,9 +50,9 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 	}
 
 	for {
-		k, v, _, err := pq.Next()
+		k, v, _, err := pqq.Next()
 		if err != nil {
-			if err == Done {
+			if err == pq.Done {
 				break
 			} else {
 				return fmt.Errorf("merge error during heap next: %w", err)
@@ -51,20 +74,19 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 }
 
 type MergeCompactionIterator struct {
-	ctx     MergeContext
 	comp    skiplist.Comparator[[]byte]
-	reduce  func([]byte, [][]byte, []interface{}) ([]byte, []byte)
-	pq      *PriorityQueue
+	reduce  func([]byte, [][]byte, []int) ([]byte, []byte)
+	pq      pq.PriorityQueueI[[]byte, []byte, int]
 	prevKey []byte
 	valBuf  [][]byte
-	ctxBuf  []interface{}
+	ctxBuf  []int
 }
 
 func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 	for {
 		k, v, c, err := m.pq.Next()
 		if err != nil {
-			if err == Done {
+			if err == pq.Done {
 				if len(m.valBuf) > 0 {
 					kReduced, vReduced := m.reduce(m.prevKey, m.valBuf, m.ctxBuf)
 					if kReduced != nil && vReduced != nil {
@@ -88,7 +110,7 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 				toReturnVal = vReduced
 			}
 			m.valBuf = make([][]byte, 0)
-			m.ctxBuf = make([]interface{}, 0)
+			m.ctxBuf = make([]int, 0)
 		}
 
 		m.prevKey = k
@@ -101,24 +123,25 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 	}
 }
 
-func (m SSTableMerger) MergeCompactIterator(ctx MergeContext,
-	reduce func([]byte, [][]byte, []interface{}) ([]byte, []byte)) (SSTableIteratorI, error) {
-
-	pq := NewPriorityQueue(m.comp)
-	err := pq.Init(ctx)
+func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorContext,
+	reduce func([]byte, [][]byte, []int) ([]byte, []byte)) (SSTableIteratorI, error) {
+	var iteratorWithContext []pq.IteratorWithContext[[]byte, []byte, int]
+	for _, iterator := range iterators {
+		iteratorWithContext = append(iteratorWithContext, iterator)
+	}
+	pqq, err := pq.NewPriorityQueue[[]byte, []byte, int](m.comp, iteratorWithContext)
 	if err != nil {
 		return nil, fmt.Errorf("merge compact error while initializing the heap: %w", err)
 	}
 
 	var prevKey []byte
 	valBuf := make([][]byte, 0)
-	ctxBuf := make([]interface{}, 0)
+	ctxBuf := make([]int, 0)
 
 	return &MergeCompactionIterator{
-		ctx:     ctx,
 		comp:    m.comp,
 		reduce:  reduce,
-		pq:      &pq,
+		pq:      pqq,
 		prevKey: prevKey,
 		valBuf:  valBuf,
 		ctxBuf:  ctxBuf,
@@ -126,10 +149,9 @@ func (m SSTableMerger) MergeCompactIterator(ctx MergeContext,
 
 }
 
-func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriterI,
-	reduce func([]byte, [][]byte, []interface{}) ([]byte, []byte)) error {
-
-	iterator, err := m.MergeCompactIterator(ctx, reduce)
+func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI,
+	reduce func([]byte, [][]byte, []int) ([]byte, []byte)) error {
+	iterator, err := m.MergeCompactIterator(iterators, reduce)
 	if err != nil {
 		return fmt.Errorf("merge compact error while initializing the iterator: %w", err)
 	}

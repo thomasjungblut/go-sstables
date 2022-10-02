@@ -1,8 +1,6 @@
-package sstables
+package pq
 
 import (
-	"encoding/binary"
-	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -10,20 +8,25 @@ import (
 	"testing"
 )
 
-type ListSSTableIteratorI struct {
+type SliceIterator struct {
 	list         []int // every int is treated as key/value as a single element byte array
 	currentIndex int
+	context      int
 }
 
-func (l *ListSSTableIteratorI) Next() ([]byte, []byte, error) {
+func (l *SliceIterator) Next() (int, int, error) {
 	if l.currentIndex >= len(l.list) {
-		return nil, nil, Done
+		return 0, 0, Done
 	}
 
-	k := intToByteSlice(l.list[l.currentIndex])
-	v := intToByteSlice(l.list[l.currentIndex] + 1)
+	k := l.list[l.currentIndex]
 	l.currentIndex++
-	return k, v, nil
+
+	return k, k + 1, nil
+}
+
+func (l *SliceIterator) Context() int {
+	return l.context
 }
 
 func TestTwoListsHappyPath(t *testing.T) {
@@ -78,54 +81,29 @@ func TestMultiListAllEmpty(t *testing.T) {
 	assertMergeAndListMatches(t, []int{}, []int{}, []int{})
 }
 
-func TestInitContextFail(t *testing.T) {
-	pq := NewPriorityQueue(skiplist.BytesComparator{})
-	err := pq.Init(MergeContext{
-		Iterators:       []SSTableIteratorI{},
-		IteratorContext: []interface{}{"a", "b"},
-	})
-	assert.Equal(t, errors.New("merge context iterator length (0) does not equal iterator context length (2)"), err)
-}
-
 func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
-	var input []SSTableIteratorI
-	var context []interface{}
+	var iterators []IteratorWithContext[int, int, int]
 	var expected []int
 
-	nonEmptyLists := 0
 	for _, v := range lists {
-		input = append(input, &ListSSTableIteratorI{list: v})
-		context = append(context, len(v))
+		iterators = append(iterators, &SliceIterator{list: v, context: len(v)})
 		expected = append(expected, v...)
-		if len(v) > 0 {
-			nonEmptyLists++
-		}
 	}
 
-	pq := NewPriorityQueue(skiplist.BytesComparator{})
-	err := pq.Init(MergeContext{
-		Iterators:       input,
-		IteratorContext: context,
-	})
+	pq, err := NewPriorityQueue[int, int, int](skiplist.OrderedComparator[int]{}, iterators)
 	require.Nil(t, err)
-	assert.Equal(t, nonEmptyLists, pq.size)
 
-	var actual []int
+	var actualKeys []int
 	for {
 		k, v, _, err := pq.Next()
 		if err == Done {
 			break
 		}
 
-		assert.Equal(t, 4, len(k))
-		assert.Equal(t, 4, len(v))
-		kActual := int(binary.BigEndian.Uint32(k))
-		vActual := int(binary.BigEndian.Uint32(v))
-		assert.Equal(t, kActual+1, vActual)
-
-		actual = append(actual, kActual)
+		assert.Equal(t, k+1, v)
+		actualKeys = append(actualKeys, k)
 	}
 
 	sort.Ints(expected)
-	assert.Exactly(t, expected, actual)
+	assert.Exactly(t, expected, actualKeys)
 }

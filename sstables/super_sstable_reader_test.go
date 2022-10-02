@@ -282,15 +282,15 @@ func TestSuperScanRange(t *testing.T) {
 func TestScanReduceFunc(t *testing.T) {
 	expectedKey := []byte{0}
 	values := [][]byte{{0}, {1}, {2}, {3}}
-	k, v := ScanReduceLatestWins(expectedKey, values, []interface{}{3, 2, 1, 0})
+	k, v := ScanReduceLatestWins(expectedKey, values, []int{3, 2, 1, 0})
 	assert.Equal(t, expectedKey, k)
 	assert.Equal(t, v, values[0])
 
-	k, v = ScanReduceLatestWins(expectedKey, values, []interface{}{0, 2, 1, 0})
+	k, v = ScanReduceLatestWins(expectedKey, values, []int{0, 2, 1, 0})
 	assert.Equal(t, expectedKey, k)
 	assert.Equal(t, v, values[1])
 
-	k, v = ScanReduceLatestWins(expectedKey, values, []interface{}{0, 0, 0, 0})
+	k, v = ScanReduceLatestWins(expectedKey, values, []int{0, 0, 0, 0})
 	assert.Equal(t, expectedKey, k)
 	assert.Equal(t, v, values[0])
 }
