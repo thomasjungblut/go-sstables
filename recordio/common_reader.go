@@ -27,7 +27,7 @@ func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	}
 
 	compressionType := binary.LittleEndian.Uint32(buffer[4:8])
-	if compressionType > CompressionTypeSnappy {
+	if compressionType > CompressionTypeLzw {
 		return nil, fmt.Errorf("unknown compression type [%d]", compressionType)
 	}
 
