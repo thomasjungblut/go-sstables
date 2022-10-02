@@ -40,24 +40,16 @@ func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {
 }
 
 func (s SuperSSTableReader) Scan() (SSTableIteratorI, error) {
-	var iterators []SSTableIteratorI
-	var context []interface{}
-
+	var iterators []SSTableMergeIteratorContext
 	for i, reader := range s.readers {
 		scanner, err := reader.Scan()
 		if err != nil {
 			return nil, err
 		}
-		iterators = append(iterators, scanner)
-		context = append(context, i)
+		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
 
-	mergeContext := MergeContext{
-		Iterators:       iterators,
-		IteratorContext: context,
-	}
-
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -66,24 +58,17 @@ func (s SuperSSTableReader) Scan() (SSTableIteratorI, error) {
 }
 
 func (s SuperSSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
-	var iterators []SSTableIteratorI
-	var context []interface{}
+	var iterators []SSTableMergeIteratorContext
 
 	for i, reader := range s.readers {
 		scanner, err := reader.ScanStartingAt(key)
 		if err != nil {
 			return nil, err
 		}
-		iterators = append(iterators, scanner)
-		context = append(context, i)
+		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
 
-	mergeContext := MergeContext{
-		Iterators:       iterators,
-		IteratorContext: context,
-	}
-
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -92,24 +77,17 @@ func (s SuperSSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error)
 }
 
 func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTableIteratorI, error) {
-	var iterators []SSTableIteratorI
-	var context []interface{}
+	var iterators []SSTableMergeIteratorContext
 
 	for i, reader := range s.readers {
 		scanner, err := reader.ScanRange(keyLower, keyHigher)
 		if err != nil {
 			return nil, err
 		}
-		iterators = append(iterators, scanner)
-		context = append(context, i)
+		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
 
-	mergeContext := MergeContext{
-		Iterators:       iterators,
-		IteratorContext: context,
-	}
-
-	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(mergeContext, ScanReduceLatestWins)
+	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
@@ -119,14 +97,13 @@ func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTabl
 
 // ScanReduceLatestWins is a simple version of a merge where the latest value always wins. Latest is determined
 // by looping the context and finding the biggest value denoted by integers (assuming context is actually []int).
-func ScanReduceLatestWins(key []byte, values [][]byte, context []interface{}) ([]byte, []byte) {
+func ScanReduceLatestWins(key []byte, values [][]byte, context []int) ([]byte, []byte) {
 	// we're taking the value of the "latest" reader by checking the maximum value in the context
 	maxCtx := 0
 	maxCtxIndex := 0
 	for i, x := range context {
-		xInt := x.(int)
-		if xInt > maxCtx {
-			maxCtx = xInt
+		if x > maxCtx {
+			maxCtx = x
 			maxCtxIndex = i
 		}
 	}

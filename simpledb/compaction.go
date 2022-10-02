@@ -80,8 +80,7 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 	}
 
 	var readers []sstables.SSTableReaderI
-	var iterators []sstables.SSTableIteratorI
-	var iteratorContext []interface{}
+	var iterators []sstables.SSTableMergeIteratorContext
 	for i := 0; i < len(paths); i++ {
 		reader, err := sstables.NewSSTableReader(
 			sstables.ReadBasePath(paths[i]),
@@ -97,17 +96,11 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 		}
 
 		readers = append(readers, reader)
-		iterators = append(iterators, scanner)
-		iteratorContext = append(iteratorContext, i)
-	}
-
-	ctx := sstables.MergeContext{
-		Iterators:       iterators,
-		IteratorContext: iteratorContext,
+		iterators = append(iterators, sstables.NewMergeIteratorContext(i, scanner))
 	}
 
 	// TODO(thomas): this includes tombstones, do we really need to?
-	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(ctx, writer, sstables.ScanReduceLatestWins)
+	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, sstables.ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
