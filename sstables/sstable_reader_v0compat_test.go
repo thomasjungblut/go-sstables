@@ -9,7 +9,7 @@ import (
 func TestSimpleHappyPathReadReadRecordIOV1V0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTable"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -24,7 +24,7 @@ func TestSimpleHappyPathReadReadRecordIOV1V0Compat(t *testing.T) {
 func TestSimpleHappyPathReadRecordIOV2V0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableRecordIOV2"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -38,7 +38,7 @@ func TestSimpleHappyPathReadRecordIOV2V0Compat(t *testing.T) {
 func TestSimpleHappyPathBloomReadV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithBloom"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -53,7 +53,7 @@ func TestSimpleHappyPathBloomReadV0Compat(t *testing.T) {
 func TestSimpleHappyPathWithMetaDataV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -68,7 +68,7 @@ func TestSimpleHappyPathWithMetaDataV0Compat(t *testing.T) {
 func TestNegativeContainsHappyPathV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTable"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -78,7 +78,7 @@ func TestNegativeContainsHappyPathV0Compat(t *testing.T) {
 func TestNegativeContainsHappyPathBloomV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithBloom"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -88,7 +88,7 @@ func TestNegativeContainsHappyPathBloomV0Compat(t *testing.T) {
 func TestFullScanV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -101,7 +101,7 @@ func TestFullScanV0Compat(t *testing.T) {
 func TestScanStartingAtV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -131,7 +131,7 @@ func TestScanStartingAtV0Compat(t *testing.T) {
 func TestScanRangeV0Compat(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/v0_compat/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, err)
 	defer closeReader(t, reader)
 

@@ -42,7 +42,7 @@ func TestReadStreamedWriteEndToEndCheckMetadata(t *testing.T) {
 	expectedNumbers := streamedWrite1kElements(t, writer)
 	reader, err := NewSSTableReader(
 		ReadBasePath(writer.opts.basePath),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -155,7 +155,7 @@ func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
 		return nil, err
 	}
 
-	return NewSSTableSimpleWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
+	return NewSSTableSimpleWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator{}))
 }
 
 func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
@@ -164,7 +164,7 @@ func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
 		return nil, err
 	}
 
-	return NewSSTableStreamWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator))
+	return NewSSTableStreamWriter(WriteBasePath(tmpDir), WithKeyComparator(skiplist.BytesComparator{}))
 }
 
 func newTestSSTableStreamWriterWithDataCompression(compressionType int) (*SSTableStreamWriter, error) {
@@ -175,7 +175,7 @@ func newTestSSTableStreamWriterWithDataCompression(compressionType int) (*SSTabl
 
 	return NewSSTableStreamWriter(
 		WriteBasePath(tmpDir),
-		WithKeyComparator(skiplist.BytesComparator),
+		WithKeyComparator(skiplist.BytesComparator{}),
 		DataCompressionType(compressionType))
 }
 
@@ -187,7 +187,7 @@ func newTestSSTableStreamWriterWithIndexCompression(compressionType int) (*SSTab
 
 	return NewSSTableStreamWriter(
 		WriteBasePath(tmpDir),
-		WithKeyComparator(skiplist.BytesComparator),
+		WithKeyComparator(skiplist.BytesComparator{}),
 		IndexCompressionType(compressionType))
 }
 
@@ -209,8 +209,8 @@ func randomIntegerSlice(len int) []int {
 }
 
 //noinspection GoSnakeCaseUsage
-func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) skiplist.SkipListMapI {
-	list := skiplist.NewSkipListMap(skiplist.BytesComparator)
+func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) skiplist.MapI[[]byte, []byte] {
+	list := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
 	for _, e := range toInsert {
 		key, value := getKeyValueAsBytes(e)
 		list.Insert(key, value)
@@ -257,7 +257,7 @@ func assertIteratorMatchesSlice(t *testing.T, it SSTableIteratorI, expectedSlice
 	require.Nil(t, v)
 }
 
-func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap skiplist.SkipListMapI) {
+func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedSkipListMap skiplist.MapI[[]byte, []byte]) {
 	it, _ := expectedSkipListMap.Iterator()
 	numRead := 0
 	for {
@@ -267,8 +267,8 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 		}
 		require.Nil(t, err)
 
-		assert.True(t, reader.Contains(expectedKey.([]byte)))
-		actualValue, err := reader.Get(expectedKey.([]byte))
+		assert.True(t, reader.Contains(expectedKey))
+		actualValue, err := reader.Get(expectedKey)
 		require.Nil(t, err)
 		assert.Equal(t, expectedValue, actualValue)
 		numRead++
@@ -280,7 +280,7 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 func getFullScanIterator(t *testing.T, sstablePath string) (SSTableReaderI, SSTableIteratorI) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 
 	it, err := reader.Scan()
@@ -291,7 +291,7 @@ func getFullScanIterator(t *testing.T, sstablePath string) (SSTableReaderI, SSTa
 func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNumbers []int) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
@@ -312,7 +312,7 @@ func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNum
 func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumbers []int) {
 	reader, err := NewSSTableReader(
 		ReadBasePath(sstablePath),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 

@@ -31,7 +31,7 @@ func writeHappyPathSSTable(t *testing.T, path string) {
 func newSimpleBytesWriterAt(t *testing.T, path string) *SSTableSimpleWriter {
 	_ = os.RemoveAll(path)
 	_ = os.MkdirAll(path, 0666)
-	writer, e := NewSSTableSimpleWriter(WriteBasePath(path), WithKeyComparator(skiplist.BytesComparator))
+	writer, e := NewSSTableSimpleWriter(WriteBasePath(path), WithKeyComparator(skiplist.BytesComparator{}))
 	assert.Nil(t, e)
 	return writer
 }

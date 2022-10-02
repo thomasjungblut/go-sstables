@@ -19,8 +19,8 @@ import (
 type SSTableReader struct {
 	opts          *SSTableReaderOptions
 	bloomFilter   *bloomfilter.Filter
-	keyComparator skiplist.KeyComparator
-	index         skiplist.SkipListMapI // key ([]byte) to uint64 value file offset
+	keyComparator skiplist.Comparator[[]byte]
+	index         skiplist.MapI[[]byte, uint64] // key (as []byte) to uint64 value file offset
 	v0DataReader  rProto.ReadAtI
 	dataReader    recordio.ReadAtI
 	metaData      *proto.MetaData
@@ -47,7 +47,7 @@ func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 		return nil, NotFound
 	}
 
-	return reader.getValueAtOffset(valOffset.(uint64))
+	return reader.getValueAtOffset(valOffset)
 }
 
 func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) {
@@ -223,7 +223,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	return reader, nil
 }
 
-func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist.SkipListMapI, error) {
+func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (skiplist.MapI[[]byte, uint64], error) {
 	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
@@ -234,7 +234,7 @@ func readIndex(indexPath string, keyComparator skiplist.KeyComparator) (skiplist
 		return nil, fmt.Errorf("error while opening index reader of sstable in '%s': %w", indexPath, err)
 	}
 
-	indexMap := skiplist.NewSkipListMap(keyComparator)
+	indexMap := skiplist.NewSkipListMap[[]byte, uint64](keyComparator)
 
 	for {
 		record := &proto.IndexEntry{}
@@ -303,10 +303,10 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 
 // options
 
-// read/write options
+// SSTableReaderOptions contains both read/write options
 type SSTableReaderOptions struct {
 	basePath      string
-	keyComparator skiplist.KeyComparator
+	keyComparator skiplist.Comparator[[]byte]
 }
 
 type ReadOption func(*SSTableReaderOptions)
@@ -317,7 +317,7 @@ func ReadBasePath(p string) ReadOption {
 	}
 }
 
-func ReadWithKeyComparator(cmp skiplist.KeyComparator) ReadOption {
+func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.keyComparator = cmp
 	}

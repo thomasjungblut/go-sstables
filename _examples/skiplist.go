@@ -7,7 +7,7 @@ import (
 
 func main() {
 
-	skipListMap := skiplist.NewSkipListMap(skiplist.IntComparator)
+	skipListMap := skiplist.NewSkipListMap[int, int](skiplist.OrderedComparator[int]{})
 	skipListMap.Insert(13, 91)
 	skipListMap.Insert(3, 1)
 	skipListMap.Insert(5, 2)

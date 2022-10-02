@@ -34,11 +34,11 @@ func TestFlushHappyPath(t *testing.T) {
 	}
 
 	db := &DB{
-		cmp:               skiplist.BytesComparator,
+		cmp:               skiplist.BytesComparator{},
 		basePath:          tmpDir,
 		currentGeneration: 42,
 		rwLock:            &sync.RWMutex{},
-		sstableManager:    NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, tmpDir),
+		sstableManager:    NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, tmpDir),
 	}
 	err = executeFlush(db, action)
 	assert.Nil(t, err)

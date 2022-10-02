@@ -1,4 +1,6 @@
-// basically a translation from LevelDBs skiplist (https://github.com/google/leveldb/blob/master/db/skiplist.h)
+//go:build !go1.18
+// +build !go1.18
+
 package skiplist
 
 import (

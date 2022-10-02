@@ -25,7 +25,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 		{"2048mb", 1024 * 1024 * 1024 * 2},
 	}
 
-	cmp := skiplist.BytesComparator
+	cmp := skiplist.BytesComparator{}
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			mStore := memstore.NewMemStore()

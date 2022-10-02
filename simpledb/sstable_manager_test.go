@@ -15,7 +15,7 @@ import (
 )
 
 func TestSSTableManagerAdditionHappyPath(t *testing.T) {
-	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, "")
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
 
 	assert.Equal(t, 0, len(manager.allSSTableReaders))
 	manager.addReader(sstables.EmptySStableReader{})
@@ -25,14 +25,14 @@ func TestSSTableManagerAdditionHappyPath(t *testing.T) {
 }
 
 func TestSSTableInitialStateWillReturnSSTable(t *testing.T) {
-	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, "")
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
 	assert.Equal(t, reflect.TypeOf(sstables.EmptySStableReader{}), reflect.TypeOf(manager.currentSSTable()))
 	_, err := manager.currentSSTable().Get([]byte{1, 2, 3})
 	assert.Equal(t, sstables.NotFound, err)
 }
 
 func TestSSTableManagerClearingReaders(t *testing.T) {
-	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, "")
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
 
 	assert.Equal(t, 0, len(manager.allSSTableReaders))
 	manager.addReader(sstables.EmptySStableReader{})
@@ -46,7 +46,7 @@ func TestSSTableManagerClearingReaders(t *testing.T) {
 }
 
 func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
-	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, "")
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
 
 	manager.addReader(&MockSSTableReader{
 		metadata: &proto.MetaData{NumRecords: 10, TotalBytes: 100},
@@ -80,9 +80,9 @@ func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
 	// that's our fake compaction path that actually must exist for the logic to work properly
 	const compactionOutputPath = "4"
 	assert.Nil(t, os.MkdirAll(filepath.Join(dir, compactionOutputPath), 0700))
-	writeSSTableInDatabaseFolder(t, &DB{cmp: skiplist.BytesComparator, basePath: dir}, compactionOutputPath)
+	writeSSTableInDatabaseFolder(t, &DB{cmp: skiplist.BytesComparator{}, basePath: dir}, compactionOutputPath)
 
-	manager := NewSSTableManager(skiplist.BytesComparator, &sync.RWMutex{}, dir)
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, dir)
 	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "1"})
 	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "2"})
 	manager.addReader(&MockSSTableReader{metadata: &proto.MetaData{}, path: "3"})

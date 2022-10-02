@@ -57,7 +57,7 @@ func TestMemStoreUpsertUpdatesOnExist(t *testing.T) {
 	// make sure the value is set correctly
 	kv, err := m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
-	assert.Equal(t, []byte("aVal"), *kv.(ValueStruct).value)
+	assert.Equal(t, []byte("aVal"), *kv.value)
 
 	err = m.Upsert([]byte("a"), []byte("aVal2"))
 	assert.Nil(t, err)
@@ -65,7 +65,7 @@ func TestMemStoreUpsertUpdatesOnExist(t *testing.T) {
 	// make sure that the value was changed under the hood
 	kv, err = m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
-	assert.Equal(t, []byte("aVal2"), *kv.(ValueStruct).value)
+	assert.Equal(t, []byte("aVal2"), *kv.value)
 }
 
 func TestMemStoreDeleteTombstones(t *testing.T) {
@@ -76,7 +76,7 @@ func TestMemStoreDeleteTombstones(t *testing.T) {
 	// make sure the value is set correctly
 	kv, err := m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
-	assert.Equal(t, []byte("aVal"), *kv.(ValueStruct).value)
+	assert.Equal(t, []byte("aVal"), *kv.value)
 
 	err = m.Delete([]byte("a"))
 	assert.False(t, m.Contains([]byte("a")))
@@ -85,7 +85,7 @@ func TestMemStoreDeleteTombstones(t *testing.T) {
 	assert.Nil(t, err)
 
 	// make sure that Get will return the new error message
-	assert.Nil(t, *kv.(ValueStruct).value)
+	assert.Nil(t, *kv.value)
 	_, err = m.Get([]byte("a"))
 	assert.Equal(t, KeyTombstoned, err)
 }
@@ -107,7 +107,7 @@ func TestMemStoreAddTombStonedKeyAgain(t *testing.T) {
 	assert.Equal(t, 1, m.Size())
 	kv, err := m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
-	assert.Equal(t, []byte("aVal2"), *kv.(ValueStruct).value)
+	assert.Equal(t, []byte("aVal2"), *kv.value)
 }
 
 func TestMemStoreDeleteSemantics(t *testing.T) {
@@ -131,7 +131,7 @@ func TestMemStoreDeleteSemantics(t *testing.T) {
 	// make sure that the value was changed under the hood
 	kv, err := m.skipListMap.Get(keyA)
 	assert.Nil(t, err)
-	assert.Nil(t, *kv.(ValueStruct).value)
+	assert.Nil(t, *kv.value)
 }
 
 func TestMemStoreSizeEstimates(t *testing.T) {
@@ -297,7 +297,7 @@ func TestMemStoreSStableIteratorWithTombstones(t *testing.T) {
 		actualKey, actualValue, err := it.Next()
 		assert.Nil(t, err)
 		assert.Equal(t, e+"key", string(actualKey))
-		// on tombstones we expect the key to be returned, but the value being nil
+		// on tombstones, we expect the key to be returned, but the value being nil
 		if e == "b" {
 			assert.Nil(t, actualValue)
 		} else {

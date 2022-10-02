@@ -12,7 +12,7 @@ import (
 )
 
 type SSTableManager struct {
-	cmp               skiplist.KeyComparator
+	cmp               skiplist.Comparator[[]byte]
 	databaseLock      *sync.RWMutex
 	basePath          string
 	managerLock       *sync.RWMutex
@@ -134,7 +134,7 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	}
 }
 
-func NewSSTableManager(cmp skiplist.KeyComparator, dbLock *sync.RWMutex, basePath string) *SSTableManager {
+func NewSSTableManager(cmp skiplist.Comparator[[]byte], dbLock *sync.RWMutex, basePath string) *SSTableManager {
 	return &SSTableManager{
 		cmp:           cmp,
 		managerLock:   &sync.RWMutex{},

@@ -1,5 +1,5 @@
-//go:build !go1.18
-// +build !go1.18
+//go:build go1.18
+// +build go1.18
 
 package skiplist
 
@@ -9,6 +9,22 @@ import (
 	"testing"
 )
 
+func TestSkipListDefaultHandlingGenerics(t *testing.T) {
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
+	list.Insert(0, 5)
+
+	v, err := list.Get(0)
+	assert.Nil(t, err)
+	assert.Equal(t, v, 5)
+}
+
+func TestSkipListDefaultHandlingGenericsNotTound(t *testing.T) {
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
+	v, err := list.Get(0)
+	assert.Equal(t, err, NotFound)
+	assert.Equal(t, v, 0)
+}
+
 func TestSkipListSingleInsertHappyPathIterator(t *testing.T) {
 	list := singleElementSkipList(t)
 
@@ -16,11 +32,9 @@ func TestSkipListSingleInsertHappyPathIterator(t *testing.T) {
 	assert.Nil(t, err)
 	k, v, err := it.Next()
 	assert.Nil(t, err)
-	assert.Equal(t, 13, k.(int))
-	assert.Equal(t, 91, v.(int))
-	k, v, err = it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	assert.Equal(t, 13, k)
+	assert.Equal(t, 91, v)
+	_, _, err = it.Next()
 	assert.Equal(t, Done, err)
 }
 
@@ -30,41 +44,40 @@ func TestSkipListSingleElementHappyPathGet(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 91, e)
 
-	e, err = list.Get(3)
+	_, err = list.Get(3)
 	assert.Equal(t, NotFound, err)
-	assert.Nil(t, e)
 }
 
 func TestSkipListMultiInsertOrdered(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{1, 2, 3, 4, 5, 6, 7}, list)
 }
 
 func TestSkipListMultiInsertUnordered(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 }
 
 func TestSkipListMultiInsertUnorderedNegatives(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{79, 14, -91, 27, 62, 41, -58, 2, -20, -87, 34}, list)
 }
 
 func TestSkipListMultiInsertZeroRun(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{2, 1, 0, -1, -2}, list)
 }
 
 func TestSkipListDoubleEqualInsert(t *testing.T) {
 	assert.PanicsWithValue(t, "duplicate key insertions are not allowed", func() {
-		list := NewSkipListMap(IntComparator)
+		list := NewSkipListMap[int, int](OrderedComparator[int]{})
 		list.Insert(13, 91)
 		list.Insert(13, 1) // should panic on duped key
 	})
 }
 
 func TestSkipListEmptyIterator(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 
 	assert.Equal(t, 0, list.Size())
 	assert.False(t, list.Contains(1))
@@ -72,14 +85,12 @@ func TestSkipListEmptyIterator(t *testing.T) {
 	// manually test the iterator
 	it, err := list.Iterator()
 	assert.Nil(t, err)
-	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	_, _, err = it.Next()
 	assert.Equal(t, Done, err)
 }
 
 func TestSkipListMultiInsertUnorderedStartingIterator(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 	expected := []int{2, 14, 20, 27, 34, 41, 58, 62, 79, 87, 91}
 	// a lower key of the sequence should yield the whole sequence
@@ -103,14 +114,12 @@ func TestSkipListMultiInsertUnorderedStartingIterator(t *testing.T) {
 	// test out of range iteration, which should yield an empty iterator
 	it, err = list.IteratorStartingAt(100)
 	assert.Nil(t, err)
-	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	_, _, err = it.Next()
 	assert.Equal(t, Done, err)
 }
 
 func TestSkipListBetweenIterator(t *testing.T) {
-	list := NewSkipListMap(IntComparator)
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	batchInsertAndAssertContains(t, []int{79, 14, 91, 27, 62, 41, 58, 2, 20, 87, 34}, list)
 	expected := []int{2, 14, 20, 27, 34, 41, 58, 62, 79, 87, 91}
 	// a lower/higher key of the sequence should yield the whole sequence
@@ -155,14 +164,12 @@ func TestSkipListBetweenIterator(t *testing.T) {
 	// test out of range iteration, which should yield an empty iterator
 	it, err = list.IteratorBetween(100, 200)
 	assert.Nil(t, err)
-	k, v, err := it.Next()
-	assert.Nil(t, k)
-	assert.Nil(t, v)
+	_, _, err = it.Next()
 	assert.Equal(t, Done, err)
 }
 
 func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
-	list := NewSkipListMap(BytesComparator)
+	list := NewSkipListMap[[]byte, []byte](BytesComparator{})
 	wholeSequence := [][]byte{{0}, {1}, {2}, {4}, {8}, {9}, {10}}
 	for i := 0; i < len(wholeSequence); i++ {
 		list.Insert(wholeSequence[i], wholeSequence[i])
@@ -192,8 +199,8 @@ func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
 	assert.Equal(t, len(expected), currentIndex)
 }
 
-func singleElementSkipList(t *testing.T) SkipListMapI {
-	list := NewSkipListMap(IntComparator)
+func singleElementSkipList(t *testing.T) MapI[int, int] {
+	list := NewSkipListMap[int, int](OrderedComparator[int]{})
 	list.Insert(13, 91)
 	assert.Equal(t, 1, list.Size())
 	assert.True(t, list.Contains(13))
@@ -201,7 +208,7 @@ func singleElementSkipList(t *testing.T) SkipListMapI {
 	return list
 }
 
-func assertIteratorOutputs(t *testing.T, expectedSeq []int, it SkipListIteratorI) {
+func assertIteratorOutputs(t *testing.T, expectedSeq []int, it IteratorI[int, int]) {
 	currentIndex := 0
 	for {
 		k, v, err := it.Next()
@@ -216,8 +223,8 @@ func assertIteratorOutputs(t *testing.T, expectedSeq []int, it SkipListIteratorI
 		assert.NotNil(t, k)
 		assert.NotNil(t, v)
 
-		assert.Equal(t, expectedSeq[currentIndex], k.(int))
-		assert.Equal(t, expectedSeq[currentIndex]+1, v.(int))
+		assert.Equal(t, expectedSeq[currentIndex], k)
+		assert.Equal(t, expectedSeq[currentIndex]+1, v)
 		currentIndex++
 	}
 
@@ -225,7 +232,7 @@ func assertIteratorOutputs(t *testing.T, expectedSeq []int, it SkipListIteratorI
 	assert.Equal(t, len(expectedSeq), currentIndex)
 }
 
-func batchInsertAndAssertContains(t *testing.T, toInsert []int, list SkipListMapI) {
+func batchInsertAndAssertContains(t *testing.T, toInsert []int, list MapI[int, int]) {
 	for _, e := range toInsert {
 		list.Insert(e, e+1)
 	}

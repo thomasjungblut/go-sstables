@@ -6,7 +6,7 @@ import (
 )
 
 type SkipListSStableIterator struct {
-	iterator skiplist.SkipListIteratorI
+	iterator skiplist.IteratorI[[]byte, ValueStruct]
 }
 
 func (s SkipListSStableIterator) Next() ([]byte, []byte, error) {
@@ -18,6 +18,5 @@ func (s SkipListSStableIterator) Next() ([]byte, []byte, error) {
 			return nil, nil, err
 		}
 	}
-	valStruct := val.(ValueStruct)
-	return key.([]byte), *valStruct.value, nil
+	return key, *val.value, nil
 }

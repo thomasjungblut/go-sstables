@@ -65,7 +65,7 @@ type DB struct {
 	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
 	currentGeneration uint64
 
-	cmp                   skiplist.KeyComparator
+	cmp                   skiplist.Comparator[[]byte]
 	basePath              string
 	currentSSTablePath    string
 	memstoreMaxSize       uint64
@@ -341,7 +341,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		extraOption(extraOpts)
 	}
 
-	cmp := skiplist.BytesComparator
+	cmp := skiplist.BytesComparator{}
 	mStore := memstore.NewMemStore()
 	rwLock := &sync.RWMutex{}
 	flusherChan := make(chan memStoreFlushAction)

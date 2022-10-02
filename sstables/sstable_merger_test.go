@@ -51,7 +51,7 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 	require.Nil(t, err)
 	defer cleanWriterDir(t, outWriter)
 
-	merger := NewSSTableMerger(skiplist.BytesComparator)
+	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.Merge(MergeContext{
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
@@ -105,7 +105,7 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 	require.Nil(t, err)
 	writersToClean = append(writersToClean, outWriter)
 
-	merger := NewSSTableMerger(skiplist.BytesComparator)
+	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.MergeCompact(MergeContext{
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
@@ -159,7 +159,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 		return key, values[0]
 	}
 
-	merger := NewSSTableMerger(skiplist.BytesComparator)
+	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.MergeCompact(MergeContext{
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
@@ -196,7 +196,7 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 		return nil, nil
 	}
 
-	merger := NewSSTableMerger(skiplist.BytesComparator)
+	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.MergeCompact(MergeContext{
 		Iterators:       iterators,
 		IteratorContext: iteratorContext,
