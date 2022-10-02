@@ -86,7 +86,7 @@ func (writer *SSTableStreamWriter) Open() error {
 
 func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 	if writer.lastKey != nil {
-		cmpResult := writer.opts.keyComparator(writer.lastKey, key)
+		cmpResult := writer.opts.keyComparator.Compare(writer.lastKey, key)
 		if cmpResult == 0 {
 			return fmt.Errorf("sstables.WriteNext '%s': the same key cannot be written more than once", writer.opts.basePath)
 		} else if cmpResult > 0 {
@@ -175,7 +175,7 @@ type SSTableSimpleWriter struct {
 	streamWriter *SSTableStreamWriter
 }
 
-func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.SkipListMapI) error {
+func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.MapI[[]byte, []byte]) error {
 	err := writer.streamWriter.Open()
 	if err != nil {
 		return err
@@ -191,17 +191,7 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.SkipLis
 			return fmt.Errorf("error in getting next skiplist record in '%s': %w", writer.streamWriter.opts.basePath, err)
 		}
 
-		kBytes, ok := k.([]byte)
-		if !ok {
-			return errors.New("key is not of type []byte")
-		}
-
-		vBytes, ok := v.([]byte)
-		if !ok {
-			return errors.New("value is not of type []byte")
-		}
-
-		err = writer.streamWriter.WriteNext(kBytes, vBytes)
+		err = writer.streamWriter.WriteNext(k, v)
 		if err != nil {
 			return fmt.Errorf("error in writing skiplist record in '%s': %w", writer.streamWriter.opts.basePath, err)
 		}
@@ -268,7 +258,7 @@ type SSTableWriterOptions struct {
 	bloomExpectedNumberOfElements uint64
 	bloomFpProbability            float64
 	writeBufferSizeBytes          int
-	keyComparator                 skiplist.KeyComparator
+	keyComparator                 skiplist.Comparator[[]byte]
 }
 
 type WriterOption func(*SSTableWriterOptions)
@@ -315,7 +305,7 @@ func WriteBufferSizeBytes(bufSizeBytes int) WriterOption {
 	}
 }
 
-func WithKeyComparator(cmp skiplist.KeyComparator) WriterOption {
+func WithKeyComparator(cmp skiplist.Comparator[[]byte]) WriterOption {
 	return func(args *SSTableWriterOptions) {
 		args.keyComparator = cmp
 	}

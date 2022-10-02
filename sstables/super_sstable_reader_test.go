@@ -10,13 +10,13 @@ import (
 func TestSuperSimpleHappyPathReadReadRecordIOV1(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	// 0 because there was no metadata file
@@ -31,13 +31,13 @@ func TestSuperSimpleHappyPathReadReadRecordIOV1(t *testing.T) {
 func TestSuperSimpleHappyPathReadRecordIOV2(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
@@ -50,19 +50,19 @@ func TestSuperSimpleHappyPathReadRecordIOV2(t *testing.T) {
 func TestSuperSimpleHappyPathReadRecordIOV2Overlapping(t *testing.T) {
 	reader1, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
 		readers: []SSTableReaderI{reader1, reader2},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assert.Equal(t, 14, int(reader.MetaData().NumRecords))
@@ -75,13 +75,13 @@ func TestSuperSimpleHappyPathReadRecordIOV2Overlapping(t *testing.T) {
 func TestSuperSimpleHappyPathBloomRead(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assert.Equal(t, 1, int(reader.MetaData().Version))
@@ -95,13 +95,13 @@ func TestSuperSimpleHappyPathBloomRead(t *testing.T) {
 func TestSuperSimpleHappyPathWithMetaData(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
@@ -114,13 +114,13 @@ func TestSuperSimpleHappyPathWithMetaData(t *testing.T) {
 func TestSuperNegativeContainsHappyPath(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assertNegativeContains(t, reader)
@@ -129,13 +129,13 @@ func TestSuperNegativeContainsHappyPath(t *testing.T) {
 func TestSuperNegativeContainsHappyPathBloom(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithBloom"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	assertNegativeContains(t, reader)
@@ -144,13 +144,13 @@ func TestSuperNegativeContainsHappyPathBloom(t *testing.T) {
 func TestSuperFullScan(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
@@ -162,19 +162,19 @@ func TestSuperFullScan(t *testing.T) {
 func TestSuperFullScanOverlapping(t *testing.T) {
 	reader1, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
 		readers: []SSTableReaderI{reader1, reader2},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
@@ -186,13 +186,13 @@ func TestSuperFullScanOverlapping(t *testing.T) {
 func TestSuperScanStartingAt(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
@@ -221,13 +221,13 @@ func TestSuperScanStartingAt(t *testing.T) {
 func TestSuperScanRange(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithMetaData"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
 	reader = SuperSSTableReader{
 		readers: []SSTableReaderI{reader},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	expected := []int{1, 2, 3, 4, 5, 6, 7}
@@ -305,19 +305,19 @@ func TestSuperStaggeredAndOverlappingFull(t *testing.T) {
 
 	reader1, err := NewSSTableReader(
 		ReadBasePath(writer.streamWriter.opts.basePath),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader1)
 
 	reader2, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableRecordIOV2"),
-		ReadWithKeyComparator(skiplist.BytesComparator))
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	defer closeReader(t, reader2)
 
 	reader := SuperSSTableReader{
 		readers: []SSTableReaderI{reader1, reader2},
-		comp:    skiplist.BytesComparator,
+		comp:    skiplist.BytesComparator{},
 	}
 
 	expected := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}

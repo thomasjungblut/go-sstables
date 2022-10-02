@@ -10,7 +10,7 @@ import (
 // The ordering of the readers matters, it is assumed the older reader comes before the newer (ascending order).
 type SuperSSTableReader struct {
 	readers []SSTableReaderI
-	comp    skiplist.KeyComparator
+	comp    skiplist.Comparator[[]byte]
 }
 
 func (s SuperSSTableReader) Contains(key []byte) bool {
@@ -164,11 +164,11 @@ func (s SuperSSTableReader) MetaData() *proto.MetaData {
 		sum.IndexBytes += m.IndexBytes
 		sum.TotalBytes += m.TotalBytes
 		sum.Version = m.Version // assuming all have the same version anyway
-		if s.comp(sum.MinKey, m.MinKey) < 0 {
+		if s.comp.Compare(sum.MinKey, m.MinKey) < 0 {
 			sum.MinKey = m.MinKey
 		}
 
-		if s.comp(sum.MaxKey, m.MaxKey) < 0 {
+		if s.comp.Compare(sum.MaxKey, m.MaxKey) < 0 {
 			sum.MaxKey = m.MaxKey
 		}
 	}
@@ -184,6 +184,6 @@ func (s SuperSSTableReader) BasePath() string {
 	return strings.Join(paths, ",")
 }
 
-func NewSuperSSTableReader(readers []SSTableReaderI, comp skiplist.KeyComparator) *SuperSSTableReader {
+func NewSuperSSTableReader(readers []SSTableReaderI, comp skiplist.Comparator[[]byte]) *SuperSSTableReader {
 	return &SuperSSTableReader{readers: readers, comp: comp}
 }

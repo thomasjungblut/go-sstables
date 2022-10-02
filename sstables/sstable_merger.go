@@ -6,7 +6,7 @@ import (
 )
 
 type SSTableMerger struct {
-	comp skiplist.KeyComparator
+	comp skiplist.Comparator[[]byte]
 }
 
 type MergeContext struct {
@@ -52,7 +52,7 @@ func (m SSTableMerger) Merge(ctx MergeContext, writer SSTableStreamWriterI) erro
 
 type MergeCompactionIterator struct {
 	ctx     MergeContext
-	comp    skiplist.KeyComparator
+	comp    skiplist.Comparator[[]byte]
 	reduce  func([]byte, [][]byte, []interface{}) ([]byte, []byte)
 	pq      *PriorityQueue
 	prevKey []byte
@@ -68,7 +68,7 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 				if len(m.valBuf) > 0 {
 					kReduced, vReduced := m.reduce(m.prevKey, m.valBuf, m.ctxBuf)
 					if kReduced != nil && vReduced != nil {
-						// clear the buffer so we don't infinite loop on the last elements
+						// clear the buffer, so we don't infinite loop on the last elements
 						m.valBuf = m.valBuf[:0]
 						return kReduced, vReduced, nil
 					}
@@ -81,7 +81,7 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 
 		var toReturnKey, toReturnVal []byte
 		//we have to accumulate the whole sequence
-		if m.prevKey != nil && m.comp(k, m.prevKey) != 0 {
+		if m.prevKey != nil && m.comp.Compare(k, m.prevKey) != 0 {
 			kReduced, vReduced := m.reduce(m.prevKey, m.valBuf, m.ctxBuf)
 			if kReduced != nil && vReduced != nil {
 				toReturnKey = kReduced
@@ -159,6 +159,6 @@ func (m SSTableMerger) MergeCompact(ctx MergeContext, writer SSTableStreamWriter
 	return nil
 }
 
-func NewSSTableMerger(comp skiplist.KeyComparator) SSTableMerger {
+func NewSSTableMerger(comp skiplist.Comparator[[]byte]) SSTableMerger {
 	return SSTableMerger{comp}
 }

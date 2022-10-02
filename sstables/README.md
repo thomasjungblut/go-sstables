@@ -21,7 +21,7 @@ defer os.RemoveAll(path)
 
 writer, err := sstables.NewSSTableStreamWriter(
     sstables.WriteBasePath(path),
-    sstables.WithKeyComparator(skiplist.BytesComparator))
+    sstables.WithKeyComparator(skiplist.BytesComparator{}))
 if err != nil { log.Fatalf("error: %v", err) }
 
 err = writer.Open()
@@ -48,10 +48,10 @@ defer os.RemoveAll(path)
 
 writer, err := sstables.NewSSTableSimpleWriter(
     sstables.WriteBasePath(path),
-    sstables.WithKeyComparator(skiplist.BytesComparator))
+    sstables.WithKeyComparator(skiplist.BytesComparator{}))
 if err != nil { log.Fatalf("error: %v", err) }
 
-skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator)
+skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator{})
 skipListMap.Insert([]byte{1}, []byte{1})
 skipListMap.Insert([]byte{2}, []byte{2})
 skipListMap.Insert([]byte{3}, []byte{3})
@@ -68,7 +68,7 @@ Below example will show what metadata is available, how to get values and check 
 ```go
 reader, err := sstables.NewSSTableReader(
     sstables.ReadBasePath("/tmp/sstable_example/"),
-    sstables.ReadWithKeyComparator(skiplist.BytesComparator))
+    sstables.ReadWithKeyComparator(skiplist.BytesComparator{}))
 if err != nil { log.Fatalf("error: %v", err) }
 defer reader.Close()
 
@@ -108,7 +108,7 @@ var iteratorContext []inteface{}
 for i := 0; i < numFiles; i++ {
     reader, err := NewSSTableReader(
             ReadBasePath(sstablePath),
-            ReadWithKeyComparator(skiplist.BytesComparator))
+            ReadWithKeyComparator(skiplist.BytesComparator{}))
     if err != nil { log.Fatalf("error: %v", err) }
     defer reader.Close()
     
@@ -121,10 +121,10 @@ for i := 0; i < numFiles; i++ {
 
 writer, err := sstables.NewSSTableSimpleWriter(
     sstables.WriteBasePath(path),
-    sstables.WithKeyComparator(skiplist.BytesComparator))
+    sstables.WithKeyComparator(skiplist.BytesComparator{}))
 if err != nil { log.Fatalf("error: %v", err) }
 
-merger := NewSSTableMerger(skiplist.BytesComparator)
+merger := NewSSTableMerger(skiplist.BytesComparator{})
 // merge takes care of opening/closing itself
 err = merger.Merge(MergeContext{
     iterators:       iterators,
@@ -146,7 +146,7 @@ reduceFunc := func(key []byte, values [][]byte, context []interface{}) ([]byte, 
     return key, values[0]
 }
 
-merger := NewSSTableMerger(skiplist.BytesComparator)
+merger := NewSSTableMerger(skiplist.BytesComparator{})
 err = merger.MergeCompact(MergeContext{
     iterators:       iterators,
     iteratorContext: iteratorContext,

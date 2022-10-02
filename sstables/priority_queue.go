@@ -21,15 +21,15 @@ type Element struct {
 type PriorityQueue struct {
 	size int
 	heap []*Element
-	comp skiplist.KeyComparator
+	comp skiplist.Comparator[[]byte]
 }
 
-func NewPriorityQueue(comp skiplist.KeyComparator) PriorityQueue {
+func NewPriorityQueue(comp skiplist.Comparator[[]byte]) PriorityQueue {
 	return PriorityQueue{comp: comp}
 }
 
 func (pq PriorityQueue) lessThan(i, j *Element) bool {
-	return pq.comp(i.key, j.key) < 0
+	return pq.comp.Compare(i.key, j.key) < 0
 }
 
 func (pq PriorityQueue) swap(i, j int) {

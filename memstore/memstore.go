@@ -14,39 +14,39 @@ var ValueNil = errors.New("value was nil")
 
 //noinspection GoNameStartsWithPackageName
 type MemStoreI interface {
-	// inserts when the key does not exist yet, returns a KeyAlreadyExists error when the key exists.
+	// Add inserts when the key does not exist yet, returns a KeyAlreadyExists error when the key exists.
 	// Neither nil key nor values are allowed, KeyNil and ValueNil will be returned accordingly.
 	Add(key []byte, value []byte) error
-	// returns true when the given key exists, false otherwise
+	// Contains returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
-	// returns the values for the given key, if not exists returns a KeyNotFound error
+	// Get returns the values for the given key, if not exists returns a KeyNotFound error
 	// if the key exists (meaning it was added and deleted) it will return KeyTombstoned as an error
 	Get(key []byte) ([]byte, error)
-	// inserts when the key does not exist yet, updates the current value if the key exists.
+	// Upsert inserts when the key does not exist yet, updates the current value if the key exists.
 	// Neither nil key nor values are allowed, KeyNil and ValueNil will be returned accordingly.
 	Upsert(key []byte, value []byte) error
-	// deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist.
+	// Delete deletes the key from the MemStore, returns a KeyNotFound error if the key does not exist.
 	// Effectively this will set a tombstone for the given key and set its value to be nil.
 	Delete(key []byte) error
-	// deletes the key from the MemStore. The semantic is the same as in Delete, however when there is no
+	// DeleteIfExists deletes the key from the MemStore. The semantic is the same as in Delete, however when there is no
 	// key in the memstore it will also not set a tombstone for it and there will be no error when the key isn't there.
 	// That can be problematic in several database constellation, where you can use Tombstone.
 	DeleteIfExists(key []byte) error
 	// Tombstone records the given key as if it were deleted. When a given key does not exist it will insert it,
 	// when it does it will do a Delete
 	Tombstone(key []byte) error
-	// returns a rough estimate of size in bytes of this MemStore
+	// EstimatedSizeInBytes returns a rough estimate of size in bytes of this MemStore
 	EstimatedSizeInBytes() uint64
 	// Flush flushes the current memstore to disk as an SSTable, error if unsuccessful. This excludes tombstoned keys.
 	Flush(opts ...sstables.WriterOption) error
 	// FlushWithTombstones flushes the current memstore to disk as an SSTable, error if unsuccessful.
 	// This includes tombstoned keys and writes their values as nil.
 	FlushWithTombstones(opts ...sstables.WriterOption) error
-	// returns the current memstore as an sstables.SStableIteratorI to iterate the table in memory.
+	// SStableIterator returns the current memstore as an sstables.SStableIteratorI to iterate the table in memory.
 	// if there is a tombstoned record, the key will be returned but the value will be nil.
 	// this is especially useful when you want to merge on-disk sstables with in memory memstores
 	SStableIterator() sstables.SSTableIteratorI
-	// Returns how many elements are in this memstore. This also includes tombstoned keys.
+	// Size Returns how many elements are in this memstore. This also includes tombstoned keys.
 	Size() int
 }
 
@@ -60,9 +60,9 @@ func (v ValueStruct) GetValue() []byte {
 }
 
 type MemStore struct {
-	skipListMap   skiplist.SkipListMapI
+	skipListMap   skiplist.MapI[[]byte, ValueStruct]
 	estimatedSize uint64
-	comparator    skiplist.KeyComparator
+	comparator    skiplist.BytesComparator
 }
 
 func (m *MemStore) Add(key []byte, value []byte) error {
@@ -75,7 +75,7 @@ func (m *MemStore) Contains(key []byte) bool {
 	if err == skiplist.NotFound {
 		return false
 	}
-	if *element.(ValueStruct).value == nil {
+	if *element.value == nil {
 		return false
 	}
 	return true
@@ -87,7 +87,7 @@ func (m *MemStore) Get(key []byte) ([]byte, error) {
 	if err == skiplist.NotFound {
 		return nil, KeyNotFound
 	}
-	val := *element.(ValueStruct).value
+	val := *element.value
 	if val == nil {
 		return nil, KeyTombstoned
 	}
@@ -109,11 +109,11 @@ func upsertInternal(m *MemStore, key []byte, value []byte, errorIfKeyExist bool)
 
 	element, err := m.skipListMap.Get(key)
 	if err != skiplist.NotFound {
-		if *element.(ValueStruct).value != nil && errorIfKeyExist {
+		if *element.value != nil && errorIfKeyExist {
 			return KeyAlreadyExists
 		}
-		prevLen := len(*element.(ValueStruct).value)
-		*element.(ValueStruct).value = value
+		prevLen := len(*element.value)
+		*element.value = value
 		m.estimatedSize = m.estimatedSize - uint64(prevLen) + uint64(len(value))
 	} else {
 		m.skipListMap.Insert(key, ValueStruct{value: &value})
@@ -137,8 +137,8 @@ func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 			return KeyNotFound
 		}
 	} else {
-		m.estimatedSize -= uint64(len(*element.(ValueStruct).value))
-		*element.(ValueStruct).value = nil
+		m.estimatedSize -= uint64(len(*element.value))
+		*element.value = nil
 	}
 
 	return nil
@@ -147,8 +147,8 @@ func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 func (m *MemStore) Tombstone(key []byte) error {
 	element, err := m.skipListMap.Get(key)
 	if err != skiplist.NotFound {
-		prevLen := len(*element.(ValueStruct).value)
-		*element.(ValueStruct).value = nil
+		prevLen := len(*element.value)
+		*element.value = nil
 		m.estimatedSize = m.estimatedSize - uint64(prevLen)
 	} else {
 		var vByte []byte
@@ -198,18 +198,15 @@ func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstable
 			return err
 		}
 
-		kBytes := k.([]byte)
-		vBytes := v.(ValueStruct)
-
 		if includeTombstones {
-			err = writer.WriteNext(kBytes, *vBytes.value)
+			err = writer.WriteNext(k, *v.value)
 			if err != nil {
 				return err
 			}
 		} else {
 			// do not write tombstones to the final file
-			if *vBytes.value != nil {
-				err = writer.WriteNext(kBytes, *vBytes.value)
+			if *v.value != nil {
+				err = writer.WriteNext(k, *v.value)
 				if err != nil {
 					return err
 				}
@@ -231,6 +228,6 @@ func (m *MemStore) SStableIterator() sstables.SSTableIteratorI {
 }
 
 func NewMemStore() MemStoreI {
-	cmp := skiplist.BytesComparator
-	return &MemStore{skipListMap: skiplist.NewSkipListMap(cmp), comparator: cmp}
+	cmp := skiplist.BytesComparator{}
+	return &MemStore{skipListMap: skiplist.NewSkipListMap[[]byte, ValueStruct](cmp), comparator: cmp}
 }

@@ -83,12 +83,12 @@ func TestComparatorNotSupplied(t *testing.T) {
 }
 
 func TestDirectoryDoesNotExist(t *testing.T) {
-	_, err := NewSSTableSimpleWriter(WithKeyComparator(skiplist.BytesComparator))
+	_, err := NewSSTableSimpleWriter(WithKeyComparator(skiplist.BytesComparator{}))
 	assert.Equal(t, errors.New("basePath was not supplied"), err)
 }
 
 func TestUnopenedWrites(t *testing.T) {
-	w, err := NewSSTableSimpleWriter(WriteBasePath("abc"), WithKeyComparator(skiplist.BytesComparator))
+	w, err := NewSSTableSimpleWriter(WriteBasePath("abc"), WithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	err = w.streamWriter.WriteNext([]byte{1}, []byte{1})
 	assert.Contains(t, err.Error(), "no metadata available to write into, table might not be opened yet")
@@ -98,7 +98,7 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
 	defer func() { require.Nil(t, os.RemoveAll(tmpDir)) }()
 	require.Nil(t, err)
-	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator))
+	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator{}))
 	require.Nil(t, err)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{}))
 	assert.Equal(t, errors.New("unsupported compression type 25"), errors.Unwrap(errors.Unwrap(err)))
@@ -108,7 +108,7 @@ func TestCompressionTypeDoesNotExist(t *testing.T) {
 func TestEmptyBloomFilter(t *testing.T) {
 	_, err := NewSSTableSimpleWriter(
 		WriteBasePath("abc"),
-		WithKeyComparator(skiplist.BytesComparator),
+		WithKeyComparator(skiplist.BytesComparator{}),
 		BloomExpectedNumberOfElements(0))
 	assert.Equal(t, errors.New("unexpected number of bloom filter elements, was: 0"), err)
 }

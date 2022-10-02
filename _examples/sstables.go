@@ -20,7 +20,7 @@ func main() {
 func mainSimpleRead(path string) {
 	reader, err := sstables.NewSSTableReader(
 		sstables.ReadBasePath("/tmp/sstable_example/"),
-		sstables.ReadWithKeyComparator(skiplist.BytesComparator))
+		sstables.ReadWithKeyComparator(skiplist.BytesComparator{}))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
@@ -55,12 +55,12 @@ func mainSimpleRead(path string) {
 func mainWriteSimple(path string) {
 	writer, err := sstables.NewSSTableSimpleWriter(
 		sstables.WriteBasePath(path),
-		sstables.WithKeyComparator(skiplist.BytesComparator))
+		sstables.WithKeyComparator(skiplist.BytesComparator{}))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}
 
-	skipListMap := skiplist.NewSkipListMap(skiplist.BytesComparator)
+	skipListMap := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
 	skipListMap.Insert([]byte{1}, []byte{1})
 	skipListMap.Insert([]byte{2}, []byte{2})
 	skipListMap.Insert([]byte{3}, []byte{3})
@@ -78,7 +78,7 @@ func mainWriteStreaming() {
 
 	writer, err := sstables.NewSSTableStreamWriter(
 		sstables.WriteBasePath(path),
-		sstables.WithKeyComparator(skiplist.BytesComparator))
+		sstables.WithKeyComparator(skiplist.BytesComparator{}))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

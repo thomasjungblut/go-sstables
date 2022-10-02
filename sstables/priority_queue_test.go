@@ -79,7 +79,7 @@ func TestMultiListAllEmpty(t *testing.T) {
 }
 
 func TestInitContextFail(t *testing.T) {
-	pq := NewPriorityQueue(skiplist.BytesComparator)
+	pq := NewPriorityQueue(skiplist.BytesComparator{})
 	err := pq.Init(MergeContext{
 		Iterators:       []SSTableIteratorI{},
 		IteratorContext: []interface{}{"a", "b"},
@@ -102,7 +102,7 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 		}
 	}
 
-	pq := NewPriorityQueue(skiplist.BytesComparator)
+	pq := NewPriorityQueue(skiplist.BytesComparator{})
 	err := pq.Init(MergeContext{
 		Iterators:       input,
 		IteratorContext: context,

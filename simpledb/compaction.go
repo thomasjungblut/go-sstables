@@ -73,7 +73,7 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 
 	writer, err := sstables.NewSSTableStreamWriter(
 		sstables.WriteBasePath(writeFolder),
-		sstables.WithKeyComparator(skiplist.BytesComparator),
+		sstables.WithKeyComparator(skiplist.BytesComparator{}),
 		sstables.BloomExpectedNumberOfElements(numRecords))
 	if err != nil {
 		return nil, err
