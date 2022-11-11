@@ -6,30 +6,22 @@ import (
 	"time"
 )
 
-type DatabaseRecorder struct {
+type DatabaseClientRecorder struct {
 	clientId int
 	db       simpledb.DatabaseI
 
 	operations []porcupine.Operation
 }
 
-func NewDatabaseRecorder(db simpledb.DatabaseI) *DatabaseRecorder {
-	return &DatabaseRecorder{
-		clientId:   0,
+func NewDatabaseRecorder(db simpledb.DatabaseI, clientId int) *DatabaseClientRecorder {
+	return &DatabaseClientRecorder{
+		clientId:   clientId,
 		db:         db,
 		operations: []porcupine.Operation{},
 	}
 }
 
-func (d *DatabaseRecorder) Close() error {
-	return d.db.Close()
-}
-
-func (d *DatabaseRecorder) Open() error {
-	return d.db.Open()
-}
-
-func (d *DatabaseRecorder) Get(key string) (string, error) {
+func (d *DatabaseClientRecorder) Get(key string) (string, error) {
 	start := time.Now()
 	val, err := d.db.Get(key)
 	end := time.Now()
@@ -38,7 +30,6 @@ func (d *DatabaseRecorder) Get(key string) (string, error) {
 		Input: Input{
 			Operation: GetOp,
 			Key:       key,
-			Val:       val,
 		},
 		Call: start.UnixNano(),
 		Output: Output{
@@ -52,7 +43,7 @@ func (d *DatabaseRecorder) Get(key string) (string, error) {
 	return val, err
 }
 
-func (d *DatabaseRecorder) Put(key, value string) error {
+func (d *DatabaseClientRecorder) Put(key, value string) error {
 	start := time.Now()
 	err := d.db.Put(key, value)
 	end := time.Now()
@@ -75,7 +66,7 @@ func (d *DatabaseRecorder) Put(key, value string) error {
 	return err
 }
 
-func (d *DatabaseRecorder) Delete(key string) error {
+func (d *DatabaseClientRecorder) Delete(key string) error {
 	start := time.Now()
 	err := d.db.Delete(key)
 	end := time.Now()

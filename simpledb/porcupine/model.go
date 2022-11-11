@@ -30,11 +30,33 @@ type State struct {
 	state map[string]string
 }
 
+func shorten(s string, size int) string {
+	if len(s) > size {
+		return s[:size]
+	}
+	return s
+}
+
 var Model = pp.Model{
 	Init: func() interface{} {
 		return State{
 			state: map[string]string{},
 		}
+	},
+	Partition: func(history []pp.Operation) [][]pp.Operation {
+		indexMap := map[string]int{}
+		var partitions [][]pp.Operation
+		for _, op := range history {
+			i := op.Input.(Input)
+			ix, found := indexMap[i.Key]
+			if !found {
+				partitions = append(partitions, []pp.Operation{op})
+				indexMap[i.Key] = len(partitions) - 1
+			} else {
+				partitions[ix] = append(partitions[ix], op)
+			}
+		}
+		return partitions
 	},
 	Step: func(state interface{}, input interface{}, output interface{}) (bool, interface{}) {
 		s := state.(State)
@@ -92,10 +114,15 @@ var Model = pp.Model{
 			break
 		}
 
-		return fmt.Sprintf("%s(%s) -> %s", opName, i.Val, o.Val)
+		return fmt.Sprintf("%s(%s) -> %s", opName, i.Key, shorten(o.Val, 5))
 	},
 	DescribeState: func(state interface{}) string {
 		s := state.(State)
-		return fmt.Sprintf("%v", s.state)
+		shortValueState := map[string]string{}
+		for k, v := range s.state {
+			shortValueState[k] = shorten(v, 5)
+		}
+
+		return fmt.Sprintf("%v", shortValueState)
 	},
 }

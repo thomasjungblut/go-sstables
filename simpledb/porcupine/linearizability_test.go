@@ -10,13 +10,13 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 )
 
 type TestDatabase struct {
-	db         *simpledb.DB
-	recordedDb *DatabaseRecorder
-	basePath   string
+	db       *simpledb.DB
+	basePath string
 }
 
 func TestHappyPath(t *testing.T) {
@@ -25,16 +25,45 @@ func TestHappyPath(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	key := "key"
-
-	for i := 0; i < 10; i++ {
-		_, _ = db.recordedDb.Get(key)
-		_ = db.recordedDb.Put(key, randomString(5))
+	client := NewDatabaseRecorder(db.db, 0)
+	for i := 0; i < 100; i++ {
+		_, _ = client.Get(key)
+		_ = client.Put(key, randomString(5))
 		if rand.Float32() < 0.25 {
-			_ = db.recordedDb.Delete(key)
+			_ = client.Delete(key)
 		}
 	}
 
-	verifyOperations(t, db.recordedDb.operations)
+	verifyOperations(t, client.operations)
+}
+
+func TestHappyPathMultiKey(t *testing.T) {
+	db := newOpenedSimpleDB(t, "linearizability_HappyPathMultiKey")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	client := NewDatabaseRecorder(db.db, 0)
+	for i := 0; i < 100; i++ {
+		key := randomString(5)
+		_, _ = client.Get(key)
+		_ = client.Put(key, randomString(5))
+		_, _ = client.Get(key)
+		if rand.Float32() < 0.5 {
+			_ = client.Delete(key)
+		}
+		_, _ = client.Get(key)
+	}
+
+	verifyOperations(t, client.operations)
+}
+
+func TestHappyPathMultiThread(t *testing.T) {
+	db := newOpenedSimpleDB(t, "linearizability_HappyPathMultiThread")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	operations := parallelWriteGetDelete(db.db, 4, 100, 2500)
+	verifyOperations(t, operations)
 }
 
 func verifyOperations(t *testing.T, operations []porcupine.Operation) {
@@ -47,13 +76,12 @@ func newSimpleDBWithTemp(t *testing.T, name string) *TestDatabase {
 	tmpDir, err := os.MkdirTemp("", name)
 	require.Nil(t, err)
 
-	//for testing purposes we will flush with a tiny amount of 2mb
-	db, err := simpledb.NewSimpleDB(tmpDir, simpledb.MemstoreSizeBytes(1024*1024*2))
+	//for testing purposes we will flush with a tiny amount of 1mb
+	db, err := simpledb.NewSimpleDB(tmpDir, simpledb.MemstoreSizeBytes(1024*1024*1))
 	require.Nil(t, err)
 	return &TestDatabase{
-		db:         db,
-		recordedDb: NewDatabaseRecorder(db),
-		basePath:   tmpDir,
+		db:       db,
+		basePath: tmpDir,
 	}
 }
 
@@ -78,4 +106,47 @@ func randomString(size int) string {
 	}
 
 	return builder.String()
+}
+
+func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, valSizeBytes int) []porcupine.Operation {
+	var operations []porcupine.Operation
+	var opsLock sync.Mutex
+	wg := sync.WaitGroup{}
+	recordsPerRoutine := numRecords / numGoRoutines
+	var keys []string
+	var values []string
+	for i := 0; i < recordsPerRoutine; i++ {
+		keys = append(keys, randomString(5))
+		values = append(values, randomString(valSizeBytes))
+	}
+	for n := 0; n < numGoRoutines; n++ {
+		wg.Add(1)
+		go func(db *simpledb.DB, id, start, end int) {
+			client := NewDatabaseRecorder(db, id)
+			rnd := rand.New(rand.NewSource(int64(id)))
+			for i := start; i < end; i++ {
+				// that ensures some overlap in the requests
+				key := keys[rnd.Intn(len(keys))]
+				val := values[rnd.Intn(len(keys))]
+				_, _ = client.Get(key)
+				_ = client.Put(key, val)
+				_, _ = client.Get(key)
+				if rnd.Float32() < 0.5 {
+					_ = client.Delete(key)
+				}
+				_, _ = client.Get(key)
+			}
+
+			opsLock.Lock()
+			defer opsLock.Unlock()
+
+			operations = append(operations, client.operations...)
+
+			wg.Done()
+		}(db, n, n*recordsPerRoutine, n*recordsPerRoutine+recordsPerRoutine)
+	}
+
+	wg.Wait()
+
+	return operations
 }
