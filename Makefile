@@ -69,6 +69,14 @@ crash-simpledb:
 	$(GO) clean -testcache
 	$(GO) test -v -timeout 30m --tags simpleDBcrash $(GOFLAGS) ./simpledb/_crash_tests $(TESTFLAGS)
 
+.PHONY: linear-simpledb
+race-simpledb:
+	@echo
+	@echo "==> Running simpledb linearizability tests <=="
+	$(GO) clean -testcache
+	$(GO) test -v -timeout 30m --tags simpleDBlinear $(GOFLAGS) ./simpledb $(TESTFLAGS)
+
+
 .PHONY: generate-test-files
 generate-test-files:
 	@echo
