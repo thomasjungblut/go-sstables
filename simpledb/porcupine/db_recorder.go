@@ -79,6 +79,8 @@ func (d *DatabaseClientRecorder) Delete(key string) error {
 		},
 		Call: start.UnixNano(),
 		Output: Output{
+			Key: key,
+			Val: "",
 			Err: err,
 		},
 		Return: end.UnixNano(),

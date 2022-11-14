@@ -30,6 +30,16 @@ type State struct {
 	state map[string]string
 }
 
+func (st State) Clone() State {
+	c := make(map[string]string, len(st.state))
+	for k, v := range st.state {
+		c[k] = v
+	}
+	return State{
+		state: c,
+	}
+}
+
 func shorten(s string, size int) string {
 	if len(s) > size {
 		return s[:size]
@@ -59,7 +69,7 @@ var Model = pp.Model{
 		return partitions
 	},
 	Step: func(state interface{}, input interface{}, output interface{}) (bool, interface{}) {
-		s := state.(State)
+		s := state.(State).Clone()
 		i := input.(Input)
 		o := output.(Output)
 
