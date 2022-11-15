@@ -66,6 +66,15 @@ func TestHappyPathMultiThread(t *testing.T) {
 	verifyOperations(t, operations)
 }
 
+func TestMultiTriggerFlush(t *testing.T) {
+	db := newOpenedSimpleDB(t, "linearizability_HappyPathMultiThread")
+	defer cleanDatabaseFolder(t, db)
+	defer closeDatabase(t, db)
+
+	operations := parallelWriteGetDelete(db.db, 8, 8*1000, 2500)
+	verifyOperations(t, operations)
+}
+
 func verifyOperations(t *testing.T, operations []porcupine.Operation) {
 	result, info := porcupine.CheckOperationsVerbose(Model, operations, 0)
 	require.NoError(t, porcupine.VisualizePath(Model, info, t.Name()+"_porcupine.html"))
