@@ -5,7 +5,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
@@ -18,48 +18,52 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/simpledb/porcupine"
 
 	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
 func TestOutOfProcessCrashesSimpleAscendingWorkload(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpledb-OutOfProcessCrashes")
+	tmpDir, err := os.MkdirTemp("", "simpledb-OutOfProcessCrashes")
 	require.NoError(t, err)
 
 	defer func(t *testing.T, p string) { require.NoError(t, os.RemoveAll(p)) }(t, tmpDir)
 	cmd := spawnNewDatabaseServer(t, tmpDir)
 
+	c := newRequestClient(0)
 	var expectedKeys []string
 	for i := 0; i < 5000; i++ {
 		key := fmt.Sprintf("%06d", i)
-		err := put(key, key)
+		err := c.Put(key, key)
 		require.NoError(t, err)
 		expectedKeys = append(expectedKeys, key)
 
 		// every 100 inserts we're crashing + recovering, ensuring all inserts up until and including this key have been inserted
 		if i%100 == 0 {
 			cmd = killAndRespawnDatabaseServer(t, cmd, tmpDir)
-			assertContains(t, expectedKeys)
+			assertContains(t, c, expectedKeys)
 		}
 	}
 
-	assertContains(t, expectedKeys)
+	assertContains(t, c, expectedKeys)
 
 	// clean up the last remaining database
 	killAndWait(t, cmd)
+	porcupine.VerifyOperations(t, c.Operations())
 }
 
 func TestOutOfProcessCrashesDuringCompactions(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpledb-OutOfProcessCrashesCompactions")
+	tmpDir, err := os.MkdirTemp("", "simpledb-OutOfProcessCrashesCompactions")
 	require.NoError(t, err)
 
 	defer func(t *testing.T, p string) { require.NoError(t, os.RemoveAll(p)) }(t, tmpDir)
 	cmd := spawnNewDatabaseServer(t, tmpDir)
 
+	c := newRequestClient(0)
 	var expectedKeys []string
 	for i := 0; i < 15000; i++ {
 		key := fmt.Sprintf("%06d", i)
-		err := put(key, key)
+		err := c.Put(key, key)
 		require.NoError(t, err)
 		expectedKeys = append(expectedKeys, key)
 
@@ -67,39 +71,41 @@ func TestOutOfProcessCrashesDuringCompactions(t *testing.T) {
 		// after 1000 inserts we give it increasingly more time to test compaction in different stages
 		if i < 1000 && i%100 == 0 {
 			cmd = killAndRespawnDatabaseServer(t, cmd, tmpDir)
-			assertContains(t, expectedKeys)
+			assertContains(t, c, expectedKeys)
 		} else if i > 1000 && i%1000 == 0 {
 			sleepTime := time.Duration(i%1000) * time.Second
 			log.Printf("sleeping for %v...\n", sleepTime)
 			time.Sleep(sleepTime)
 			cmd = killAndRespawnDatabaseServer(t, cmd, tmpDir)
-			assertContains(t, expectedKeys)
+			assertContains(t, c, expectedKeys)
 		}
 	}
 
-	assertContains(t, expectedKeys)
+	assertContains(t, c, expectedKeys)
 
 	// clean up the last remaining database
 	killAndWait(t, cmd)
+	porcupine.VerifyOperations(t, c.Operations())
 }
 
 func TestOutOfProcessCrashesSimpleAscendingWorkloadWithDeletions(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpledb-OutOfProcessCrashesDeletions")
+	tmpDir, err := os.MkdirTemp("", "simpledb-OutOfProcessCrashesDeletions")
 	require.NoError(t, err)
 
 	defer func(t *testing.T, p string) { require.NoError(t, os.RemoveAll(p)) }(t, tmpDir)
 	cmd := spawnNewDatabaseServer(t, tmpDir)
 
+	c := newRequestClient(0)
 	var expectedKeys []string
 	var unexpectedKeys []string
 	for i := 0; i < 5000; i++ {
 		key := fmt.Sprintf("%06d", i)
-		err := put(key, key)
+		err := c.Put(key, key)
 		require.NoError(t, err)
 
 		if i%2 == 0 {
 			unexpectedKeys = append(unexpectedKeys, key)
-			err := delete(key)
+			err := c.Delete(key)
 			require.NoError(t, err)
 		} else {
 			expectedKeys = append(expectedKeys, key)
@@ -107,37 +113,39 @@ func TestOutOfProcessCrashesSimpleAscendingWorkloadWithDeletions(t *testing.T) {
 
 		if i%100 == 0 {
 			cmd = killAndRespawnDatabaseServer(t, cmd, tmpDir)
-			assertContains(t, expectedKeys)
-			assertNotContains(t, unexpectedKeys)
+			assertContains(t, c, expectedKeys)
+			assertNotContains(t, c, unexpectedKeys)
 		}
 	}
 
-	assertContains(t, expectedKeys)
-	assertNotContains(t, unexpectedKeys)
+	assertContains(t, c, expectedKeys)
+	assertNotContains(t, c, unexpectedKeys)
 
 	// clean up the last remaining database
 	killAndWait(t, cmd)
+	porcupine.VerifyOperations(t, c.Operations())
 }
 
 func TestOutOfProcessCrashesRandomKeysWithDeletion(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpledb-OutOfProcessCrashesDeletionsRandomData")
+	tmpDir, err := os.MkdirTemp("", "simpledb-OutOfProcessCrashesDeletionsRandomData")
 	require.NoError(t, err)
 
 	defer func(t *testing.T, p string) { require.NoError(t, os.RemoveAll(p)) }(t, tmpDir)
 	cmd := spawnNewDatabaseServer(t, tmpDir)
 
+	c := newRequestClient(0)
 	rnd := rand.New(rand.NewSource(1337))
 	var expectedKeys []string
 	var unexpectedKeys []string
 	for i := 0; i < 2500; i++ {
 		key := randomAsciiString(rnd, 32)
-		err := put(key, key)
+		err := c.Put(key, key)
 		require.NoError(t, err)
 
 		expectedKeys = append(expectedKeys, key)
 		if rnd.Float32() < 0.3 {
 			toDelete := rnd.Intn(len(expectedKeys))
-			err := delete(expectedKeys[toDelete])
+			err := c.Delete(expectedKeys[toDelete])
 			require.NoError(t, err)
 			unexpectedKeys = append(unexpectedKeys, expectedKeys[toDelete])
 			expectedKeys = append(expectedKeys[:toDelete], expectedKeys[toDelete+1:]...)
@@ -146,30 +154,31 @@ func TestOutOfProcessCrashesRandomKeysWithDeletion(t *testing.T) {
 		// crash in 5% of the inserts
 		if rnd.Float32() < 0.05 {
 			cmd = killAndRespawnDatabaseServer(t, cmd, tmpDir)
-			assertContains(t, expectedKeys)
-			assertNotContains(t, unexpectedKeys)
+			assertContains(t, c, expectedKeys)
+			assertNotContains(t, c, unexpectedKeys)
 		}
 	}
 
-	assertContains(t, expectedKeys)
-	assertNotContains(t, unexpectedKeys)
+	assertContains(t, c, expectedKeys)
+	assertNotContains(t, c, unexpectedKeys)
 
 	// clean up the last remaining database
 	killAndWait(t, cmd)
+	porcupine.VerifyOperations(t, c.Operations())
 }
 
-func assertContains(t *testing.T, keys []string) {
+func assertContains(t *testing.T, c *porcupine.DatabaseClientRecorder, keys []string) {
 	for _, k := range keys {
-		s, err := get(k)
+		s, err := c.Get(k)
 		require.NoError(t, err)
 		assert.Equal(t, k, s)
 	}
 	log.Printf("successfully asserted %d keys exist\n", len(keys))
 }
 
-func assertNotContains(t *testing.T, keys []string) {
+func assertNotContains(t *testing.T, c *porcupine.DatabaseClientRecorder, keys []string) {
 	for _, k := range keys {
-		v, err := get(k)
+		v, err := c.Get(k)
 		assert.Equal(t, simpledb.ErrNotFound, err, "expected '%s' to be deleted, but was '%s'", k, v)
 	}
 	log.Printf("successfully asserted %d keys don't exist\n", len(keys))
@@ -195,7 +204,7 @@ func killAndWait(t *testing.T, c *exec.Cmd) {
 
 	// wait until the DB is not responding anymore
 	for {
-		_, err := get("SOME_KEY")
+		_, err := newRequestClient(0).Get("SOME_KEY")
 		if err != nil && err != simpledb.ErrNotFound {
 			break
 		}
@@ -224,7 +233,7 @@ func spawnNewDatabaseServer(t *testing.T, path string) *exec.Cmd {
 
 	// wait until the DB is up
 	for {
-		_, err := get("SOME_KEY")
+		_, err := newRequestClient(0).Get("SOME_KEY")
 		if err != nil && err == simpledb.ErrNotFound {
 			break
 		}
@@ -236,7 +245,18 @@ func spawnNewDatabaseServer(t *testing.T, path string) *exec.Cmd {
 	return command
 }
 
-func get(key string) (string, error) {
+type requestClient struct {
+}
+
+func (c *requestClient) Close() error {
+	return nil
+}
+
+func (c *requestClient) Open() error {
+	return nil
+}
+
+func (c *requestClient) Get(key string) (string, error) {
 	response, err := http.Get(formatUrl(key))
 	if err != nil {
 		return "", err
@@ -250,14 +270,14 @@ func get(key string) (string, error) {
 		return "", fmt.Errorf("unexpected response code: %d for GET key '%s'", response.StatusCode, key)
 	}
 
-	all, err := ioutil.ReadAll(response.Body)
+	all, err := io.ReadAll(response.Body)
 	if err != nil {
 		return "", err
 	}
 	return string(all), nil
 }
 
-func put(key, val string) error {
+func (c *requestClient) Put(key, val string) error {
 	request, err := http.NewRequest(http.MethodPut, formatUrl(key), strings.NewReader(val))
 	if err != nil {
 		return err
@@ -274,7 +294,7 @@ func put(key, val string) error {
 	return nil
 }
 
-func delete(key string) error {
+func (c *requestClient) Delete(key string) error {
 	request, err := http.NewRequest(http.MethodDelete, formatUrl(key), strings.NewReader(""))
 	if err != nil {
 		return err
@@ -289,6 +309,11 @@ func delete(key string) error {
 		return fmt.Errorf("unexpected response code: %d for DELETE key '%s'", response.StatusCode, key)
 	}
 	return nil
+}
+
+func newRequestClient(id int) *porcupine.DatabaseClientRecorder {
+	db := &requestClient{}
+	return porcupine.NewDatabaseRecorder(db, id)
 }
 
 func formatUrl(key string) string {

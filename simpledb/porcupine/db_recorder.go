@@ -1,9 +1,10 @@
 package porcupine
 
 import (
+	"time"
+
 	"github.com/anishathalye/porcupine"
 	"github.com/thomasjungblut/go-sstables/simpledb"
-	"time"
 )
 
 type DatabaseClientRecorder struct {
@@ -19,6 +20,10 @@ func NewDatabaseRecorder(db simpledb.DatabaseI, clientId int) *DatabaseClientRec
 		db:         db,
 		operations: []porcupine.Operation{},
 	}
+}
+
+func (d *DatabaseClientRecorder) Operations() []porcupine.Operation {
+	return d.operations
 }
 
 func (d *DatabaseClientRecorder) Get(key string) (string, error) {

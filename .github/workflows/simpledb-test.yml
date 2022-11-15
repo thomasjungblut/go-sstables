@@ -1,4 +1,4 @@
-name: unit-test
+name: simpledb-test
 on:
   push:
     branches: [ main ]
@@ -19,3 +19,5 @@ jobs:
         if: always()
         with:
           path: simpledb/porcupine/*.html
+      - name: Crash Test
+        run: make crash-simpledb

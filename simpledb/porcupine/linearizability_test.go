@@ -35,7 +35,7 @@ func TestHappyPath(t *testing.T) {
 		}
 	}
 
-	verifyOperations(t, client.operations)
+	VerifyOperations(t, client.operations)
 }
 
 func TestHappyPathMultiKey(t *testing.T) {
@@ -55,7 +55,7 @@ func TestHappyPathMultiKey(t *testing.T) {
 		_, _ = client.Get(key)
 	}
 
-	verifyOperations(t, client.operations)
+	VerifyOperations(t, client.operations)
 }
 
 func TestHappyPathMultiThread(t *testing.T) {
@@ -64,7 +64,7 @@ func TestHappyPathMultiThread(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	operations := parallelWriteGetDelete(db.db, 4, 100, 2500)
-	verifyOperations(t, operations)
+	VerifyOperations(t, operations)
 }
 
 func TestMultiTriggerFlush(t *testing.T) {
@@ -73,13 +73,7 @@ func TestMultiTriggerFlush(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	operations := parallelWriteGetDelete(db.db, 8, 8*1000, 2500)
-	verifyOperations(t, operations)
-}
-
-func verifyOperations(t *testing.T, operations []porcupine.Operation) {
-	result, info := porcupine.CheckOperationsVerbose(Model, operations, 0)
-	require.NoError(t, porcupine.VisualizePath(Model, info, t.Name()+"_porcupine.html"))
-	require.Equal(t, porcupine.CheckResult(porcupine.Ok), result, "output was not linearizable")
+	VerifyOperations(t, operations)
 }
 
 func newSimpleDBWithTemp(t *testing.T, name string) *TestDatabase {
@@ -132,6 +126,8 @@ func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, 
 	for n := 0; n < numGoRoutines; n++ {
 		wg.Add(1)
 		go func(db *simpledb.DB, id, start, end int) {
+			defer wg.Done()
+
 			client := NewDatabaseRecorder(db, id)
 			rnd := rand.New(rand.NewSource(int64(id)))
 			for i := start; i < end; i++ {
@@ -152,7 +148,6 @@ func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, 
 
 			operations = append(operations, client.operations...)
 
-			wg.Done()
 		}(db, n, n*recordsPerRoutine, n*recordsPerRoutine+recordsPerRoutine)
 	}
 

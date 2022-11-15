@@ -2,10 +2,13 @@ package porcupine
 
 import (
 	"fmt"
-	pp "github.com/anishathalye/porcupine"
-	"github.com/thomasjungblut/go-sstables/simpledb"
 	"log"
 	"reflect"
+	"testing"
+
+	pp "github.com/anishathalye/porcupine"
+	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
 const (
@@ -135,4 +138,10 @@ var Model = pp.Model{
 
 		return fmt.Sprintf("%v", shortValueState)
 	},
+}
+
+func VerifyOperations(t *testing.T, operations []pp.Operation) {
+	result, info := pp.CheckOperationsVerbose(Model, operations, 0)
+	require.NoError(t, pp.VisualizePath(Model, info, t.Name()+"_porcupine.html"))
+	require.Equal(t, pp.CheckResult(pp.Ok), result, "output was not linearizable")
 }
