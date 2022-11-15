@@ -4,14 +4,15 @@
 package porcupine
 
 import (
-	"github.com/anishathalye/porcupine"
-	"github.com/stretchr/testify/require"
-	"github.com/thomasjungblut/go-sstables/simpledb"
 	"math/rand"
 	"os"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/anishathalye/porcupine"
+	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
 type TestDatabase struct {
