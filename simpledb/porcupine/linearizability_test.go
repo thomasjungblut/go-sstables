@@ -112,8 +112,8 @@ func randomString(size int) string {
 	return builder.String()
 }
 
-func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, valSizeBytes int) []porcupine.Operation {
-	var operations []porcupine.Operation
+func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, valSizeBytes int) []porcupine.Operation[Input, Output] {
+	var operations []porcupine.Operation[Input, Output]
 	var opsLock sync.Mutex
 	wg := sync.WaitGroup{}
 	recordsPerRoutine := numRecords / numGoRoutines

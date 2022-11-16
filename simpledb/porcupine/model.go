@@ -17,6 +17,22 @@ const (
 	DelOp = iota
 )
 
+type MapInput struct {
+	Operation uint8
+	Key       string
+	Val       string
+}
+
+type MapOutput struct {
+	Key string
+	Val string
+	Err error
+}
+
+type MapState struct {
+	m map[string]string
+}
+
 type Input struct {
 	Operation uint8
 	Key       string
@@ -29,18 +45,16 @@ type Output struct {
 	Err error
 }
 
-type State struct {
-	state map[string]string
+func (s MapState) Clone() MapState {
+	sx := make(map[string]string, len(s.m))
+	for k, v := range s.m {
+		sx[k] = v
+	}
+	return MapState{m: sx}
 }
 
-func (st State) Clone() State {
-	c := make(map[string]string, len(st.state))
-	for k, v := range st.state {
-		c[k] = v
-	}
-	return State{
-		state: c,
-	}
+func (s MapState) Equals(otherState MapState) bool {
+	return reflect.DeepEqual(s.m, otherState.m)
 }
 
 func shorten(s string, size int) string {
@@ -50,20 +64,29 @@ func shorten(s string, size int) string {
 	return s
 }
 
-var Model = pp.Model{
-	Init: func() interface{} {
-		return State{
-			state: map[string]string{},
-		}
-	},
-	Partition: func(history []pp.Operation) [][]pp.Operation {
+func (s MapState) String() string {
+	shortValueState := map[string]string{}
+	for k, v := range s.m {
+		shortValueState[k] = shorten(v, 5)
+	}
+
+	return fmt.Sprintf("%v", shortValueState)
+}
+
+func NewMapState() MapState {
+	return MapState{m: map[string]string{}}
+}
+
+var Model = pp.Model[MapState, Input, Output]{
+	Init: NewMapState,
+	Partition: func(history []pp.Operation[Input, Output]) [][]pp.Operation[Input, Output] {
 		indexMap := map[string]int{}
-		var partitions [][]pp.Operation
+		var partitions [][]pp.Operation[Input, Output]
 		for _, op := range history {
-			i := op.Input.(Input)
+			i := op.Input
 			ix, found := indexMap[i.Key]
 			if !found {
-				partitions = append(partitions, []pp.Operation{op})
+				partitions = append(partitions, []pp.Operation[Input, Output]{op})
 				indexMap[i.Key] = len(partitions) - 1
 			} else {
 				partitions[ix] = append(partitions[ix], op)
@@ -71,12 +94,8 @@ var Model = pp.Model{
 		}
 		return partitions
 	},
-	Step: func(state interface{}, input interface{}, output interface{}) (bool, interface{}) {
-		s := state.(State).Clone()
-		i := input.(Input)
-		o := output.(Output)
-
-		stateVal, found := s.state[i.Key]
+	Step: func(s MapState, i Input, o Output) (bool, MapState) {
+		stateVal, found := s.m[i.Key]
 
 		switch i.Operation {
 		case GetOp:
@@ -88,13 +107,13 @@ var Model = pp.Model{
 			break
 		case PutOp:
 			if o.Err == nil {
-				s.state[i.Key] = i.Val
+				s.m[i.Key] = i.Val
 				return true, s
 			}
 			break
 		case DelOp:
 			if o.Err == nil {
-				delete(s.state, i.Key)
+				delete(s.m, i.Key)
 				return true, s
 			}
 			break
@@ -107,13 +126,7 @@ var Model = pp.Model{
 
 		return false, s
 	},
-	Equal: func(a, b interface{}) bool {
-		return reflect.DeepEqual(a, b)
-	},
-	DescribeOperation: func(input interface{}, output interface{}) string {
-		i := input.(Input)
-		o := output.(Output)
-
+	DescribeOperation: func(i Input, o Output) string {
 		opName := ""
 		switch i.Operation {
 		case GetOp:
@@ -129,19 +142,10 @@ var Model = pp.Model{
 
 		return fmt.Sprintf("%s(%s) -> %s", opName, i.Key, shorten(o.Val, 5))
 	},
-	DescribeState: func(state interface{}) string {
-		s := state.(State)
-		shortValueState := map[string]string{}
-		for k, v := range s.state {
-			shortValueState[k] = shorten(v, 5)
-		}
-
-		return fmt.Sprintf("%v", shortValueState)
-	},
 }
 
-func VerifyOperations(t *testing.T, operations []pp.Operation) {
+func VerifyOperations(t *testing.T, operations []pp.Operation[Input, Output]) {
 	result, info := pp.CheckOperationsVerbose(Model, operations, 0)
 	require.NoError(t, pp.VisualizePath(Model, info, t.Name()+"_porcupine.html"))
-	require.Equal(t, pp.CheckResult(pp.Ok), result, "output was not linearizable")
+	require.Equal(t, pp.Ok, result, "output was not linearizable")
 }

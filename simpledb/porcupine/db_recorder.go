@@ -11,18 +11,18 @@ type DatabaseClientRecorder struct {
 	clientId int
 	db       simpledb.DatabaseI
 
-	operations []porcupine.Operation
+	operations []porcupine.Operation[Input, Output]
 }
 
 func NewDatabaseRecorder(db simpledb.DatabaseI, clientId int) *DatabaseClientRecorder {
 	return &DatabaseClientRecorder{
 		clientId:   clientId,
 		db:         db,
-		operations: []porcupine.Operation{},
+		operations: []porcupine.Operation[Input, Output]{},
 	}
 }
 
-func (d *DatabaseClientRecorder) Operations() []porcupine.Operation {
+func (d *DatabaseClientRecorder) Operations() []porcupine.Operation[Input, Output] {
 	return d.operations
 }
 
@@ -30,7 +30,7 @@ func (d *DatabaseClientRecorder) Get(key string) (string, error) {
 	start := time.Now()
 	val, err := d.db.Get(key)
 	end := time.Now()
-	d.operations = append(d.operations, porcupine.Operation{
+	d.operations = append(d.operations, porcupine.Operation[Input, Output]{
 		ClientId: d.clientId,
 		Input: Input{
 			Operation: GetOp,
@@ -52,7 +52,7 @@ func (d *DatabaseClientRecorder) Put(key, value string) error {
 	start := time.Now()
 	err := d.db.Put(key, value)
 	end := time.Now()
-	d.operations = append(d.operations, porcupine.Operation{
+	d.operations = append(d.operations, porcupine.Operation[Input, Output]{
 		ClientId: d.clientId,
 		Input: Input{
 			Operation: PutOp,
@@ -75,7 +75,7 @@ func (d *DatabaseClientRecorder) Delete(key string) error {
 	start := time.Now()
 	err := d.db.Delete(key)
 	end := time.Now()
-	d.operations = append(d.operations, porcupine.Operation{
+	d.operations = append(d.operations, porcupine.Operation[Input, Output]{
 		ClientId: d.clientId,
 		Input: Input{
 			Operation: DelOp,
