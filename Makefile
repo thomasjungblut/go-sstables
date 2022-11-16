@@ -89,5 +89,5 @@ vet:
 	@echo "==> Go vet <=="
 	$(GO) vet $(TESTS)
 
-.PHONY: test-all
-test-all: vet unit-test linear-simpledb race-simpledb crash-simpledb
+.PHONY: test
+test: vet unit-test linear-simpledb race-simpledb crash-simpledb

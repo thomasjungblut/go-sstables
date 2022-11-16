@@ -17,18 +17,6 @@ const (
 	DelOp = iota
 )
 
-type MapInput struct {
-	Operation uint8
-	Key       string
-	Val       string
-}
-
-type MapOutput struct {
-	Key string
-	Val string
-	Err error
-}
-
 type MapState struct {
 	m map[string]string
 }
