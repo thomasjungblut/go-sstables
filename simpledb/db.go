@@ -74,6 +74,7 @@ type DB struct {
 	compactedMaxSizeBytes uint64
 	enableCompactions     bool
 	enableAsyncWAL        bool
+	enableDirectIOWAL     bool
 	open                  bool
 	closed                bool
 
@@ -331,6 +332,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		MemStoreMaxSizeBytes,
 		true,
 		false,
+		false,
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
@@ -360,6 +362,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
 		enableCompactions:           extraOpts.enableCompactions,
 		enableAsyncWAL:              extraOpts.enableAsyncWAL,
+		enableDirectIOWAL:           extraOpts.enableDirectIOWAL,
 		compactionInterval:          extraOpts.compactionRunInterval,
 		closed:                      false,
 		rwLock:                      rwLock,
@@ -379,6 +382,7 @@ type ExtraOptions struct {
 	memstoreSizeBytes       uint64
 	enableCompactions       bool
 	enableAsyncWAL          bool
+	enableDirectIOWAL       bool
 	compactionFileThreshold int
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
@@ -405,6 +409,13 @@ func DisableCompactions() ExtraOption {
 func EnableAsyncWAL() ExtraOption {
 	return func(args *ExtraOptions) {
 		args.enableAsyncWAL = true
+	}
+}
+
+// EnableDirectIOWAL will turn on the WAL writes using DirectIO, which should give faster aligned block writes and less cache churn.
+func EnableDirectIOWAL() ExtraOption {
+	return func(args *ExtraOptions) {
+		args.enableDirectIOWAL = true
 	}
 }
 

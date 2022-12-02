@@ -173,14 +173,29 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 	walBasePath := filepath.Join(db.basePath, WriteAheadFolder)
 	err := os.MkdirAll(walBasePath, 0700)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not mkdir WAL dir at %s: %w", walBasePath, err)
+	}
+
+	writerOpts := []recordio.FileWriterOption{
+		recordio.CompressionType(recordio.CompressionTypeSnappy),
+	}
+	if db.enableDirectIOWAL {
+		ok, err := recordio.IsDirectIOAvailable()
+		if err != nil {
+			return fmt.Errorf("could not detected directIO status: %w", err)
+		}
+		if ok {
+			writerOpts = append(writerOpts, recordio.DirectIO())
+		} else {
+			log.Printf("directIO requested, but not available\n")
+		}
 	}
 
 	walOpts, err := wal.NewWriteAheadLogOptions(wal.BasePath(walBasePath),
-		// we do manual rotation in lockstep with the memstore flushes, thus just set this super high
-		wal.MaximumWalFileSizeBytes(db.memstoreMaxSize*10),
+		// we do manual rotation in lockstep with the memstore flushes, thus just set this super high to not trigger
+		wal.MaximumWalFileSizeBytes(db.memstoreMaxSize*100),
 		wal.WriterFactory(func(path string) (recordio.WriterI, error) {
-			return recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(recordio.CompressionTypeSnappy))
+			return recordio.NewFileWriter(append(writerOpts, recordio.Path(path))...)
 		}),
 		wal.ReaderFactory(func(path string) (recordio.ReaderI, error) {
 			return recordio.NewFileReaderWithPath(path)
