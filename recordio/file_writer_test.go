@@ -158,11 +158,6 @@ func TestWriterInitNoPath(t *testing.T) {
 	assert.Equal(t, errors.New("NewFileWriter: either os.File or string path must be supplied, never both"), err)
 }
 
-func TestWriterDirectIOAndIOUringDisabled(t *testing.T) {
-	_, err := NewFileWriter(Path("/tmp/abc"), DirectIO(), IOUring(4))
-	assert.Equal(t, errors.New("NewFileWriter: either directIO or io_uring must be enabled, never both"), err)
-}
-
 func TestWriterCrashCreatesValidHeader(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeader")
 	require.Nil(t, err)
