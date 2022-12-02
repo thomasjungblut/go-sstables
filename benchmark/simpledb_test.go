@@ -2,7 +2,9 @@ package benchmark
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"os"
 	"runtime"
@@ -18,6 +20,7 @@ import (
 )
 
 func BenchmarkSimpleDBReadLatency(b *testing.B) {
+	log.SetOutput(io.Discard)
 	dbSizes := []int{100, 1000, 10000, 100000}
 
 	for _, n := range dbSizes {
@@ -51,6 +54,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 }
 
 func BenchmarkSimpleDBWriteLatency(b *testing.B) {
+	log.SetOutput(io.Discard)
 	dbSizes := []int{100, 1000, 10000, 100000, 1000000}
 
 	for _, n := range dbSizes {
