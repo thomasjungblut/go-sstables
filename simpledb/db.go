@@ -36,7 +36,7 @@ type DatabaseI interface {
 	recordio.OpenClosableI
 
 	// Get returns the value for the given key. If there is no value for the given
-	// key it will return ErrNotFound as the error and an empty string value. Otherwise
+	// key it will return ErrNotFound as the error and an empty string value. Otherwise,
 	// the error will contain any other usual io error that can be expected.
 	Get(key string) (string, error)
 
@@ -46,7 +46,7 @@ type DatabaseI interface {
 	Put(key, value string) error
 
 	// Delete will delete the value for the given key. It will ignore when a key does not exist in the database.
-	// Underneath it will be tombstoned, which still store it and make it not retrievable through this interface.
+	// Underneath it will be tombstoned, which still stores it and makes it not retrievable through this interface.
 	Delete(key string) error
 }
 
@@ -125,9 +125,8 @@ func (db *DB) Open() error {
 }
 
 func (db *DB) Close() error {
-	db.rwLock.Lock()
-
 	err := func() error {
+		db.rwLock.Lock()
 		defer db.rwLock.Unlock()
 
 		if !db.open {
@@ -154,7 +153,7 @@ func (db *DB) Close() error {
 		return err
 	}
 
-	// we finish the compaction outside of the lock, since the compaction internally may require it
+	// we finish the compaction outside the lock, since the compaction internally may require it
 	if db.enableCompactions {
 		db.compactionTicker.Stop()
 		db.compactionTickerStopChannel <- true
@@ -244,8 +243,8 @@ func (db *DB) Put(key, value string) error {
 		return err
 	}
 
-	db.rwLock.Lock()
 	return func() error {
+		db.rwLock.Lock()
 		defer db.rwLock.Unlock()
 
 		if !db.open {

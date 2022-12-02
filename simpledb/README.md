@@ -136,4 +136,12 @@ The latter can be run using `make crash-simpledb`, which will start a webserver 
 REST. The test code will then try a couple of deterministic and random patterns while killing the database and checking
 its results continuously.
 
-The test suite is reusable for other databases, as long as they implement the REST interface. .
+The test suite is reusable for other databases, as long as they implement the REST interface.
+
+## Linearizability Testing
+
+Using [Porcupine](https://github.com/anishathalye/porcupine/) we can verify whether a sequence of operations on the database are linearizable.
+
+The test suite in the porcupine folder will create a small database client that tracks operations with their results and their timings. With that history the framework can then reconstruct whether given operation on the state was valid or not.
+
+The tests in the porcupine folder are running a synthetic get/put/delete sequence (also from multiple goroutines) with overlapping keys. The crash tests described above also have a client recording the operations. After all runs the linearizability of the test is verified, in addition to the existing assertions. 

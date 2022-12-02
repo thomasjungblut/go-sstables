@@ -1,7 +1,6 @@
 package simpledb
 
 import (
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"strconv"
@@ -50,6 +49,9 @@ func TestSimplePutAndGet(t *testing.T) {
 	db := newOpenedSimpleDB(t, "simpleDB_testSimplePutAndGet")
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
+
+	_, err := db.Get("a")
+	assert.Equal(t, ErrNotFound, err)
 
 	require.Nil(t, db.Put("a", "b"))
 
@@ -140,7 +142,7 @@ func TestCloseDeniesCrudOperations(t *testing.T) {
 }
 
 func TestDisableCompactions(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpleDB_testDisabledCompactions")
+	tmpDir, err := os.MkdirTemp("", "simpleDB_testDisabledCompactions")
 	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, DisableCompactions())
 	require.Nil(t, err)
@@ -152,7 +154,7 @@ func TestDisableCompactions(t *testing.T) {
 }
 
 func TestCompactionsMaxSize(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsMaxSize")
+	tmpDir, err := os.MkdirTemp("", "simpleDB_testCompactionsMaxSize")
 	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionMaxSizeBytes(1255))
 	require.Nil(t, err)
@@ -164,7 +166,7 @@ func TestCompactionsMaxSize(t *testing.T) {
 }
 
 func TestCompactionsRunInterval(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsRunInterval")
+	tmpDir, err := os.MkdirTemp("", "simpleDB_testCompactionsRunInterval")
 	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionRunInterval(1*time.Second))
 	require.Nil(t, err)
@@ -177,7 +179,7 @@ func TestCompactionsRunInterval(t *testing.T) {
 }
 
 func TestCompactionsFileThreshold(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "simpleDB_testCompactionsFileThreshold")
+	tmpDir, err := os.MkdirTemp("", "simpleDB_testCompactionsFileThreshold")
 	require.Nil(t, err)
 	db, err := NewSimpleDB(tmpDir, CompactionFileThreshold(1337))
 	require.Nil(t, err)
@@ -232,7 +234,7 @@ func randomRecordWithPrefix(rand *rand.Rand, prefix int) string {
 }
 
 func newSimpleDBWithTemp(t *testing.T, name string) *DB {
-	tmpDir, err := ioutil.TempDir("", name)
+	tmpDir, err := os.MkdirTemp("", name)
 	require.Nil(t, err)
 
 	//for testing purposes we will flush with a tiny amount of 2mb

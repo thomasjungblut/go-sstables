@@ -1,6 +1,7 @@
 module github.com/thomasjungblut/go-sstables
 
 require (
+	github.com/anishathalye/porcupine v0.1.2
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/libp2p/go-buffer-pool v0.0.2
 	github.com/ncw/directio v1.0.5
@@ -18,4 +19,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )
 
-go 1.18
+replace github.com/anishathalye/porcupine v0.1.2 => github.com/tjungblu/porcupine v0.0.0-20221116095144-377185aa0569
+
+go 1.19
