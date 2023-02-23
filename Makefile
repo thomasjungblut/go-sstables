@@ -76,6 +76,10 @@ linear-simpledb:
 	$(GO) clean -testcache
 	$(GO) test -v -timeout 30m --tags simpleDBlinear $(GOFLAGS) ./simpledb/porcupine $(TESTFLAGS)
 
+.PHONY: example-test
+example-test:
+	/bin/bash test_examples.sh
+
 .PHONY: generate-test-files
 generate-test-files:
 	@echo
