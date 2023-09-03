@@ -61,7 +61,7 @@ func TestReadWriteEndToEndDirectIO(t *testing.T) {
 		return
 	}
 
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
+	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndDirectIO")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), DirectIO())

@@ -88,7 +88,7 @@ func fileHeaderAsByteSlice(compressionType uint32) []byte {
 }
 
 // for legacy reference still around, main paths unused - mostly for tests writing old versions
-//noinspection GoUnusedFunction
+// noinspection GoUnusedFunction
 func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
 	bytes := make([]byte, RecordHeaderSizeBytes)
