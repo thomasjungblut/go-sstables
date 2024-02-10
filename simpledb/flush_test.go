@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,12 +15,12 @@ import (
 )
 
 func TestFlushHappyPath(t *testing.T) {
-	tmpDummyWalFile, err := ioutil.TempFile("", "simpledb_flushHappyPath")
+	tmpDummyWalFile, err := os.CreateTemp("", "simpledb_flushHappyPath")
 	assert.Nil(t, err)
 	assert.Nil(t, tmpDummyWalFile.Close())
 
 	defer os.Remove(tmpDummyWalFile.Name())
-	tmpDir, err := ioutil.TempDir("", "simpledb_flushHappyPath")
+	tmpDir, err := os.MkdirTemp("", "simpledb_flushHappyPath")
 	assert.Nil(t, err)
 	defer func(path string) {
 		err := os.RemoveAll(path)

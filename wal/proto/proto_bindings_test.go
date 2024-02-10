@@ -5,7 +5,7 @@ import (
 	w "github.com/thomasjungblut/go-sstables/wal"
 	"github.com/thomasjungblut/go-sstables/wal/test_files"
 	"google.golang.org/protobuf/proto"
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -40,7 +40,7 @@ func TestProtoWALEndToEndHappyPath(t *testing.T) {
 }
 
 func newTestProtoWal(t *testing.T, tmpDirName string) *WriteAheadLog {
-	tmpDir, err := ioutil.TempDir("", tmpDirName)
+	tmpDir, err := os.MkdirTemp("", tmpDirName)
 	assert.Nil(t, err)
 
 	opts, err := w.NewWriteAheadLogOptions(

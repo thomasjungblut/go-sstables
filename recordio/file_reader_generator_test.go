@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -46,31 +45,31 @@ func writeDirectIOUncompressedSingleRecord(t *testing.T, path string) {
 
 func writeDirectIOUncompressedSingleRecordRandomTrailer(t *testing.T, path string) {
 	writeDirectIOUncompressedSingleRecord(t, path)
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	require.NoError(t, err)
 	// write some garbled data in between, so we know this file might be corrupted instead of properly written by directIO
 	binary.PutUvarint(bytes[1024:1028], 1337)
-	err = ioutil.WriteFile(path, bytes, 0666)
+	err = os.WriteFile(path, bytes, 0666)
 	require.NoError(t, err)
 }
 
 func writeUncompressedSingleRecordAugmentedMagicNumber(t *testing.T, path string) {
 	writeUncompressedSingleRecord(t, path)
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	binary.PutUvarint(bytes[8:12], MagicNumberSeparatorLong+1)
 	assert.Nil(t, err)
-	err = ioutil.WriteFile(path, bytes, 0666)
+	err = os.WriteFile(path, bytes, 0666)
 	assert.Nil(t, err)
 }
 
 func writeCompressedSingleRecordAugmented(t *testing.T, path string, compType int) {
 	writeCompressedSingleRecord(t, path, CompressionTypeGZIP)
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 
 	binary.LittleEndian.PutUint32(bytes[4:8], uint32(compType))
 
 	assert.Nil(t, err)
-	err = ioutil.WriteFile(path, bytes, 0666)
+	err = os.WriteFile(path, bytes, 0666)
 	assert.Nil(t, err)
 }
 
@@ -88,12 +87,12 @@ func writeVersionMismatchAugmented(t *testing.T, path string, augmentedVersion u
 	writer, err := newUncompressedOpenedWriterAtPath(path)
 	assert.Nil(t, err)
 	assert.Nil(t, writer.Close())
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 
 	binary.LittleEndian.PutUint32(bytes[0:4], augmentedVersion)
 
 	assert.Nil(t, err)
-	err = ioutil.WriteFile(path, bytes, 0666)
+	err = os.WriteFile(path, bytes, 0666)
 	assert.Nil(t, err)
 }
 

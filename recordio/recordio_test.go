@@ -3,7 +3,6 @@ package recordio
 import (
 	"bufio"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 // containing all the end-to-end tests
 
 func TestReadWriteEndToEnd(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEnd")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile))
@@ -24,7 +23,7 @@ func TestReadWriteEndToEnd(t *testing.T) {
 }
 
 func TestReadWriteEndToEndGzip(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzip")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndGzip")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeGZIP))
@@ -34,7 +33,7 @@ func TestReadWriteEndToEndGzip(t *testing.T) {
 }
 
 func TestReadWriteEndToEndSnappy(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappy")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndSnappy")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeSnappy))
@@ -44,7 +43,7 @@ func TestReadWriteEndToEndSnappy(t *testing.T) {
 }
 
 func TestReadWriteEndToEndLzw(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappy")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndSnappy")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), CompressionType(CompressionTypeLzw))
@@ -61,7 +60,7 @@ func TestReadWriteEndToEndDirectIO(t *testing.T) {
 		return
 	}
 
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEnd")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEnd")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewFileWriter(File(tmpFile), DirectIO())

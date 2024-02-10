@@ -2,7 +2,6 @@ package recordio
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"syscall"
 
@@ -37,7 +36,7 @@ func (d DirectIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File
 // Any other error will be indicated by the error (either true/false).
 func IsDirectIOAvailable() (available bool, err error) {
 	// the only way to check is to create a tmp file and check whether the error is EINVAL, which indicates it's not available.
-	tmpFile, err := ioutil.TempFile("", "directio-test")
+	tmpFile, err := os.CreateTemp("", "directio-test")
 	if err != nil {
 		return
 	}

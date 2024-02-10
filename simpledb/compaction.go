@@ -5,8 +5,8 @@ import (
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -64,7 +64,7 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 	sort.Strings(paths)
 
 	start := time.Now()
-	writeFolder, err := ioutil.TempDir(db.basePath, SSTableCompactionPathPrefix)
+	writeFolder, err := os.MkdirTemp(db.basePath, SSTableCompactionPathPrefix)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -41,7 +42,7 @@ type V0SSTableFullScanIterator struct {
 func (it *V0SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	key, _, err := it.keyIterator.Next()
 	if err != nil {
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			return nil, nil, Done
 		} else {
 			return nil, nil, err

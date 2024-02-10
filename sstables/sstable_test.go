@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"sort"
@@ -52,8 +51,8 @@ func TestReadStreamedWriteEndToEndCheckMetadata(t *testing.T) {
 	assert.Equal(t, 11008, int(reader.MetaData().DataBytes))
 	assert.Equal(t, 13997, int(reader.MetaData().IndexBytes))
 	assert.Equal(t, 25005, int(reader.MetaData().TotalBytes))
-	assert.Equal(t, []byte{0x0, 0xa, 0x5c, 0x94}, reader.MetaData().MinKey)
-	assert.Equal(t, []byte{0x7f, 0xe0, 0x33, 0x1}, reader.MetaData().MaxKey)
+	assert.Equal(t, intToByteSlice(expectedNumbers[0]), reader.MetaData().MinKey)
+	assert.Equal(t, intToByteSlice(expectedNumbers[len(expectedNumbers)-1]), reader.MetaData().MaxKey)
 }
 
 // this is implicitly covered by the above tests already since it's a default
@@ -150,7 +149,7 @@ func streamedWriteAscendingIntegers(t *testing.T, writer *SSTableStreamWriter, n
 }
 
 func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
+	tmpDir, err := os.MkdirTemp("", "sstables_Writer")
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +158,7 @@ func newTestSSTableSimpleWriter() (*SSTableSimpleWriter, error) {
 }
 
 func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
+	tmpDir, err := os.MkdirTemp("", "sstables_Writer")
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +167,7 @@ func newTestSSTableStreamWriter() (*SSTableStreamWriter, error) {
 }
 
 func newTestSSTableStreamWriterWithDataCompression(compressionType int) (*SSTableStreamWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_WriterDataCompressed")
+	tmpDir, err := os.MkdirTemp("", "sstables_WriterDataCompressed")
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +179,7 @@ func newTestSSTableStreamWriterWithDataCompression(compressionType int) (*SSTabl
 }
 
 func newTestSSTableStreamWriterWithIndexCompression(compressionType int) (*SSTableStreamWriter, error) {
-	tmpDir, err := ioutil.TempDir("", "sstables_WriterIndexCompressed")
+	tmpDir, err := os.MkdirTemp("", "sstables_WriterIndexCompressed")
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +207,7 @@ func randomIntegerSlice(len int) []int {
 	return slice
 }
 
-//noinspection GoSnakeCaseUsage
+// noinspection GoSnakeCaseUsage
 func TEST_ONLY_NewSkipListMapWithElements(toInsert []int) skiplist.MapI[[]byte, []byte] {
 	list := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
 	for _, e := range toInsert {

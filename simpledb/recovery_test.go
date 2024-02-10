@@ -209,7 +209,7 @@ func createWALWithEntries(db *DB, mutations []*dbproto.WalMutation) error {
 		return err
 	}
 
-	for i, _ := range mutations {
+	for i := range mutations {
 		marshal, err := proto.Marshal(mutations[i])
 		if err != nil {
 			return err

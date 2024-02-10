@@ -3,7 +3,6 @@ package recordio
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -145,7 +144,7 @@ func TestWriterOpenNonEmptyFile(t *testing.T) {
 }
 
 func TestWriterDoublePathFileInit(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
+	tmpFile, err := os.CreateTemp("", "recordio_UncompressedWriter")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
 
@@ -159,7 +158,7 @@ func TestWriterInitNoPath(t *testing.T) {
 }
 
 func TestWriterCrashCreatesValidHeader(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeader")
+	tmpFile, err := os.CreateTemp("", "recordio_CrashCreatesValidHeader")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
 
@@ -185,7 +184,7 @@ func TestWriterCrashCreatesNoValidHeaderWithDirectIO(t *testing.T) {
 		return
 	}
 
-	tmpFile, err := ioutil.TempFile("", "recordio_CrashCreatesValidHeaderDirectIO")
+	tmpFile, err := os.CreateTemp("", "recordio_CrashCreatesValidHeaderDirectIO")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
 
@@ -209,7 +208,7 @@ func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
 		return
 	}
 
-	tmpFile, err := ioutil.TempFile("", "recordio_WriterNotAllowsSyncsWithDirectIO")
+	tmpFile, err := os.CreateTemp("", "recordio_WriterNotAllowsSyncsWithDirectIO")
 	require.Nil(t, err)
 	defer closeCleanFile(t, tmpFile)
 
@@ -223,7 +222,7 @@ func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
-	tmpFile, err := ioutil.TempFile("", "recordio_UncompressedWriter")
+	tmpFile, err := os.CreateTemp("", "recordio_UncompressedWriter")
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +237,7 @@ func newUncompressedTestWriter() (*FileWriter, error) {
 }
 
 func newCompressedTestWriter(compType int) (*FileWriter, error) {
-	tmpFile, err := ioutil.TempFile("", "recordio_CompressedWriter")
+	tmpFile, err := os.CreateTemp("", "recordio_CompressedWriter")
 	if err != nil {
 		return nil, err
 	}

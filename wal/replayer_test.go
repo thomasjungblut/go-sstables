@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,7 +13,7 @@ import (
 // we largely exercise replays in wal_appender_test already, here we focus only on edge cases that cause errors
 
 func TestReplayFileFails(t *testing.T) {
-	file, err := ioutil.TempFile("", "wal_replayfilefails")
+	file, err := os.CreateTemp("", "wal_replayfilefails")
 	require.Nil(t, err)
 	opts, err := NewWriteAheadLogOptions(BasePath(file.Name()))
 	require.Nil(t, err)
@@ -32,7 +31,7 @@ func TestReplayFolderDoesNotExist(t *testing.T) {
 func TestReplayerIgnoresNonWalFiles(t *testing.T) {
 	log, recorder := singleRecordWal(t, "wal_replayignorewal")
 
-	err := ioutil.WriteFile(filepath.Join(log.walOptions.basePath, "some-not-so-wal-file"), []byte{1, 2, 3}, os.ModePerm)
+	err := os.WriteFile(filepath.Join(log.walOptions.basePath, "some-not-so-wal-file"), []byte{1, 2, 3}, os.ModePerm)
 	require.Nil(t, err)
 
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)

@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"github.com/thomasjungblut/go-sstables/recordio/test_files"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -15,7 +14,7 @@ import (
 const TestFile = "../test_files/berlin52.tsp"
 
 func TestReadWriteEndToEndProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile))
@@ -25,7 +24,7 @@ func TestReadWriteEndToEndProto(t *testing.T) {
 }
 
 func TestReadWriteEndToEndGzipProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzipProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndGzipProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeGZIP))
@@ -35,7 +34,7 @@ func TestReadWriteEndToEndGzipProto(t *testing.T) {
 }
 
 func TestReadWriteEndToEndSnappyProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappyProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndSnappyProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeSnappy))
@@ -88,7 +87,7 @@ func endToEndReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.File) {
 }
 
 func TestRandomReadWriteEndToEndProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile))
@@ -98,7 +97,7 @@ func TestRandomReadWriteEndToEndProto(t *testing.T) {
 }
 
 func TestRandomReadWriteEndToEndGzipProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndGzipProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndGzipProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeGZIP))
@@ -108,7 +107,7 @@ func TestRandomReadWriteEndToEndGzipProto(t *testing.T) {
 }
 
 func TestRandomReadWriteEndToEndSnappyProto(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "recordio_EndToEndSnappyProto")
+	tmpFile, err := os.CreateTemp("", "recordio_EndToEndSnappyProto")
 	require.NoError(t, err)
 	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
 	writer, err := NewWriter(File(tmpFile), CompressionType(recordio.CompressionTypeSnappy))

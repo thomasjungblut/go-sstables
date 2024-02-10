@@ -6,7 +6,6 @@ import (
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -41,7 +40,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 
 			var tmpDirs []string
 			for n := 0; n < b.N; n++ {
-				tmpDir, err := ioutil.TempDir("", "sstable_BenchWrite")
+				tmpDir, err := os.MkdirTemp("", "sstable_BenchWrite")
 				assert.Nil(b, err)
 				tmpDirs = append(tmpDirs, tmpDir)
 			}

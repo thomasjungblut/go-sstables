@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
@@ -68,7 +67,7 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
 			// This would indicate a properly written file and the actual end - and not a malformed record.
 			if errors.Is(err, MagicNumberMismatchErr) {
-				remainder, err := ioutil.ReadAll(r.reader)
+				remainder, err := io.ReadAll(r.reader)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing record header seeking for file end of '%s': %w", r.file.Name(), err)
 				}

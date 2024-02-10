@@ -12,7 +12,7 @@ import (
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	sProto "github.com/thomasjungblut/go-sstables/sstables/proto"
-	proto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type SSTableStreamWriter struct {
