@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -165,7 +164,7 @@ func TestMemStoreFlush(t *testing.T) {
 	err = m.Upsert([]byte("bkey"), []byte("bval"))
 	assert.Nil(t, err)
 
-	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	tmpDir, err := os.MkdirTemp("", "memstore_flush")
 	assert.Nil(t, err)
 	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
 
@@ -199,7 +198,7 @@ func TestMemStoreFlushTombStonesIgnore(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, m.Delete([]byte("akey")))
 
-	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	tmpDir, err := os.MkdirTemp("", "memstore_flush")
 	assert.Nil(t, err)
 	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
 
@@ -232,7 +231,7 @@ func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, m.Delete([]byte("akey")))
 
-	tmpDir, err := ioutil.TempDir("", "memstore_flush")
+	tmpDir, err := os.MkdirTemp("", "memstore_flush")
 	assert.Nil(t, err)
 	defer func() { assert.Nil(t, os.RemoveAll(tmpDir)) }()
 

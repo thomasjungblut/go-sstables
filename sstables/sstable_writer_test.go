@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -95,7 +94,7 @@ func TestUnopenedWrites(t *testing.T) {
 }
 
 func TestCompressionTypeDoesNotExist(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "sstables_Writer")
+	tmpDir, err := os.MkdirTemp("", "sstables_Writer")
 	defer func() { require.Nil(t, os.RemoveAll(tmpDir)) }()
 	require.Nil(t, err)
 	writer, err := NewSSTableSimpleWriter(WriteBasePath(tmpDir), DataCompressionType(25), WithKeyComparator(skiplist.BytesComparator{}))

@@ -3,12 +3,12 @@ package recordio
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
 func TestBufferedIOFactory_CreateNewReader(t *testing.T) {
-	temp, err := ioutil.TempFile("", "TestBufferedIOFactory_CreateNewReader")
+	temp, err := os.CreateTemp("", "TestBufferedIOFactory_CreateNewReader")
 	require.NoError(t, err)
 	require.NoError(t, temp.Close())
 
@@ -21,7 +21,7 @@ func TestBufferedIOFactory_CreateNewReader(t *testing.T) {
 }
 
 func TestBufferedIOFactory_CreateNewWriter(t *testing.T) {
-	temp, err := ioutil.TempFile("", "TestBufferedIOFactory_CreateNewWriter")
+	temp, err := os.CreateTemp("", "TestBufferedIOFactory_CreateNewWriter")
 	require.NoError(t, err)
 	require.NoError(t, temp.Close())
 

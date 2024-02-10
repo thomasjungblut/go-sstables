@@ -5,7 +5,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
 
-// the RW memstore contains two memstores, one for reading, one for writing.
+// RWMemstore the RW memstore contains two memstores, one for reading, one for writing.
 // the one that writes takes precedence over the read store (for the same key).
 type RWMemstore struct {
 	readStore  memstore.MemStoreI

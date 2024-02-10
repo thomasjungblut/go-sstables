@@ -6,7 +6,6 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -75,7 +74,7 @@ func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
 }
 
 func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
-	dir, err := ioutil.TempDir("", "simpledb_compactionReflection")
+	dir, err := os.MkdirTemp("", "simpledb_compactionReflection")
 	assert.Nil(t, err)
 	// that's our fake compaction path that actually must exist for the logic to work properly
 	const compactionOutputPath = "4"

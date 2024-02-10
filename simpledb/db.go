@@ -2,7 +2,7 @@ package simpledb
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"sync"
 	"time"
 
@@ -323,7 +323,7 @@ func (db *DB) Delete(key string) error {
 // The error in case it doesn't exist can be checked using normal os package functions like os.IsNotExist(err)
 func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	// validate the basePath exist
-	_, err := ioutil.ReadDir(basePath)
+	_, err := os.ReadDir(basePath)
 	if err != nil {
 		return nil, err
 	}

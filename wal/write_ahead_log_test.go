@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -68,7 +68,7 @@ func TestOptionMissingBasePath(t *testing.T) {
 }
 
 func newTestWal(t *testing.T, tmpDirName string) *WriteAheadLog {
-	tmpDir, err := ioutil.TempDir("", tmpDirName)
+	tmpDir, err := os.MkdirTemp("", tmpDirName)
 	require.Nil(t, err)
 
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir),

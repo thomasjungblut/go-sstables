@@ -11,7 +11,6 @@ import (
 	pb "google.golang.org/protobuf/proto"
 	"hash/fnv"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -283,7 +282,7 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 		return nil, fmt.Errorf("error while opening metadata in '%s': %w", metaPath, err)
 	}
 
-	content, err := ioutil.ReadAll(mpf)
+	content, err := io.ReadAll(mpf)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading metadata in '%s': %w", metaPath, err)
 	}

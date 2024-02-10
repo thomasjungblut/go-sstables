@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"math"
+	"os"
 	"testing"
 )
 
@@ -117,7 +117,7 @@ func singleRecordWal(t *testing.T, tmpDirName string) (*Appender, [][]byte) {
 }
 
 func newTestWalAppender(t *testing.T, tmpDirName string) *Appender {
-	tmpDir, err := ioutil.TempDir("", tmpDirName)
+	tmpDir, err := os.MkdirTemp("", tmpDirName)
 	require.Nil(t, err)
 
 	opts, err := NewWriteAheadLogOptions(BasePath(tmpDir), MaximumWalFileSizeBytes(TestMaxWalFileSize))

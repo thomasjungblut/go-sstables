@@ -5,14 +5,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"io/ioutil"
 	"os"
 	"testing"
 )
 
 // we're writing a gig worth of data and test how long it takes to read the index + all data
 func BenchmarkSSTableRead(b *testing.B) {
-	tmpDir, err := ioutil.TempDir("", "sstable_BenchRead")
+	tmpDir, err := os.MkdirTemp("", "sstable_BenchRead")
 	assert.Nil(b, err)
 	defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
