@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 // Package skiplist is a translation from LevelDBs skiplist (https://github.com/google/leveldb/blob/master/db/skiplist.h)
 package skiplist
 
