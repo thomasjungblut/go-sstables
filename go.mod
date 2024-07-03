@@ -6,9 +6,9 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0
 	github.com/ncw/directio v1.0.5
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
-	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20240119083558-1b970713d09a
-	google.golang.org/protobuf v1.33.0
+	github.com/stretchr/testify v1.9.0
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
@@ -20,4 +20,4 @@ require (
 
 replace github.com/anishathalye/porcupine v0.1.2 => github.com/tjungblu/porcupine v0.0.0-20221116095144-377185aa0569
 
-go 1.21
+go 1.22
