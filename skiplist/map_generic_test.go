@@ -2,8 +2,12 @@ package skiplist
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"reflect"
+	"slices"
 	"sort"
 	"testing"
+	"testing/quick"
 )
 
 func TestSkipListDefaultHandlingGenerics(t *testing.T) {
@@ -194,6 +198,87 @@ func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
 		currentIndex++
 	}
 	assert.Equal(t, len(expected), currentIndex)
+}
+
+func TestSkipListSortedQuick(t *testing.T) {
+	err := quick.Check(func(a []int) bool {
+		list := NewSkipListMap[int, int](OrderedComparator[int]{})
+		for _, n := range a {
+			list.Insert(n, n)
+		}
+
+		iterator, err := list.Iterator()
+		if err != nil {
+			t.Errorf("\nunexpected iterator err=%v", err)
+			return false
+		}
+
+		result := []int{}
+		for {
+			k, _, err := iterator.Next()
+			if err == Done {
+				break
+			}
+			if err != nil {
+				t.Errorf("\nunexpected Next err=%v", err)
+				return false
+			}
+			result = append(result, k)
+		}
+
+		sort.Ints(a)
+		if !reflect.DeepEqual(a, result) {
+			t.Errorf("\nexp=%+v\ngot=%+v\n", a, result)
+			return false
+		}
+
+		return true
+	}, nil)
+	require.NoError(t, err)
+}
+
+func TestSkipListRangeScanQuick(t *testing.T) {
+	err := quick.Check(func(a []int, beginKey, endKey int) bool {
+		if beginKey > endKey {
+			beginKey, endKey = endKey, beginKey
+		}
+
+		list := NewSkipListMap[int, int](OrderedComparator[int]{})
+		for _, n := range a {
+			list.Insert(n, n)
+		}
+
+		iterator, err := list.IteratorBetween(beginKey, endKey)
+		if err != nil {
+			t.Errorf("\nunexpected iterator err=%v", err)
+			return false
+		}
+
+		result := []int{}
+		for {
+			k, _, err := iterator.Next()
+			if err == Done {
+				break
+			}
+			if err != nil {
+				t.Errorf("\nunexpected Next err=%v", err)
+				return false
+			}
+			result = append(result, k)
+		}
+
+		sort.Ints(a)
+		beginIndex, _ := slices.BinarySearch(a, beginKey)
+		endIndex, _ := slices.BinarySearch(a, endKey)
+
+		if !reflect.DeepEqual(a[beginIndex:endIndex], result) {
+			t.Errorf("\nexp=%+v\ngot=%+v\n", a, result)
+			return false
+		}
+
+		return true
+	}, nil)
+	require.NoError(t, err)
 }
 
 func singleElementSkipList(t *testing.T) MapI[int, int] {
