@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -21,7 +22,7 @@ type Server struct {
 func (s *Server) handleGet(w http.ResponseWriter, key string) {
 	get, err := s.db.Get(key)
 	if err != nil {
-		if err == simpledb.ErrNotFound {
+		if errors.Is(err, simpledb.ErrNotFound) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		} else {

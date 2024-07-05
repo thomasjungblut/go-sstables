@@ -1,6 +1,7 @@
 package porcupine
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -87,7 +88,7 @@ var Model = pp.Model[MapState, Input, Output]{
 
 		switch i.Operation {
 		case GetOp:
-			if o.Err == simpledb.ErrNotFound {
+			if errors.Is(o.Err, simpledb.ErrNotFound) {
 				return !found, s
 			} else if stateVal == o.Val {
 				return true, s

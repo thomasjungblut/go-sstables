@@ -193,7 +193,7 @@ func (db *DB) Get(key string) (string, error) {
 	var sstableNotFound bool
 	ssTableVal, err := db.sstableManager.currentSSTable().Get(keyBytes)
 	if err != nil {
-		if err == sstables.NotFound {
+		if errors.Is(err, sstables.NotFound) {
 			sstableNotFound = true
 		} else {
 			return "", err
@@ -204,13 +204,13 @@ func (db *DB) Get(key string) (string, error) {
 
 	memStoreVal, err := db.memStore.Get(keyBytes)
 	if err != nil {
-		if err == memstore.KeyNotFound {
+		if errors.Is(err, memstore.KeyNotFound) {
 			if sstableNotFound {
 				return "", ErrNotFound
 			} else {
 				return string(ssTableVal), nil
 			}
-		} else if err == memstore.KeyTombstoned {
+		} else if errors.Is(err, memstore.KeyTombstoned) {
 			// regardless of what we found on the sstable:
 			// if the memstore says it's tombstoned it's considered deleted
 			return "", ErrNotFound

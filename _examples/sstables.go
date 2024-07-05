@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"log"
@@ -40,7 +41,7 @@ func mainSimpleRead(path string) {
 	for {
 		k, v, err := it.Next()
 		// io.EOF signals that no records are left to be read
-		if err == sstables.Done {
+		if errors.Is(err, sstables.Done) {
 			break
 		}
 

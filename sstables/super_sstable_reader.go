@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"strings"
@@ -16,7 +17,7 @@ type SuperSSTableReader struct {
 func (s SuperSSTableReader) Contains(key []byte) bool {
 	// this can't be implemented using contains because NotFound is the same as false, thus we have to go via Get
 	_, err := s.Get(key)
-	if err != nil && err == NotFound {
+	if err != nil && errors.Is(err, NotFound) {
 		return false
 	}
 	return true
@@ -27,7 +28,7 @@ func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {
 	for i := len(s.readers) - 1; i >= 0; i-- {
 		res, err := s.readers[i].Get(key)
 		if err != nil {
-			if err == NotFound {
+			if errors.Is(err, NotFound) {
 				continue
 			}
 			return nil, err

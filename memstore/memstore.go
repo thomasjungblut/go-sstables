@@ -12,7 +12,7 @@ var KeyTombstoned = errors.New("key was tombstoned")
 var KeyNil = errors.New("key was nil")
 var ValueNil = errors.New("value was nil")
 
-//noinspection GoNameStartsWithPackageName
+// noinspection GoNameStartsWithPackageName
 type MemStoreI interface {
 	// Add inserts when the key does not exist yet, returns a KeyAlreadyExists error when the key exists.
 	// Neither nil key nor values are allowed, KeyNil and ValueNil will be returned accordingly.
@@ -72,7 +72,7 @@ func (m *MemStore) Add(key []byte, value []byte) error {
 func (m *MemStore) Contains(key []byte) bool {
 	element, err := m.skipListMap.Get(key)
 	// we can return false if we didn't find it by error, or when the key is tomb-stoned
-	if err == skiplist.NotFound {
+	if errors.Is(err, skiplist.NotFound) {
 		return false
 	}
 	if *element.value == nil {
@@ -84,7 +84,7 @@ func (m *MemStore) Contains(key []byte) bool {
 func (m *MemStore) Get(key []byte) ([]byte, error) {
 	element, err := m.skipListMap.Get(key)
 	// we can return false if we didn't find it by error, or when the key is tomb-stoned
-	if err == skiplist.NotFound {
+	if errors.Is(err, skiplist.NotFound) {
 		return nil, KeyNotFound
 	}
 	val := *element.value
@@ -108,7 +108,7 @@ func upsertInternal(m *MemStore, key []byte, value []byte, errorIfKeyExist bool)
 	}
 
 	element, err := m.skipListMap.Get(key)
-	if err != skiplist.NotFound {
+	if !errors.Is(err, skiplist.NotFound) {
 		if *element.value != nil && errorIfKeyExist {
 			return KeyAlreadyExists
 		}
@@ -132,7 +132,7 @@ func (m *MemStore) DeleteIfExists(key []byte) error {
 
 func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 	element, err := m.skipListMap.Get(key)
-	if err == skiplist.NotFound {
+	if errors.Is(err, skiplist.NotFound) {
 		if errorIfKeyNotFound {
 			return KeyNotFound
 		}
@@ -146,7 +146,7 @@ func deleteInternal(m *MemStore, key []byte, errorIfKeyNotFound bool) error {
 
 func (m *MemStore) Tombstone(key []byte) error {
 	element, err := m.skipListMap.Get(key)
-	if err != skiplist.NotFound {
+	if !errors.Is(err, skiplist.NotFound) {
 		prevLen := len(*element.value)
 		*element.value = nil
 		m.estimatedSize = m.estimatedSize - uint64(prevLen)
@@ -191,7 +191,7 @@ func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstable
 	it, _ := m.skipListMap.Iterator()
 	for {
 		k, v, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		if err != nil {

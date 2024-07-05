@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"log"
 )
@@ -16,7 +17,7 @@ func main() {
 	it, _ := skipListMap.Iterator()
 	for {
 		k, v, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		log.Printf("key: %d, value: %d", k, v)
@@ -26,7 +27,7 @@ func main() {
 	it, _ = skipListMap.IteratorStartingAt(5)
 	for {
 		k, v, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		log.Printf("key: %d, value: %d", k, v)
@@ -36,7 +37,7 @@ func main() {
 	it, _ = skipListMap.IteratorBetween(8, 50)
 	for {
 		k, v, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		log.Printf("key: %d, value: %d", k, v)

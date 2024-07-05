@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
@@ -23,7 +24,7 @@ func (c *RWMemstore) Get(key []byte) ([]byte, error) {
 	// in the writeStore the readStore is the source of truth
 	writeVal, writeErr := c.writeStore.Get(key)
 	if writeErr != nil {
-		if writeErr == memstore.KeyNotFound {
+		if errors.Is(writeErr, memstore.KeyNotFound) {
 			return c.readStore.Get(key)
 		}
 
@@ -46,7 +47,7 @@ func (c *RWMemstore) Upsert(key []byte, value []byte) error {
 
 func (c *RWMemstore) Delete(key []byte) error {
 	err := c.writeStore.Delete(key)
-	if err == memstore.KeyNotFound {
+	if errors.Is(err, memstore.KeyNotFound) {
 		return c.Tombstone(key)
 	}
 

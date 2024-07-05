@@ -16,7 +16,7 @@ type SSTableIterator struct {
 func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 	key, valueOffset, err := it.keyIterator.Next()
 	if err != nil {
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			return nil, nil, Done
 		} else {
 			return nil, nil, err
@@ -75,7 +75,7 @@ type SSTableFullScanIterator struct {
 func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	key, _, err := it.keyIterator.Next()
 	if err != nil {
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			return nil, nil, Done
 		} else {
 			return nil, nil, err
