@@ -1,6 +1,7 @@
 package pq
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -96,7 +97,7 @@ func assertMergeAndListMatches(t *testing.T, lists ...[]int) {
 	var actualKeys []int
 	for {
 		k, v, _, err := pq.Next()
-		if err == Done {
+		if errors.Is(err, Done) {
 			break
 		}
 

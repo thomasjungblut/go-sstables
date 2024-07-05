@@ -53,7 +53,7 @@ if err != nil { log.Fatalf("error: %v", err) }
 ```go
 value, err = db.Get("hello")
 if err != nil {
-    if err == simpledb.ErrNotFound {
+    if errors.is(err, simpledb.ErrNotFound) {
         log.Printf("no value found!")
     } else {
         log.Fatalf("error: %v", err)

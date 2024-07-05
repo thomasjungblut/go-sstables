@@ -4,6 +4,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -234,7 +235,7 @@ func spawnNewDatabaseServer(t *testing.T, path string) *exec.Cmd {
 	// wait until the DB is up
 	for {
 		_, err := newRequestClient(0).Get("SOME_KEY")
-		if err != nil && err == simpledb.ErrNotFound {
+		if err != nil && errors.Is(err, simpledb.ErrNotFound) {
 			break
 		}
 

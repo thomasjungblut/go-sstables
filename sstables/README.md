@@ -84,7 +84,7 @@ it, err := reader.ScanRange([]byte{1}, []byte{2})
 for {
     k, v, err := it.Next()
     // io.EOF signals that no records are left to be read
-    if err == sstables.Done {
+    if errors.is(err, sstables.Done) {
         break
     }
     if err != nil { log.Fatalf("error: %v", err) }

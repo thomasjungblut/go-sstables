@@ -42,7 +42,7 @@ func (reader *SSTableReader) Contains(key []byte) bool {
 
 func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 	valOffset, err := reader.index.Get(key)
-	if err == skiplist.NotFound {
+	if errors.Is(err, skiplist.NotFound) {
 		return nil, NotFound
 	}
 

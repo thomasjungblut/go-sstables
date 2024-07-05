@@ -2,6 +2,7 @@ package sstables
 
 import (
 	"encoding/binary"
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
@@ -261,7 +262,7 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 	numRead := 0
 	for {
 		expectedKey, expectedValue, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		require.Nil(t, err)

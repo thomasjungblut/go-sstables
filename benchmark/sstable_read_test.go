@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"encoding/binary"
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
@@ -40,7 +41,7 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte])
 		assert.Nil(b, err)
 		for {
 			_, _, err := scanner.Next()
-			if err == sstables.Done {
+			if errors.Is(err, sstables.Done) {
 				break
 			}
 		}

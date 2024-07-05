@@ -184,7 +184,7 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.MapI[[]
 	it, _ := skipListMap.Iterator()
 	for {
 		k, v, err := it.Next()
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			break
 		}
 		if err != nil {

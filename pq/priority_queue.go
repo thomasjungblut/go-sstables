@@ -57,7 +57,7 @@ func (pq *PriorityQueue[K, V, CTX]) init(iterators []IteratorWithContext[K, V, C
 			pq.heap = append(pq.heap, e)
 			pq.size++
 			pq.upHeap(pq.size)
-		} else if err != Done {
+		} else if !errors.Is(err, Done) {
 			return fmt.Errorf("INIT couldn't fill next heap entry: %w", err)
 		}
 	}
@@ -78,13 +78,13 @@ func (pq *PriorityQueue[K, V, CTX]) Next() (_ K, _ V, _ CTX, err error) {
 	c := top.iterator.Context()
 	err = pq.fillNext(top)
 	// if we encounter a real error, we're returning immediately
-	if err != nil && err != Done {
+	if err != nil && !errors.Is(err, Done) {
 		err = fmt.Errorf("NEXT couldn't fill next heap entry: %w", err)
 		return
 	}
 
 	// remove the element from the heap completely if its iterator is exhausted
-	if err == Done {
+	if errors.Is(err, Done) {
 		// move the root away to the bottom leaf
 		pq.swap(1, pq.size)
 		// and chop it off the slice

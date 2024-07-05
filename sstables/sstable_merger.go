@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"errors"
 	"fmt"
 	"github.com/thomasjungblut/go-sstables/pq"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -13,7 +14,7 @@ type SSTableMergeIteratorContext struct {
 
 func (s SSTableMergeIteratorContext) Next() ([]byte, []byte, error) {
 	k, v, err := s.iterator.Next()
-	if err == Done {
+	if errors.Is(err, Done) {
 		return nil, nil, pq.Done
 	}
 	return k, v, nil
@@ -52,7 +53,7 @@ func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SST
 	for {
 		k, v, _, err := pqq.Next()
 		if err != nil {
-			if err == pq.Done {
+			if errors.Is(err, pq.Done) {
 				break
 			} else {
 				return fmt.Errorf("merge error during heap next: %w", err)
@@ -86,7 +87,7 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 	for {
 		k, v, c, err := m.pq.Next()
 		if err != nil {
-			if err == pq.Done {
+			if errors.Is(err, pq.Done) {
 				if len(m.valBuf) > 0 {
 					kReduced, vReduced := m.reduce(m.prevKey, m.valBuf, m.ctxBuf)
 					if kReduced != nil && vReduced != nil {
@@ -164,7 +165,7 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, wri
 	for {
 		k, v, err := iterator.Next()
 		if err != nil {
-			if err == Done {
+			if errors.Is(err, Done) {
 				break
 			} else {
 				return fmt.Errorf("merge compact error while iterating: %w", err)

@@ -1,6 +1,7 @@
 package skiplist
 
 import (
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"reflect"
@@ -182,7 +183,7 @@ func TestSkipListBetweenIteratorScanOverHoles(t *testing.T) {
 	currentIndex := 0
 	for {
 		k, v, err := it.Next()
-		if err == Done {
+		if errors.Is(err, Done) {
 			break
 		}
 
@@ -216,7 +217,7 @@ func TestSkipListSortedQuick(t *testing.T) {
 		result := []int{}
 		for {
 			k, _, err := iterator.Next()
-			if err == Done {
+			if errors.Is(err, Done) {
 				break
 			}
 			if err != nil {
@@ -257,7 +258,7 @@ func TestSkipListRangeScanQuick(t *testing.T) {
 		result := []int{}
 		for {
 			k, _, err := iterator.Next()
-			if err == Done {
+			if errors.Is(err, Done) {
 				break
 			}
 			if err != nil {
@@ -294,7 +295,7 @@ func assertIteratorOutputs(t *testing.T, expectedSeq []int, it IteratorI[int, in
 	currentIndex := 0
 	for {
 		k, v, err := it.Next()
-		if err == Done {
+		if errors.Is(err, Done) {
 			break
 		}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 
@@ -35,7 +36,7 @@ func main() {
 	log.Printf("get 'hello' = %s", get)
 
 	_, err = db.Get("not found")
-	if err == simpledb.ErrNotFound {
+	if errors.Is(err, simpledb.ErrNotFound) {
 		log.Printf("not found!")
 	}
 

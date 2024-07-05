@@ -1,6 +1,7 @@
 package memstore
 
 import (
+	"errors"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
@@ -12,7 +13,7 @@ type SkipListSStableIterator struct {
 func (s SkipListSStableIterator) Next() ([]byte, []byte, error) {
 	key, val, err := s.iterator.Next()
 	if err != nil {
-		if err == skiplist.Done {
+		if errors.Is(err, skiplist.Done) {
 			return nil, nil, sstables.Done
 		} else {
 			return nil, nil, err
