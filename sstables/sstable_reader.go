@@ -19,11 +19,13 @@ type SSTableReader struct {
 	opts          *SSTableReaderOptions
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.Comparator[[]byte]
-	index         skiplist.MapI[[]byte, uint64] // key (as []byte) to uint64 value file offset
-	v0DataReader  rProto.ReadAtI
-	dataReader    recordio.ReadAtI
-	metaData      *proto.MetaData
-	miscClosers   []recordio.CloseableI
+
+	// TODO(thomas): we can make the index a btree on disk instead, which we could serialize while writing
+	index        skiplist.MapI[[]byte, uint64] // key (as []byte) to uint64 value file offset
+	v0DataReader rProto.ReadAtI
+	dataReader   recordio.ReadAtI
+	metaData     *proto.MetaData
+	miscClosers  []recordio.CloseableI
 }
 
 func (reader *SSTableReader) Contains(key []byte) bool {
@@ -248,6 +250,7 @@ func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (ski
 		}
 
 		indexMap.Insert(record.Key, record.ValueOffset)
+		// TODO(thomas): we should ensure that the value at this offset definitely exists and matches the hash (we are yet to add)
 	}
 
 	err = reader.Close()

@@ -115,6 +115,9 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		writer.bloomFilter.Add(fnvHash)
 	}
 
+	// TODO(thomas): we need to ensure that the data we write to both files is always consistent
+	// TODO(thomas): add the fnv hash we compute for the bloom filter anyway to the index proto
+
 	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
