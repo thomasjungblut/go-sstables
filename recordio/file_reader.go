@@ -85,6 +85,8 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		}
 
 		expectedBytesRead, pooledRecordBuffer := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
+		defer r.bufferPool.Put(pooledRecordBuffer)
+
 		numRead, err := io.ReadFull(r.reader, pooledRecordBuffer)
 		if err != nil {
 			return nil, fmt.Errorf("error while reading into record buffer of '%s': %w", r.file.Name(), err)
@@ -97,6 +99,8 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		var returnSlice []byte
 		if r.header.compressor != nil {
 			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+			defer r.bufferPool.Put(pooledDecompressionBuffer)
+
 			decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
@@ -104,13 +108,10 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			// we do a defensive copy here not to leak the pooled slice
 			returnSlice = make([]byte, len(decompressedRecord))
 			copy(returnSlice, decompressedRecord)
-			r.bufferPool.Put(pooledRecordBuffer)
-			r.bufferPool.Put(pooledDecompressionBuffer)
 		} else {
 			// we do a defensive copy here not to leak the pooled slice
 			returnSlice = make([]byte, len(pooledRecordBuffer))
 			copy(returnSlice, pooledRecordBuffer)
-			r.bufferPool.Put(pooledRecordBuffer)
 		}
 
 		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
@@ -159,6 +160,8 @@ func (r *FileReader) SkipNext() error {
 // SkipNextV1 is legacy support path for non-vint compressed V1
 func SkipNextV1(r *FileReader) error {
 	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	defer r.bufferPool.Put(headerBuf)
+
 	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
 		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
@@ -173,8 +176,6 @@ func SkipNextV1(r *FileReader) error {
 	if err != nil {
 		return fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 	}
-
-	r.bufferPool.Put(headerBuf)
 
 	expectedBytesSkipped := payloadSizeUncompressed
 	if r.header.compressor != nil {
@@ -207,6 +208,8 @@ func (r *FileReader) Close() error {
 // legacy support path for non-vint compressed V1
 func readNextV1(r *FileReader) ([]byte, error) {
 	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	defer r.bufferPool.Put(headerBuf)
+
 	numRead, err := io.ReadFull(r.reader, headerBuf)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
@@ -221,7 +224,6 @@ func readNextV1(r *FileReader) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 	}
-	r.bufferPool.Put(headerBuf)
 
 	expectedBytesRead, recordBuffer := allocateRecordBuffer(r.header, payloadSizeUncompressed, payloadSizeCompressed)
 	numRead, err = io.ReadFull(r.reader, recordBuffer)
