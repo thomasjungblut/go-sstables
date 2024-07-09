@@ -123,29 +123,20 @@ func (reader *SSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTab
 	return &SSTableIterator{reader: reader, keyIterator: it}, nil
 }
 
-func (reader *SSTableReader) Close() error {
+func (reader *SSTableReader) Close() (err error) {
 	for _, e := range reader.miscClosers {
-		err := e.Close()
-		if err != nil {
-			return fmt.Errorf("error in sstable '%s' while closing miscClosers: %w", reader.opts.basePath, err)
-		}
+		err = errors.Join(err, e.Close())
 	}
 
 	if reader.v0DataReader != nil {
-		err := reader.v0DataReader.Close()
-		if err != nil {
-			return fmt.Errorf("error in sstable '%s' while closing dataReader: %w", reader.opts.basePath, err)
-		}
+		err = errors.Join(err, reader.v0DataReader.Close())
 	}
 
 	if reader.dataReader != nil {
-		err := reader.dataReader.Close()
-		if err != nil {
-			return fmt.Errorf("error in sstable '%s' while closing dataReader: %w", reader.opts.basePath, err)
-		}
+		err = errors.Join(err, reader.dataReader.Close())
 	}
 
-	return nil
+	return err
 }
 
 func (reader *SSTableReader) MetaData() *proto.MetaData {
@@ -222,7 +213,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	return reader, nil
 }
 
-func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (skiplist.MapI[[]byte, uint64], error) {
+func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (indexMap skiplist.MapI[[]byte, uint64], err error) {
 	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
@@ -233,7 +224,11 @@ func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (ski
 		return nil, fmt.Errorf("error while opening index reader of sstable in '%s': %w", indexPath, err)
 	}
 
-	indexMap := skiplist.NewSkipListMap[[]byte, uint64](keyComparator)
+	defer func() {
+		err = errors.Join(err, reader.Close())
+	}()
+
+	indexMap = skiplist.NewSkipListMap[[]byte, uint64](keyComparator)
 
 	for {
 		record := &proto.IndexEntry{}
@@ -248,11 +243,6 @@ func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (ski
 		}
 
 		indexMap.Insert(record.Key, record.ValueOffset)
-	}
-
-	err = reader.Close()
-	if err != nil {
-		return nil, fmt.Errorf("error while closing index reader of sstable in '%s': %w", indexPath, err)
 	}
 
 	return indexMap, nil
@@ -271,8 +261,9 @@ func readFilterIfExists(filterPath string) (*bloomfilter.Filter, error) {
 	return filter, nil
 }
 
-func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
-	md := &proto.MetaData{}
+func readMetaDataIfExists(metaPath string) (md *proto.MetaData, err error) {
+	md = &proto.MetaData{}
+
 	if _, err := os.Stat(metaPath); os.IsNotExist(err) {
 		return md, nil
 	}
@@ -281,6 +272,10 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening metadata in '%s': %w", metaPath, err)
 	}
+
+	defer func() {
+		err = errors.Join(err, mpf.Close())
+	}()
 
 	content, err := io.ReadAll(mpf)
 	if err != nil {
@@ -292,12 +287,7 @@ func readMetaDataIfExists(metaPath string) (*proto.MetaData, error) {
 		return nil, fmt.Errorf("error while parsing metadata in '%s': %w", metaPath, err)
 	}
 
-	err = mpf.Close()
-	if err != nil {
-		return nil, fmt.Errorf("error while closing metadata in '%s': %w", metaPath, err)
-	}
-
-	return md, nil
+	return
 }
 
 // options

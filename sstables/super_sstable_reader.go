@@ -112,14 +112,11 @@ func ScanReduceLatestWins(key []byte, values [][]byte, context []int) ([]byte, [
 	return key, values[maxCtxIndex]
 }
 
-func (s SuperSSTableReader) Close() error {
+func (s SuperSSTableReader) Close() (err error) {
 	for _, reader := range s.readers {
-		err := reader.Close()
-		if err != nil {
-			return err
-		}
+		err = errors.Join(err, reader.Close())
 	}
-	return nil
+	return
 }
 
 func (s SuperSSTableReader) MetaData() *proto.MetaData {

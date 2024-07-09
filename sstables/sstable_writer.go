@@ -57,6 +57,7 @@ func (writer *SSTableStreamWriter) Open() error {
 		return fmt.Errorf("error while creating data writer in '%s': %w", writer.opts.basePath, err)
 	}
 
+	// TODO(thomas): if any of these open fails, we should try to at least close the ones we already have opened
 	writer.dataWriter = dWriter
 	err = writer.dataWriter.Open()
 	if err != nil {
@@ -130,56 +131,52 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 	return nil
 }
 
-func (writer *SSTableStreamWriter) Close() error {
-	err := writer.indexWriter.Close()
-	if err != nil {
-		return fmt.Errorf("error in closing index writer in '%s': %w", writer.opts.basePath, err)
-	}
-
-	err = writer.dataWriter.Close()
-	if err != nil {
-		return fmt.Errorf("error in closing data writer in '%s': %w", writer.opts.basePath, err)
-	}
+func (writer *SSTableStreamWriter) Close() (err error) {
+	err = errors.Join(writer.indexWriter.Close(), writer.dataWriter.Close())
 
 	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
-		_, err := writer.bloomFilter.WriteFile(filepath.Join(writer.opts.basePath, BloomFileName))
-		if err != nil {
-			return fmt.Errorf("error in writing bloom filter  in '%s': %w", writer.opts.basePath, err)
+		_, bErr := writer.bloomFilter.WriteFile(filepath.Join(writer.opts.basePath, BloomFileName))
+		if bErr != nil {
+			err = errors.Join(err, fmt.Errorf("error in writing bloom filter  in '%s': %w", writer.opts.basePath, bErr))
 		}
 	}
 
-	if writer.metaData != nil {
+	if writer.metaData != nil && writer.metaDataFile != nil {
+		defer func() {
+			err = errors.Join(err, writer.metaDataFile.Close())
+		}()
+
 		writer.metaData.MaxKey = writer.lastKey
 		writer.metaData.DataBytes = writer.dataWriter.Size()
 		writer.metaData.IndexBytes = writer.indexWriter.Size()
 		writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
-		bytes, err := proto.Marshal(writer.metaData)
-		if err != nil {
-			return fmt.Errorf("error in serializing metadata in '%s': %w", writer.opts.basePath, err)
+		bytes, mErr := proto.Marshal(writer.metaData)
+		if mErr != nil {
+			return errors.Join(err, fmt.Errorf("error in serializing metadata in '%s': %w", writer.opts.basePath, mErr))
 		}
 
-		_, err = writer.metaDataFile.Write(bytes)
-		if err != nil {
-			return fmt.Errorf("error in writing metadata in '%s': %w", writer.opts.basePath, err)
-		}
-
-		err = writer.metaDataFile.Close()
-		if err != nil {
-			return fmt.Errorf("error in closing metadata in '%s': %w", writer.opts.basePath, err)
+		_, wErr := writer.metaDataFile.Write(bytes)
+		if wErr != nil {
+			return errors.Join(err, fmt.Errorf("error in writing metadata in '%s': %w", writer.opts.basePath, wErr))
 		}
 	}
-	return nil
+
+	return err
 }
 
 type SSTableSimpleWriter struct {
 	streamWriter *SSTableStreamWriter
 }
 
-func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.MapI[[]byte, []byte]) error {
-	err := writer.streamWriter.Open()
+func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.MapI[[]byte, []byte]) (err error) {
+	err = writer.streamWriter.Open()
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		err = errors.Join(err, writer.streamWriter.Close())
+	}()
 
 	it, _ := skipListMap.Iterator()
 	for {
@@ -195,11 +192,6 @@ func (writer *SSTableSimpleWriter) WriteSkipListMap(skipListMap skiplist.MapI[[]
 		if err != nil {
 			return fmt.Errorf("error in writing skiplist record in '%s': %w", writer.streamWriter.opts.basePath, err)
 		}
-	}
-
-	err = writer.streamWriter.Close()
-	if err != nil {
-		return fmt.Errorf("error closing streamWriter writing skiplist in '%s': %w", writer.streamWriter.opts.basePath, err)
 	}
 
 	return nil

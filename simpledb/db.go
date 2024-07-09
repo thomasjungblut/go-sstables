@@ -161,17 +161,7 @@ func (db *DB) Close() error {
 		<-db.doneCompactionChannel
 	}
 
-	err = db.wal.Close()
-	if err != nil {
-		return err
-	}
-
-	err = db.sstableManager.currentSSTable().Close()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return errors.Join(db.wal.Close(), db.sstableManager.currentSSTable().Close())
 }
 
 func (db *DB) Get(key string) (string, error) {

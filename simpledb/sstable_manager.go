@@ -5,6 +5,7 @@ import (
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
+	"golang.org/x/exp/slices"
 	"os"
 	"path/filepath"
 	"sort"
@@ -150,10 +151,7 @@ func removeReaderAt(slice []sstables.SSTableReaderI, i int) []sstables.SSTableRe
 }
 
 func indexOfReader(slice []sstables.SSTableReaderI, p string) int {
-	for i := 0; i < len(slice); i++ {
-		if filepath.Base(slice[i].BasePath()) == p {
-			return i
-		}
-	}
-	return -1
+	return slices.IndexFunc(slice, func(i sstables.SSTableReaderI) bool {
+		return filepath.Base(i.BasePath()) == p
+	})
 }

@@ -176,7 +176,7 @@ func (m *MemStore) FlushWithTombstones(writerOptions ...sstables.WriterOption) e
 	return flushMemstore(m, true, writerOptions...)
 }
 
-func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstables.WriterOption) error {
+func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstables.WriterOption) (err error) {
 	writerOptions = append(writerOptions, sstables.WithKeyComparator(m.comparator))
 	writer, err := sstables.NewSSTableStreamWriter(writerOptions...)
 	if err != nil {
@@ -187,6 +187,10 @@ func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstable
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		err = errors.Join(err, writer.Close())
+	}()
 
 	it, _ := m.skipListMap.Iterator()
 	for {
@@ -199,24 +203,17 @@ func flushMemstore(m *MemStore, includeTombstones bool, writerOptions ...sstable
 		}
 
 		if includeTombstones {
-			err = writer.WriteNext(k, *v.value)
-			if err != nil {
+			if err := writer.WriteNext(k, *v.value); err != nil {
 				return err
 			}
 		} else {
 			// do not write tombstones to the final file
 			if *v.value != nil {
-				err = writer.WriteNext(k, *v.value)
-				if err != nil {
+				if err := writer.WriteNext(k, *v.value); err != nil {
 					return err
 				}
 			}
 		}
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return err
 	}
 
 	return nil
