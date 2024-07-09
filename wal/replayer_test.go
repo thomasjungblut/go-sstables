@@ -45,5 +45,5 @@ func TestReplayHonorsCallbackErrors(t *testing.T) {
 	err = repl.Replay(func(record []byte) error {
 		return testErr
 	})
-	assert.Equal(t, testErr, errors.Unwrap(err))
+	assert.True(t, errors.Is(err, testErr))
 }

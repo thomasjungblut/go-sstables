@@ -15,9 +15,9 @@ type Replayer struct {
 	walOptions *Options
 }
 
-func (r *Replayer) Replay(process func(record []byte) error) error {
+func (r *Replayer) Replay(process func(record []byte) error) (err error) {
 	var walFiles []string
-	err := filepath.Walk(r.walOptions.basePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(r.walOptions.basePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -39,7 +39,7 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 	var toClose []recordio.ReaderI
 	defer func() {
 		for _, reader := range toClose {
-			_ = reader.Close()
+			err = errors.Join(err, reader.Close())
 		}
 	}()
 
@@ -70,11 +70,6 @@ func (r *Replayer) Replay(process func(record []byte) error) error {
 			if err != nil {
 				return fmt.Errorf("error while processing WAL record under '%s': %w", path, err)
 			}
-		}
-
-		err = reader.Close()
-		if err != nil {
-			return fmt.Errorf("error while closing WAL reader under '%s': %w", path, err)
 		}
 	}
 

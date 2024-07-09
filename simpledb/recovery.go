@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -30,9 +31,9 @@ func (db *DB) repairCompactions() error {
 		}
 
 		if info.IsDir() && strings.HasPrefix(info.Name(), SSTableCompactionPathPrefix) {
-			err := func() error {
+			err := func() (err error) {
 				metaPath := filepath.Join(p, CompactionFinishedSuccessfulFileName)
-				_, err := os.Stat(metaPath)
+				_, err = os.Stat(metaPath)
 				if err != nil {
 					return err
 				}
@@ -45,10 +46,7 @@ func (db *DB) repairCompactions() error {
 
 				// make sure we always close it, especially when reading malformed metadata
 				defer func(reader rProto.ReaderI) {
-					err = reader.Close()
-					if err != nil {
-						log.Printf("could not properly close metadata file in %s, error: %v", metaPath, err)
-					}
+					err = errors.Join(err, reader.Close())
 				}(reader)
 
 				err = reader.Open()

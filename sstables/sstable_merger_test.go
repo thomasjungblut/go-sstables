@@ -45,11 +45,14 @@ func writeFilesMergeAndCheck(t *testing.T, numFiles int, numElementsPerFile int)
 
 	outWriter, err := newTestSSTableStreamWriter()
 	require.Nil(t, err)
+
+	require.NoError(t, outWriter.Open())
 	defer cleanWriterDir(t, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.Merge(iterators, outWriter)
 	require.Nil(t, err)
+	require.NoError(t, outWriter.Close())
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -94,6 +97,8 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 
 	outWriter, err := newTestSSTableStreamWriter()
 	require.Nil(t, err)
+
+	require.NoError(t, outWriter.Open())
 	writersToClean = append(writersToClean, outWriter)
 
 	merger := NewSSTableMerger(skiplist.BytesComparator{})
@@ -106,6 +111,7 @@ func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile in
 			return key, values[0]
 		})
 	require.Nil(t, err)
+	require.Nil(t, outWriter.Close())
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -138,6 +144,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 
 	outWriter, err := newTestSSTableStreamWriter()
 	require.Nil(t, err)
+	require.NoError(t, outWriter.Open())
 	defer cleanWriterDir(t, outWriter)
 
 	reduceFunc := func(key []byte, values [][]byte, context []int) ([]byte, []byte) {
@@ -148,6 +155,7 @@ func TestOverlappingMergeAndCompact(t *testing.T) {
 	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.MergeCompact(iterators, outWriter, reduceFunc)
 	require.Nil(t, err)
+	require.Nil(t, outWriter.Close())
 	sort.Ints(expectedNumbers)
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, expectedNumbers)
 }
@@ -170,6 +178,8 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 
 	outWriter, err := newTestSSTableStreamWriter()
 	require.Nil(t, err)
+
+	require.NoError(t, outWriter.Open())
 	defer cleanWriterDir(t, outWriter)
 
 	reduceFunc := func(key []byte, values [][]byte, context []int) ([]byte, []byte) {
@@ -180,5 +190,6 @@ func TestMergeAndCompactEmptyResult(t *testing.T) {
 	merger := NewSSTableMerger(skiplist.BytesComparator{})
 	err = merger.MergeCompact(iterators, outWriter, reduceFunc)
 	require.Nil(t, err)
+	require.Nil(t, outWriter.Close())
 	assertRandomAndSequentialRead(t, outWriter.opts.basePath, []int{})
 }

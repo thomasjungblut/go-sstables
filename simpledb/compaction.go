@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"errors"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -52,7 +53,7 @@ func backgroundCompaction(db *DB) {
 	}
 }
 
-func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
+func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, err error) {
 	compactionAction := db.sstableManager.candidateTablesForCompaction(db.compactedMaxSizeBytes)
 	paths := compactionAction.pathsToCompact
 	numRecords := compactionAction.totalRecords
@@ -79,6 +80,15 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 		return nil, err
 	}
 
+	err = writer.Open()
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		err = errors.Join(err, writer.Close())
+	}()
+
 	var readers []sstables.SSTableReaderI
 	var iterators []sstables.SSTableMergeIteratorContext
 	for i := 0; i < len(paths); i++ {
@@ -99,17 +109,16 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 		iterators = append(iterators, sstables.NewMergeIteratorContext(i, scanner))
 	}
 
-	// TODO(thomas): this includes tombstones, do we really need to?
+	defer func() {
+		for _, reader := range readers {
+			err = errors.Join(err, reader.Close())
+		}
+	}()
+
+	// TODO(thomas): this includes tombstones, do we really need to keep them?
 	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, sstables.ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
-	}
-
-	for _, reader := range readers {
-		err := reader.Close()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// in order to be portable, we are taking only relative paths from the db base path
@@ -118,7 +127,7 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 		paths[i] = filepath.Base(paths[i])
 	}
 
-	compactionMetadata := &proto.CompactionMetadata{
+	compactionMetadata = &proto.CompactionMetadata{
 		WritePath:       filepath.Base(writeFolder),
 		ReplacementPath: paths[0],
 		SstablePaths:    paths,
@@ -135,7 +144,7 @@ func executeCompaction(db *DB) (*proto.CompactionMetadata, error) {
 	return compactionMetadata, nil
 }
 
-func saveCompactionMetadata(writeFolder string, compactionMetadata *proto.CompactionMetadata) error {
+func saveCompactionMetadata(writeFolder string, compactionMetadata *proto.CompactionMetadata) (err error) {
 	metaWriter, err := rProto.NewWriter(rProto.Path(filepath.Join(writeFolder, CompactionFinishedSuccessfulFileName)))
 	if err != nil {
 		return err
@@ -145,14 +154,14 @@ func saveCompactionMetadata(writeFolder string, compactionMetadata *proto.Compac
 		return err
 	}
 
+	defer func() {
+		err = errors.Join(err, metaWriter.Close())
+	}()
+
 	_, err = metaWriter.Write(compactionMetadata)
 	if err != nil {
 		return err
 	}
 
-	err = metaWriter.Close()
-	if err != nil {
-		return err
-	}
 	return nil
 }

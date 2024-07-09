@@ -7,6 +7,8 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
+type ReduceFunc func([]byte, [][]byte, []int) ([]byte, []byte)
+
 type SSTableMergeIteratorContext struct {
 	ctx      int
 	iterator SSTableIteratorI
@@ -35,7 +37,8 @@ type SSTableMerger struct {
 	comp skiplist.Comparator[[]byte]
 }
 
-func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI) error {
+// Merge accepts a slice of sstable iterators to merge into an already opened writer. The caller needs to close the writer.
+func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI) (err error) {
 	var iteratorWithContext []pq.IteratorWithContext[[]byte, []byte, int]
 	for _, iterator := range iterators {
 		iteratorWithContext = append(iteratorWithContext, iterator)
@@ -43,11 +46,6 @@ func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SST
 	pqq, err := pq.NewPriorityQueue[[]byte, []byte, int](m.comp, iteratorWithContext)
 	if err != nil {
 		return fmt.Errorf("merge error while initializing the heap: %w", err)
-	}
-
-	err = writer.Open()
-	if err != nil {
-		return fmt.Errorf("merge error while opening writer: %w", err)
 	}
 
 	for {
@@ -64,11 +62,6 @@ func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SST
 		if err != nil {
 			return fmt.Errorf("merge error while writing next record: %w", err)
 		}
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("merge error while closing the writer: %w", err)
 	}
 
 	return nil
@@ -124,8 +117,7 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 	}
 }
 
-func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorContext,
-	reduce func([]byte, [][]byte, []int) ([]byte, []byte)) (SSTableIteratorI, error) {
+func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorContext, reduce ReduceFunc) (SSTableIteratorI, error) {
 	var iteratorWithContext []pq.IteratorWithContext[[]byte, []byte, int]
 	for _, iterator := range iterators {
 		iteratorWithContext = append(iteratorWithContext, iterator)
@@ -150,16 +142,11 @@ func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorCont
 
 }
 
-func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI,
-	reduce func([]byte, [][]byte, []int) ([]byte, []byte)) error {
+// MergeCompact accepts a slice of sstable iterators to merge into an already opened writer. The caller needs to close the writer.
+func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, writer SSTableStreamWriterI, reduce ReduceFunc) (err error) {
 	iterator, err := m.MergeCompactIterator(iterators, reduce)
 	if err != nil {
 		return fmt.Errorf("merge compact error while initializing the iterator: %w", err)
-	}
-
-	err = writer.Open()
-	if err != nil {
-		return fmt.Errorf("merge compact error while opening the writer: %w", err)
 	}
 
 	for {
@@ -172,11 +159,6 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, wri
 			}
 		}
 		err = writer.WriteNext(k, v)
-	}
-
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("merge compact error while closing the writer: %w", err)
 	}
 
 	return nil
