@@ -10,8 +10,8 @@ import (
 // SuperSSTableReader unifies several sstables under one single reader with the same interface.
 // The ordering of the readers matters, it is assumed the older reader comes before the newer (ascending order).
 type SuperSSTableReader struct {
-	readers []SSTableReaderI
 	comp    skiplist.Comparator[[]byte]
+	readers []SSTableReaderI
 }
 
 func (s SuperSSTableReader) Contains(key []byte) bool {
@@ -22,7 +22,6 @@ func (s SuperSSTableReader) Contains(key []byte) bool {
 	}
 	return true
 }
-
 func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {
 	// scanning from back to front to get the latest definitive answer
 	for i := len(s.readers) - 1; i >= 0; i-- {
@@ -33,13 +32,10 @@ func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {
 			}
 			return nil, err
 		}
-
 		return res, nil
 	}
-
 	return nil, NotFound
 }
-
 func (s SuperSSTableReader) Scan() (SSTableIteratorI, error) {
 	var iterators []SSTableMergeIteratorContext
 	for i, reader := range s.readers {
@@ -49,18 +45,14 @@ func (s SuperSSTableReader) Scan() (SSTableIteratorI, error) {
 		}
 		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
-
 	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
-
 	return iterator, nil
 }
-
 func (s SuperSSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error) {
 	var iterators []SSTableMergeIteratorContext
-
 	for i, reader := range s.readers {
 		scanner, err := reader.ScanStartingAt(key)
 		if err != nil {
@@ -68,18 +60,14 @@ func (s SuperSSTableReader) ScanStartingAt(key []byte) (SSTableIteratorI, error)
 		}
 		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
-
 	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
-
 	return iterator, nil
 }
-
 func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTableIteratorI, error) {
 	var iterators []SSTableMergeIteratorContext
-
 	for i, reader := range s.readers {
 		scanner, err := reader.ScanRange(keyLower, keyHigher)
 		if err != nil {
@@ -87,12 +75,10 @@ func (s SuperSSTableReader) ScanRange(keyLower []byte, keyHigher []byte) (SSTabl
 		}
 		iterators = append(iterators, NewMergeIteratorContext(i, scanner))
 	}
-
 	iterator, err := NewSSTableMerger(s.comp).MergeCompactIterator(iterators, ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
 	}
-
 	return iterator, nil
 }
 
@@ -108,17 +94,14 @@ func ScanReduceLatestWins(key []byte, values [][]byte, context []int) ([]byte, [
 			maxCtxIndex = i
 		}
 	}
-
 	return key, values[maxCtxIndex]
 }
-
 func (s SuperSSTableReader) Close() (err error) {
 	for _, reader := range s.readers {
 		err = errors.Join(err, reader.Close())
 	}
 	return
 }
-
 func (s SuperSSTableReader) MetaData() *proto.MetaData {
 	// the usefulness is debatable, but we return the aggregation over all sstables.
 	// this is problematic because with overlapping key ranges, the number of records are not correct
@@ -131,7 +114,6 @@ func (s SuperSSTableReader) MetaData() *proto.MetaData {
 		TotalBytes: 0,
 		Version:    0,
 	}
-
 	for _, reader := range s.readers {
 		m := reader.MetaData()
 		sum.NumRecords += m.NumRecords
@@ -142,14 +124,12 @@ func (s SuperSSTableReader) MetaData() *proto.MetaData {
 		if s.comp.Compare(sum.MinKey, m.MinKey) < 0 {
 			sum.MinKey = m.MinKey
 		}
-
 		if s.comp.Compare(sum.MaxKey, m.MaxKey) < 0 {
 			sum.MaxKey = m.MaxKey
 		}
 	}
 	return sum
 }
-
 func (s SuperSSTableReader) BasePath() string {
 	// the usefulness here is also debatable, but we return a joined string of all sub files
 	var paths []string
@@ -158,7 +138,6 @@ func (s SuperSSTableReader) BasePath() string {
 	}
 	return strings.Join(paths, ",")
 }
-
 func NewSuperSSTableReader(readers []SSTableReaderI, comp skiplist.Comparator[[]byte]) *SuperSSTableReader {
 	return &SuperSSTableReader{readers: readers, comp: comp}
 }

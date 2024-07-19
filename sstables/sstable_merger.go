@@ -8,10 +8,9 @@ import (
 )
 
 type ReduceFunc func([]byte, [][]byte, []int) ([]byte, []byte)
-
 type SSTableMergeIteratorContext struct {
-	ctx      int
 	iterator SSTableIteratorI
+	ctx      int
 }
 
 func (s SSTableMergeIteratorContext) Next() ([]byte, []byte, error) {
@@ -21,11 +20,9 @@ func (s SSTableMergeIteratorContext) Next() ([]byte, []byte, error) {
 	}
 	return k, v, nil
 }
-
 func (s SSTableMergeIteratorContext) Context() int {
 	return s.ctx
 }
-
 func NewMergeIteratorContext(context int, iterator SSTableIteratorI) SSTableMergeIteratorContext {
 	return SSTableMergeIteratorContext{
 		ctx:      context,
@@ -47,7 +44,6 @@ func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SST
 	if err != nil {
 		return fmt.Errorf("merge error while initializing the heap: %w", err)
 	}
-
 	for {
 		k, v, _, err := pqq.Next()
 		if err != nil {
@@ -57,13 +53,11 @@ func (m SSTableMerger) Merge(iterators []SSTableMergeIteratorContext, writer SST
 				return fmt.Errorf("merge error during heap next: %w", err)
 			}
 		}
-
 		err = writer.WriteNext(k, v)
 		if err != nil {
 			return fmt.Errorf("merge error while writing next record: %w", err)
 		}
 	}
-
 	return nil
 }
 
@@ -94,7 +88,6 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 				return nil, nil, err
 			}
 		}
-
 		var toReturnKey, toReturnVal []byte
 		//we have to accumulate the whole sequence
 		if m.prevKey != nil && m.comp.Compare(k, m.prevKey) != 0 {
@@ -106,17 +99,14 @@ func (m *MergeCompactionIterator) Next() ([]byte, []byte, error) {
 			m.valBuf = make([][]byte, 0)
 			m.ctxBuf = make([]int, 0)
 		}
-
 		m.prevKey = k
 		m.valBuf = append(m.valBuf, v)
 		m.ctxBuf = append(m.ctxBuf, c)
-
 		if toReturnKey != nil && toReturnVal != nil {
 			return toReturnKey, toReturnVal, nil
 		}
 	}
 }
-
 func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorContext, reduce ReduceFunc) (SSTableIteratorI, error) {
 	var iteratorWithContext []pq.IteratorWithContext[[]byte, []byte, int]
 	for _, iterator := range iterators {
@@ -126,11 +116,9 @@ func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorCont
 	if err != nil {
 		return nil, fmt.Errorf("merge compact error while initializing the heap: %w", err)
 	}
-
 	var prevKey []byte
 	valBuf := make([][]byte, 0)
 	ctxBuf := make([]int, 0)
-
 	return &MergeCompactionIterator{
 		comp:    m.comp,
 		reduce:  reduce,
@@ -139,7 +127,6 @@ func (m SSTableMerger) MergeCompactIterator(iterators []SSTableMergeIteratorCont
 		valBuf:  valBuf,
 		ctxBuf:  ctxBuf,
 	}, nil
-
 }
 
 // MergeCompact accepts a slice of sstable iterators to merge into an already opened writer. The caller needs to close the writer.
@@ -148,7 +135,6 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, wri
 	if err != nil {
 		return fmt.Errorf("merge compact error while initializing the iterator: %w", err)
 	}
-
 	for {
 		k, v, err := iterator.Next()
 		if err != nil {
@@ -160,10 +146,8 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, wri
 		}
 		err = writer.WriteNext(k, v)
 	}
-
 	return nil
 }
-
 func NewSSTableMerger(comp skiplist.Comparator[[]byte]) SSTableMerger {
 	return SSTableMerger{comp}
 }

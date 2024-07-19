@@ -1,17 +1,15 @@
 package porcupine
 
 import (
-	"time"
-
 	"github.com/anishathalye/porcupine"
 	"github.com/thomasjungblut/go-sstables/simpledb"
+	"time"
 )
 
 type DatabaseClientRecorder struct {
-	clientId int
-	db       simpledb.DatabaseI
-
+	db         simpledb.DatabaseI
 	operations []porcupine.Operation[Input, Output]
+	clientId   int
 }
 
 func NewDatabaseRecorder(db simpledb.DatabaseI, clientId int) *DatabaseClientRecorder {
@@ -21,11 +19,9 @@ func NewDatabaseRecorder(db simpledb.DatabaseI, clientId int) *DatabaseClientRec
 		operations: []porcupine.Operation[Input, Output]{},
 	}
 }
-
 func (d *DatabaseClientRecorder) Operations() []porcupine.Operation[Input, Output] {
 	return d.operations
 }
-
 func (d *DatabaseClientRecorder) Get(key string) (string, error) {
 	start := time.Now()
 	val, err := d.db.Get(key)
@@ -44,10 +40,8 @@ func (d *DatabaseClientRecorder) Get(key string) (string, error) {
 		},
 		Return: end.UnixNano(),
 	})
-
 	return val, err
 }
-
 func (d *DatabaseClientRecorder) Put(key, value string) error {
 	start := time.Now()
 	err := d.db.Put(key, value)
@@ -67,10 +61,8 @@ func (d *DatabaseClientRecorder) Put(key, value string) error {
 		},
 		Return: end.UnixNano(),
 	})
-
 	return err
 }
-
 func (d *DatabaseClientRecorder) Delete(key string) error {
 	start := time.Now()
 	err := d.db.Delete(key)
@@ -90,6 +82,5 @@ func (d *DatabaseClientRecorder) Delete(key string) error {
 		},
 		Return: end.UnixNano(),
 	})
-
 	return err
 }

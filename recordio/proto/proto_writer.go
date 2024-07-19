@@ -2,11 +2,10 @@ package proto
 
 import (
 	"errors"
-	"os"
-
 	"github.com/ncw/directio"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"google.golang.org/protobuf/proto"
+	"os"
 )
 
 type Writer struct {
@@ -16,7 +15,6 @@ type Writer struct {
 func (w *Writer) Open() error {
 	return w.writer.Open()
 }
-
 func (w *Writer) Write(record proto.Message) (uint64, error) {
 	bytes, err := proto.Marshal(record)
 	if err != nil {
@@ -24,7 +22,6 @@ func (w *Writer) Write(record proto.Message) (uint64, error) {
 	}
 	return w.writer.Write(bytes)
 }
-
 func (w *Writer) WriteSync(record proto.Message) (uint64, error) {
 	bytes, err := proto.Marshal(record)
 	if err != nil {
@@ -32,25 +29,21 @@ func (w *Writer) WriteSync(record proto.Message) (uint64, error) {
 	}
 	return w.writer.WriteSync(bytes)
 }
-
 func (w *Writer) Close() error {
 	return w.writer.Close()
 }
-
 func (w *Writer) Size() uint64 {
 	return w.writer.Size()
 }
 
 // options
-
 type WriterOptions struct {
-	path            string
 	file            *os.File
+	path            string
 	compressionType int
 	bufSizeBytes    int
 	useDirectIO     bool
 }
-
 type WriterOption func(*WriterOptions)
 
 func Path(p string) WriterOption {
@@ -58,25 +51,21 @@ func Path(p string) WriterOption {
 		args.path = p
 	}
 }
-
 func File(p *os.File) WriterOption {
 	return func(args *WriterOptions) {
 		args.file = p
 	}
 }
-
 func CompressionType(p int) WriterOption {
 	return func(args *WriterOptions) {
 		args.compressionType = p
 	}
 }
-
 func WriteBufferSizeBytes(p int) WriterOption {
 	return func(args *WriterOptions) {
 		args.bufSizeBytes = p
 	}
 }
-
 func DirectIO() WriterOption {
 	return func(args *WriterOptions) {
 		args.useDirectIO = true
@@ -93,15 +82,12 @@ func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 		bufSizeBytes:    1024 * 1024 * 4,
 		useDirectIO:     false,
 	}
-
 	for _, writeOption := range writerOptions {
 		writeOption(opts)
 	}
-
 	if (opts.file != nil) && (opts.path != "") {
 		return nil, errors.New("either os.File or string path must be supplied, never both")
 	}
-
 	if opts.file == nil {
 		if opts.path == "" {
 			return nil, errors.New("path was not supplied")
@@ -120,7 +106,6 @@ func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 			opts.file = f
 		}
 	}
-
 	writer, err := recordio.NewFileWriter(
 		recordio.File(opts.file),
 		recordio.CompressionType(opts.compressionType),
@@ -128,6 +113,5 @@ func NewWriter(writerOptions ...WriterOption) (WriterI, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &Writer{writer: writer}, nil
 }

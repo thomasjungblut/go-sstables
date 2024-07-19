@@ -22,9 +22,9 @@ type WriteCloserFlusher interface {
 // Additionally, several methods that were not needed are removed to reduce the test surface of the original.
 type Writer struct {
 	err        error
+	wr         io.WriteCloser
 	buf        []byte
 	n          int
-	wr         io.WriteCloser
 	alignFlush bool
 }
 
@@ -35,14 +35,12 @@ func (b *Writer) Close() error {
 	}
 	return b.wr.Close()
 }
-
 func NewWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
 	return &Writer{
 		buf: buf,
 		wr:  w,
 	}
 }
-
 func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
 	return &Writer{
 		buf:        buf,
@@ -62,7 +60,6 @@ func (b *Writer) Flush() error {
 	if b.n == 0 {
 		return nil
 	}
-
 	toFlush := b.buf[0:b.n]
 	// zero the remainder of the buffer for safety before an aligned flush
 	if b.alignFlush {
@@ -122,15 +119,14 @@ func (b *Writer) Write(p []byte) (nn int, err error) {
 }
 
 // Buffered input.
-
 // Reader implements buffering for an io.Reader object.
 // This is the same writer as bufio.Reader, but it allows us to supply the buffer from the outside.
 // Namely, it only has a new constructor in NewReaderBuf and implements Close()
 type Reader struct {
-	buf          []byte
 	rd           io.Reader // reader provided by the client
-	r, w         int       // buf read and write positions
 	err          error
+	buf          []byte
+	r, w         int // buf read and write positions
 	lastByte     int // last byte read for UnreadByte; -1 means invalid
 	lastRuneSize int // size of last rune read for UnreadRune; -1 means invalid
 }
@@ -154,7 +150,6 @@ func (b *Reader) Buffered() int { return b.w - b.r }
 func (b *Reader) Reset(r io.Reader) {
 	b.reset(b.buf, r)
 }
-
 func (b *Reader) reset(buf []byte, r io.Reader) {
 	*b = Reader{
 		buf:          buf,
@@ -174,11 +169,9 @@ func (b *Reader) fill() {
 		b.w -= b.r
 		b.r = 0
 	}
-
 	if b.w >= len(b.buf) {
 		panic("bufio: tried to fill full buffer")
 	}
-
 	// Read new data: try a limited number of times.
 	for i := maxConsecutiveEmptyReads; i > 0; i-- {
 		n, err := b.rd.Read(b.buf[b.w:])
@@ -196,7 +189,6 @@ func (b *Reader) fill() {
 	}
 	b.err = io.ErrNoProgress
 }
-
 func (b *Reader) readErr() error {
 	err := b.err
 	b.err = nil
@@ -247,7 +239,6 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		}
 		b.w += n
 	}
-
 	// copy as much as we can
 	n = copy(p, b.buf[b.r:b.w])
 	b.r += n
