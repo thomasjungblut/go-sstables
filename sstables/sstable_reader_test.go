@@ -85,7 +85,7 @@ func TestCRCHashMismatchError(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
 		ReadWithKeyComparator(skiplist.BytesComparator{}))
-	require.ErrorContains(t, err, "for key [[0 0 0 4]]: expected [688fffff90000000], got [738fffff90000000]")
+	require.ErrorContains(t, err, "for key [[0 0 0 4]] at [41]: expected [688fffff90000000], got [738fffff90000000]")
 	require.Nil(t, reader)
 }
 
@@ -121,9 +121,9 @@ func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 	for _, i := range []int{1, 2, 3, 4, 5, 6, 7} {
 		get, err := reader.Get(intToByteSlice(i))
 		require.Nil(t, err)
-		if i == 5 {
+		if i == 4 {
 			// TODO(thomas): this should also fail on reading
-			require.Equal(t, intToByteSlice(15), get)
+			require.Equal(t, intToByteSlice(0x15), get)
 		} else {
 			require.Equal(t, intToByteSlice(i+1), get)
 		}

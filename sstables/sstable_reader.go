@@ -9,17 +9,23 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	pb "google.golang.org/protobuf/proto"
+	"hash/crc64"
 	"hash/fnv"
 	"io"
 	"os"
 	"path/filepath"
 )
 
+type indexVal struct {
+	offset   uint64
+	checksum uint64
+}
+
 type SSTableReader struct {
 	opts          *SSTableReaderOptions
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.Comparator[[]byte]
-	index         skiplist.MapI[[]byte, uint64] // key (as []byte) to uint64 value file offset
+	index         skiplist.MapI[[]byte, indexVal] // key (as []byte) to a struct containing the uint64 value file offset
 	v0DataReader  rProto.ReadAtI
 	dataReader    recordio.ReadAtI
 	metaData      *proto.MetaData
@@ -46,7 +52,7 @@ func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 		return nil, NotFound
 	}
 
-	return reader.getValueAtOffset(valOffset)
+	return reader.getValueAtOffset(valOffset.offset)
 }
 
 func (reader *SSTableReader) getValueAtOffset(valOffset uint64) ([]byte, error) {
@@ -147,6 +153,73 @@ func (reader *SSTableReader) BasePath() string {
 	return reader.opts.basePath
 }
 
+func (reader *SSTableReader) validateDataFile() error {
+	// v0 won't have the hashes, we can skip right away
+	if reader.v0DataReader != nil {
+		return nil
+	}
+
+	if reader.opts.skipHashCheckOnLoad {
+		return nil
+	}
+
+	iterator, err := reader.index.Iterator()
+	if err != nil {
+		return err
+	}
+
+	indexReplacement := skiplist.NewSkipListMap[[]byte, indexVal](reader.opts.keyComparator)
+
+	for {
+		k, iv, err := iterator.Next()
+		if err != nil {
+			if errors.Is(err, skiplist.Done) {
+				break
+			}
+
+			return err
+		}
+
+		if iv.checksum == 0 {
+			// we assume that all following values also would have a default value of zero
+			// TODO(thomas): is this logically sane? what's with empty value records? They have hash 0?
+			break
+		}
+
+		value, err := reader.dataReader.ReadNextAt(iv.offset)
+		if err != nil {
+			return fmt.Errorf("error reading sstable '%s' while validating hashes at key [%v] and offset [%d]: %w",
+				reader.opts.basePath, k, iv.offset, err)
+		}
+
+		crc := crc64.New(crc64.MakeTable(crc64.ISO))
+		_, err = crc.Write(value)
+		if err != nil {
+			return fmt.Errorf("error in sstable '%s' while hashing value of key [%v] and offset [%d]: %w",
+				reader.opts.basePath, k, iv.offset, err)
+		}
+
+		if iv.checksum != crc.Sum64() {
+			if reader.opts.skipInvalidHashesOnLoad {
+				continue
+			}
+
+			return fmt.Errorf("error in sstable '%s' while hashing value for key [%v] at [%d]: expected [%x], got [%x]",
+				reader.opts.basePath, k, iv.offset, iv.checksum, crc.Sum64())
+		}
+
+		if reader.opts.skipInvalidHashesOnLoad {
+			indexReplacement.Insert(k, iv)
+		}
+	}
+
+	if reader.opts.skipInvalidHashesOnLoad {
+		reader.index = indexReplacement
+	}
+
+	return nil
+}
+
 // NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
 // > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
@@ -210,10 +283,21 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		reader.dataReader = dataReader
 	}
 
+	err = reader.validateDataFile()
+	if err != nil {
+		if reader.v0DataReader != nil {
+			err = errors.Join(err, reader.v0DataReader.Close())
+		}
+		if reader.dataReader != nil {
+			err = errors.Join(err, reader.dataReader.Close())
+		}
+		return nil, err
+	}
+
 	return reader, nil
 }
 
-func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (indexMap skiplist.MapI[[]byte, uint64], err error) {
+func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (indexMap skiplist.MapI[[]byte, indexVal], err error) {
 	reader, err := rProto.NewProtoReaderWithPath(indexPath)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
@@ -228,7 +312,7 @@ func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (ind
 		err = errors.Join(err, reader.Close())
 	}()
 
-	indexMap = skiplist.NewSkipListMap[[]byte, uint64](keyComparator)
+	indexMap = skiplist.NewSkipListMap[[]byte, indexVal](keyComparator)
 
 	for {
 		record := &proto.IndexEntry{}
@@ -242,7 +326,10 @@ func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (ind
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
 
-		indexMap.Insert(record.Key, record.ValueOffset)
+		indexMap.Insert(record.Key, indexVal{
+			offset:   record.ValueOffset,
+			checksum: record.Checksum,
+		})
 	}
 
 	return indexMap, nil
@@ -314,14 +401,14 @@ func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	}
 }
 
-// SkipInvalidHashesOnLoad will not read key/value pairs that have a hash mismatch.
+// SkipInvalidHashesOnLoad will not read key/value pairs that have a hash mismatch in them.
 func SkipInvalidHashesOnLoad() ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.skipInvalidHashesOnLoad = true
 	}
 }
 
-// SkipHashCheckOnLoad will not check hashes and not attempt to read from the datafile while reading the index.
+// SkipHashCheckOnLoad will not check hashes against data read from the datafile when loading.
 func SkipHashCheckOnLoad() ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.skipHashCheckOnLoad = true

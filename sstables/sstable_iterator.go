@@ -10,11 +10,11 @@ import (
 
 type SSTableIterator struct {
 	reader      *SSTableReader
-	keyIterator skiplist.IteratorI[[]byte, uint64]
+	keyIterator skiplist.IteratorI[[]byte, indexVal]
 }
 
 func (it *SSTableIterator) Next() ([]byte, []byte, error) {
-	key, valueOffset, err := it.keyIterator.Next()
+	key, iv, err := it.keyIterator.Next()
 	if err != nil {
 		if errors.Is(err, skiplist.Done) {
 			return nil, nil, Done
@@ -23,7 +23,7 @@ func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 		}
 	}
 
-	valBytes, err := it.reader.getValueAtOffset(valueOffset)
+	valBytes, err := it.reader.getValueAtOffset(iv.offset)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -35,7 +35,7 @@ func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 // this is an optimized iterator that does a sequential read over the index+data files instead of a
 // sequential read on the index with a random access lookup on the data file via mmap
 type V0SSTableFullScanIterator struct {
-	keyIterator skiplist.IteratorI[[]byte, uint64]
+	keyIterator skiplist.IteratorI[[]byte, indexVal]
 	dataReader  rProto.ReaderI
 }
 
@@ -58,7 +58,7 @@ func (it *V0SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	return key, value.Value, nil
 }
 
-func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, uint64], dataReader rProto.ReaderI) (SSTableIteratorI, error) {
+func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVal], dataReader rProto.ReaderI) (SSTableIteratorI, error) {
 	return &V0SSTableFullScanIterator{
 		keyIterator: keyIterator,
 		dataReader:  dataReader,
@@ -68,7 +68,7 @@ func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, uint64]
 // SSTableFullScanIterator this is an optimized iterator that does a sequential read over the index+data files instead of a
 // sequential read on the index with a random access lookup on the data file via mmap
 type SSTableFullScanIterator struct {
-	keyIterator skiplist.IteratorI[[]byte, uint64]
+	keyIterator skiplist.IteratorI[[]byte, indexVal]
 	dataReader  recordio.ReaderI
 }
 
@@ -86,7 +86,7 @@ func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	return key, next, err
 }
 
-func newSStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, uint64], dataReader recordio.ReaderI) (SSTableIteratorI, error) {
+func newSStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVal], dataReader recordio.ReaderI) (SSTableIteratorI, error) {
 	return &SSTableFullScanIterator{
 		keyIterator: keyIterator,
 		dataReader:  dataReader,
