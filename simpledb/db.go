@@ -2,18 +2,16 @@ package simpledb
 
 import (
 	"errors"
-	"os"
-	"sync"
-	"time"
-
-	"google.golang.org/protobuf/proto"
-
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/wal"
+	"google.golang.org/protobuf/proto"
+	"os"
+	"sync"
+	"time"
 )
 
 const SSTablePrefix = "sstable"
@@ -34,40 +32,42 @@ var ErrEmptyKeyValue = errors.New("neither empty keys nor values are allowed")
 
 type DatabaseI interface {
 	recordio.OpenClosableI
-
 	// Get returns the value for the given key. If there is no value for the given
 	// key it will return ErrNotFound as the error and an empty string value. Otherwise,
 	// the error will contain any other usual io error that can be expected.
 	Get(key string) (string, error)
-
 	// Put adds the given value for the given key. If this key already exists, it will
 	// overwrite the already existing value with the given one.
 	// Unfortunately this method does not support empty keys and values, that will immediately return an error.
 	Put(key, value string) error
-
 	// Delete will delete the value for the given key. It will ignore when a key does not exist in the database.
 	// Underneath it will be tombstoned, which still stores it and makes it not retrievable through this interface.
 	Delete(key string) error
 }
-
 type compactionAction struct {
 	pathsToCompact []string
 	totalRecords   uint64
 }
-
 type memStoreFlushAction struct {
 	memStore *memstore.MemStoreI
 	walPath  string
 }
-
 type DB struct {
+	cmp                         skiplist.Comparator[[]byte]
+	wal                         wal.WriteAheadLogI
+	rwLock                      *sync.RWMutex
+	sstableManager              *SSTableManager
+	memStore                    *RWMemstore
+	storeFlushChannel           chan memStoreFlushAction
+	doneFlushChannel            chan bool
+	compactionTicker            *time.Ticker
+	compactionTickerStopChannel chan interface{}
+	doneCompactionChannel       chan bool
+	basePath                    string
+	currentSSTablePath          string
 	// NOTE: the generation to be 64-bit aligned for 32-bit targets (e.g. ARM), so be careful when moving this field anywhere else.
 	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
-	currentGeneration uint64
-
-	cmp                   skiplist.Comparator[[]byte]
-	basePath              string
-	currentSSTablePath    string
+	currentGeneration     uint64
 	memstoreMaxSize       uint64
 	compactionThreshold   int
 	compactionInterval    time.Duration
@@ -77,33 +77,18 @@ type DB struct {
 	enableDirectIOWAL     bool
 	open                  bool
 	closed                bool
-
-	rwLock         *sync.RWMutex
-	wal            wal.WriteAheadLogI
-	sstableManager *SSTableManager
-	memStore       *RWMemstore
-
-	storeFlushChannel chan memStoreFlushAction
-	doneFlushChannel  chan bool
-
-	compactionTicker            *time.Ticker
-	compactionTickerStopChannel chan interface{}
-	doneCompactionChannel       chan bool
 }
 
 func (db *DB) Open() error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-
 	if db.open {
 		return ErrAlreadyOpen
 	}
-
 	err := db.repairCompactions()
 	if err != nil {
 		return err
 	}
-
 	err = db.reconstructSSTables()
 	if err != nil {
 		return err
@@ -112,72 +97,54 @@ func (db *DB) Open() error {
 	if err != nil {
 		return err
 	}
-
 	go flushMemstoreContinuously(db)
-
 	if db.enableCompactions {
 		db.compactionTicker = time.NewTicker(db.compactionInterval)
 		go backgroundCompaction(db)
 	}
-
 	db.open = true
-
 	return nil
 }
-
 func (db *DB) Close() error {
 	err := func() error {
 		db.rwLock.Lock()
 		defer db.rwLock.Unlock()
-
 		if !db.open {
 			return ErrNotOpenedYet
 		}
-
 		if db.closed {
 			return ErrAlreadyClosed
 		}
-
 		db.closed = true
-
 		err := db.rotateWalAndFlushMemstore()
 		if err != nil {
 			return err
 		}
-
 		close(db.storeFlushChannel)
 		<-db.doneFlushChannel
 		return nil
 	}()
-
 	if err != nil {
 		return err
 	}
-
 	// we finish the compaction outside the lock, since the compaction internally may require it
 	if db.enableCompactions {
 		db.compactionTicker.Stop()
 		db.compactionTickerStopChannel <- true
 		<-db.doneCompactionChannel
 	}
-
 	return errors.Join(db.wal.Close(), db.sstableManager.currentSSTable().Close())
 }
-
 func (db *DB) Get(key string) (string, error) {
 	keyBytes := []byte(key)
-
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-
 	if !db.open {
 		return "", ErrNotOpenedYet
 	}
-
 	if db.closed {
 		return "", ErrAlreadyClosed
 	}
-
 	// we have to read the sstable first and then augment it with
 	// any changes that were reflected in the memstore
 	var sstableNotFound bool
@@ -191,7 +158,6 @@ func (db *DB) Get(key string) (string, error) {
 	} else if ssTableVal == nil || len(ssTableVal) == 0 {
 		sstableNotFound = true
 	}
-
 	memStoreVal, err := db.memStore.Get(keyBytes)
 	if err != nil {
 		if errors.Is(err, memstore.KeyNotFound) {
@@ -208,16 +174,13 @@ func (db *DB) Get(key string) (string, error) {
 			return "", err
 		}
 	}
-
 	// memstore always wins if there is a value available
 	return string(memStoreVal), nil
 }
-
 func (db *DB) Put(key, value string) error {
 	if len(key) == 0 || len(value) == 0 {
 		return ErrEmptyKeyValue
 	}
-
 	// string to byte conversion takes 7% of the method execution time
 	keyBytes := []byte(key)
 	valBytes := []byte(value)
@@ -233,19 +196,15 @@ func (db *DB) Put(key, value string) error {
 	if err != nil {
 		return err
 	}
-
 	return func() error {
 		db.rwLock.Lock()
 		defer db.rwLock.Unlock()
-
 		if !db.open {
 			return ErrNotOpenedYet
 		}
-
 		if db.closed {
 			return ErrAlreadyClosed
 		}
-
 		if db.enableAsyncWAL {
 			err = db.wal.Append(walBytes)
 			if err != nil {
@@ -257,19 +216,16 @@ func (db *DB) Put(key, value string) error {
 				return err
 			}
 		}
-
 		err = db.memStore.Upsert(keyBytes, valBytes)
 		if err != nil {
 			return err
 		}
-
 		if db.memStore.EstimatedSizeInBytes() > db.memstoreMaxSize {
 			return db.rotateWalAndFlushMemstore()
 		}
 		return nil
 	}()
 }
-
 func (db *DB) Delete(key string) error {
 	byteKey := []byte(key)
 	bytes, err := proto.Marshal(&dbproto.WalMutation{
@@ -282,18 +238,14 @@ func (db *DB) Delete(key string) error {
 	if err != nil {
 		return err
 	}
-
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-
 	if !db.open {
 		return ErrNotOpenedYet
 	}
-
 	if db.closed {
 		return ErrAlreadyClosed
 	}
-
 	if db.enableAsyncWAL {
 		err = db.wal.Append(bytes)
 		if err != nil {
@@ -305,7 +257,6 @@ func (db *DB) Delete(key string) error {
 			return err
 		}
 	}
-
 	return db.memStore.Delete(byteKey)
 }
 
@@ -317,7 +268,6 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	extraOpts := &ExtraOptions{
 		MemStoreMaxSizeBytes,
 		true,
@@ -327,11 +277,9 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
 	}
-
 	for _, extraOption := range extraOptions {
 		extraOption(extraOpts)
 	}
-
 	cmp := skiplist.BytesComparator{}
 	mStore := memstore.NewMemStore()
 	rwLock := &sync.RWMutex{}
@@ -339,9 +287,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 	doneFlushChan := make(chan bool)
 	doneCompactionChan := make(chan bool)
 	compactionTimerStopChannel := make(chan interface{}, 1)
-
 	sstableManager := NewSSTableManager(cmp, rwLock, basePath)
-
 	return &DB{
 		currentGeneration:           uint64(0),
 		cmp:                         cmp,
@@ -367,7 +313,6 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 }
 
 // options
-
 type ExtraOptions struct {
 	memstoreSizeBytes       uint64
 	enableCompactions       bool
@@ -377,7 +322,6 @@ type ExtraOptions struct {
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
 }
-
 type ExtraOption func(options *ExtraOptions)
 
 // MemstoreSizeBytes controls the size of the memstore, after this limit is hit the memstore will be written to disk.

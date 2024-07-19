@@ -3,13 +3,12 @@ package porcupine
 import (
 	"errors"
 	"fmt"
-	"log"
-	"reflect"
-	"testing"
-
 	pp "github.com/anishathalye/porcupine"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/simpledb"
+	"log"
+	"reflect"
+	"testing"
 )
 
 const (
@@ -21,17 +20,15 @@ const (
 type MapState struct {
 	m map[string]string
 }
-
 type Input struct {
-	Operation uint8
 	Key       string
 	Val       string
+	Operation uint8
 }
-
 type Output struct {
+	Err error
 	Key string
 	Val string
-	Err error
 }
 
 func (s MapState) Clone() MapState {
@@ -41,27 +38,22 @@ func (s MapState) Clone() MapState {
 	}
 	return MapState{m: sx}
 }
-
 func (s MapState) Equals(otherState MapState) bool {
 	return reflect.DeepEqual(s.m, otherState.m)
 }
-
 func shorten(s string, size int) string {
 	if len(s) > size {
 		return s[:size]
 	}
 	return s
 }
-
 func (s MapState) String() string {
 	shortValueState := map[string]string{}
 	for k, v := range s.m {
 		shortValueState[k] = shorten(v, 5)
 	}
-
 	return fmt.Sprintf("%v", shortValueState)
 }
-
 func NewMapState() MapState {
 	return MapState{m: map[string]string{}}
 }
@@ -85,7 +77,6 @@ var Model = pp.Model[MapState, Input, Output]{
 	},
 	Step: func(s MapState, i Input, o Output) (bool, MapState) {
 		stateVal, found := s.m[i.Key]
-
 		switch i.Operation {
 		case GetOp:
 			if errors.Is(o.Err, simpledb.ErrNotFound) {
@@ -107,12 +98,10 @@ var Model = pp.Model[MapState, Input, Output]{
 			}
 			break
 		}
-
 		if o.Err != nil {
 			log.Printf("unexpected error state found for key: [%s] %v\n", i.Key, o.Err)
 			panic(o.Err)
 		}
-
 		return false, s
 	},
 	DescribeOperation: func(i Input, o Output) string {
@@ -128,7 +117,6 @@ var Model = pp.Model[MapState, Input, Output]{
 			opName = "Del"
 			break
 		}
-
 		return fmt.Sprintf("%s(%s) -> %s", opName, i.Key, shorten(o.Val, 5))
 	},
 }
