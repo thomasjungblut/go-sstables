@@ -19,6 +19,9 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableRecordIOV2")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithBloom")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithMetaData")
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashes")
+	// TODO(thomas): this one is manually manipulated with a hex editor
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
 }
 
 func writeHappyPathSSTable(t *testing.T, path string) {

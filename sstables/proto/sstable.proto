@@ -5,9 +5,10 @@ option go_package = "github.com/thomasjungblut/go-sstables/sstables/proto";
 message IndexEntry {
     bytes key = 1;
     uint64 valueOffset = 2;
+    uint64 checksum = 3; // a golang crc-64 checksum of the respective dataEntry
 }
 
-// deprecated, it's unncessary overhead to marshal the bytes once more
+// deprecated, it's unnecessary overhead to marshal the bytes once more
 message DataEntry {
     bytes value = 1;
 }

@@ -294,8 +294,10 @@ func readMetaDataIfExists(metaPath string) (md *proto.MetaData, err error) {
 
 // SSTableReaderOptions contains both read/write options
 type SSTableReaderOptions struct {
-	basePath      string
-	keyComparator skiplist.Comparator[[]byte]
+	basePath                string
+	keyComparator           skiplist.Comparator[[]byte]
+	skipInvalidHashesOnLoad bool
+	skipHashCheckOnLoad     bool
 }
 
 type ReadOption func(*SSTableReaderOptions)
@@ -309,5 +311,19 @@ func ReadBasePath(p string) ReadOption {
 func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.keyComparator = cmp
+	}
+}
+
+// SkipInvalidHashesOnLoad will not read key/value pairs that have a hash mismatch.
+func SkipInvalidHashesOnLoad() ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.skipInvalidHashesOnLoad = true
+	}
+}
+
+// SkipHashCheckOnLoad will not check hashes and not attempt to read from the datafile while reading the index.
+func SkipHashCheckOnLoad() ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.skipHashCheckOnLoad = true
 	}
 }

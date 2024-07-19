@@ -67,6 +67,69 @@ func TestSimpleHappyPathWithMetaData(t *testing.T) {
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
+func TestSimpleHappyPathWithCRCHashes(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashes"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
+	assertContentMatchesSkipList(t, reader, skipListMap)
+}
+
+func TestCRCHashMismatchError(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.ErrorContains(t, err, "for key [[0 0 0 4]]: expected [688fffff90000000], got [738fffff90000000]")
+	require.Nil(t, reader)
+}
+
+func TestCRCHashMismatchErrorSkipRecord(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}),
+		SkipInvalidHashesOnLoad())
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	// TODO(thomas): the metadata doesn't match when a crc error was detected
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 5, 6, 7})
+	assertContentMatchesSkipList(t, reader, skipListMap)
+}
+
+func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}),
+		SkipHashCheckOnLoad())
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	// TODO(thomas): the metadata doesn't match when a crc error was detected
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+
+	for _, i := range []int{1, 2, 3, 4, 5, 6, 7} {
+		get, err := reader.Get(intToByteSlice(i))
+		require.Nil(t, err)
+		if i == 5 {
+			// TODO(thomas): this should also fail on reading
+			require.Equal(t, intToByteSlice(15), get)
+		} else {
+			require.Equal(t, intToByteSlice(i+1), get)
+		}
+	}
+}
+
 func TestNegativeContainsHappyPath(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),

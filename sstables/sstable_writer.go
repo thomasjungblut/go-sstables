@@ -3,6 +3,7 @@ package sstables
 import (
 	"errors"
 	"fmt"
+	"hash/crc64"
 	"hash/fnv"
 	"os"
 	"path/filepath"
@@ -116,12 +117,19 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		writer.bloomFilter.Add(fnvHash)
 	}
 
+	crc := crc64.New(crc64.MakeTable(crc64.ISO))
+	_, err := crc.Write(value)
+	if err != nil {
+		return fmt.Errorf("error while writing crc64 hash in '%s': %w", writer.opts.basePath, err)
+	}
+
+	// TODO(thomas): did I test the case where we're writing an invalid data record with error? do we correctly adjust the offset in the index?
 	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
 	}
 
-	_, err = writer.indexWriter.Write(&sProto.IndexEntry{Key: key, ValueOffset: recordOffset})
+	_, err = writer.indexWriter.Write(&sProto.IndexEntry{Key: key, ValueOffset: recordOffset, Checksum: crc.Sum64()})
 	if err != nil {
 		return fmt.Errorf("error writeNext index writer error in '%s': %w", writer.opts.basePath, err)
 	}
