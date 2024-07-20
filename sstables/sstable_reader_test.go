@@ -85,7 +85,8 @@ func TestCRCHashMismatchError(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
 		ReadWithKeyComparator(skiplist.BytesComparator{}))
-	require.ErrorContains(t, err, "for key [[0 0 0 4]] at [41]: expected [688fffff90000000], got [738fffff90000000]")
+	require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
+	require.ErrorContains(t, err, "at key [[0 0 0 4]]")
 	require.Nil(t, reader)
 }
 
@@ -97,10 +98,11 @@ func TestCRCHashMismatchErrorSkipRecord(t *testing.T) {
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
-	// TODO(thomas): the metadata doesn't match when a crc error was detected
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, 1, int(reader.MetaData().SkippedRecords))
 	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
 	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+	// key 4 should be missing, as it has an invalid checksum
 	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 5, 6, 7})
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
@@ -109,25 +111,31 @@ func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
 		ReadWithKeyComparator(skiplist.BytesComparator{}),
-		SkipHashCheckOnLoad())
+		SkipHashCheckOnLoad(),
+		EnableHashCheckOnReads(),
+	)
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 
-	// TODO(thomas): the metadata doesn't match when a crc error was detected
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	// zero, as we're skipping the load-time validation
+	assert.Equal(t, 0, int(reader.MetaData().SkippedRecords))
 	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
 	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
 
 	for _, i := range []int{1, 2, 3, 4, 5, 6, 7} {
 		get, err := reader.Get(intToByteSlice(i))
-		require.Nil(t, err)
 		if i == 4 {
-			// TODO(thomas): this should also fail on reading
 			require.Equal(t, intToByteSlice(0x15), get)
+			require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
 		} else {
 			require.Equal(t, intToByteSlice(i+1), get)
+			require.Nil(t, err)
 		}
 	}
+
+	// TODO scanning should also error in similar fashion
+
 }
 
 func TestCRCHashEmptyValues(t *testing.T) {

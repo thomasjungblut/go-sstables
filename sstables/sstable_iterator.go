@@ -23,7 +23,7 @@ func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 		}
 	}
 
-	valBytes, err := it.reader.getValueAtOffset(iv.offset)
+	valBytes, err := it.reader.getValueAtOffset(iv, it.reader.opts.skipHashCheckOnRead)
 	if err != nil {
 		return nil, nil, err
 	}
