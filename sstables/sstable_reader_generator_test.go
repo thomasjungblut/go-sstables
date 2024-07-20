@@ -20,6 +20,8 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithBloom")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithMetaData")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashes")
+	writeHappyPathSSTableWithEmptyValues(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesEmptyValues")
+
 	// TODO(thomas): this one is manually manipulated with a hex editor
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
 }
@@ -27,6 +29,15 @@ func TestGenerateTestFiles(t *testing.T) {
 func writeHappyPathSSTable(t *testing.T, path string) {
 	writer := newSimpleBytesWriterAt(t, path)
 	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
+	err := writer.WriteSkipListMap(list)
+	assert.Nil(t, err)
+}
+
+func writeHappyPathSSTableWithEmptyValues(t *testing.T, path string) {
+	writer := newSimpleBytesWriterAt(t, path)
+	list := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
+	list.Insert(intToByteSlice(42), intToByteSlice(0))
+	list.Insert(intToByteSlice(45), []byte{})
 	err := writer.WriteSkipListMap(list)
 	assert.Nil(t, err)
 }

@@ -25,15 +25,17 @@ type SSTableReader struct {
 	opts          *SSTableReaderOptions
 	bloomFilter   *bloomfilter.Filter
 	keyComparator skiplist.Comparator[[]byte]
-	index         skiplist.MapI[[]byte, indexVal] // key (as []byte) to a struct containing the uint64 value file offset
-	v0DataReader  rProto.ReadAtI
-	dataReader    recordio.ReadAtI
-	metaData      *proto.MetaData
-	miscClosers   []recordio.CloseableI
+	// TODO(thomas): use a btree index on disk as an alternative?
+	index        skiplist.MapI[[]byte, indexVal] // key (as []byte) to a struct containing the uint64 value file offset
+	v0DataReader rProto.ReadAtI
+	dataReader   recordio.ReadAtI
+	metaData     *proto.MetaData
+	miscClosers  []recordio.CloseableI
 }
 
 func (reader *SSTableReader) Contains(key []byte) bool {
 	// short-cut for the bloom filter to tell whether it's not in the set (if available)
+	// TODO(thomas): this is unnecessary overhead, given the index is already a map lookup in memory
 	if reader.bloomFilter != nil {
 		fnvHash := fnv.New64()
 		_, _ = fnvHash.Write(key)
@@ -180,12 +182,6 @@ func (reader *SSTableReader) validateDataFile() error {
 			return err
 		}
 
-		if iv.checksum == 0 {
-			// we assume that all following values also would have a default value of zero
-			// TODO(thomas): is this logically sane? what's with empty value records? They have hash 0?
-			break
-		}
-
 		value, err := reader.dataReader.ReadNextAt(iv.offset)
 		if err != nil {
 			return fmt.Errorf("error reading sstable '%s' while validating hashes at key [%v] and offset [%d]: %w",
@@ -199,13 +195,19 @@ func (reader *SSTableReader) validateDataFile() error {
 				reader.opts.basePath, k, iv.offset, err)
 		}
 
-		if iv.checksum != crc.Sum64() {
+		valChecksum := crc.Sum64()
+		if iv.checksum != valChecksum {
+			// this mismatch could come from default values, reading older formats
+			if iv.checksum == 0 {
+				continue
+			}
+
 			if reader.opts.skipInvalidHashesOnLoad {
 				continue
 			}
 
 			return fmt.Errorf("error in sstable '%s' while hashing value for key [%v] at [%d]: expected [%x], got [%x]",
-				reader.opts.basePath, k, iv.offset, iv.checksum, crc.Sum64())
+				reader.opts.basePath, k, iv.offset, iv.checksum, valChecksum)
 		}
 
 		if reader.opts.skipInvalidHashesOnLoad {
@@ -222,10 +224,13 @@ func (reader *SSTableReader) validateDataFile() error {
 
 // NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
 // > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
+// This function will check hashes and validity of the datafile matching the index file.
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 	opts := &SSTableReaderOptions{
-		basePath: "",
+		basePath:                "",
+		skipInvalidHashesOnLoad: false,
+		skipHashCheckOnLoad:     false,
 	}
 
 	for _, readOption := range readerOptions {
@@ -401,7 +406,8 @@ func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	}
 }
 
-// SkipInvalidHashesOnLoad will not read key/value pairs that have a hash mismatch in them.
+// SkipInvalidHashesOnLoad will not index key/value pairs that have a hash mismatch in them.
+// The database will pretend it does not know those records.
 func SkipInvalidHashesOnLoad() ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.skipInvalidHashesOnLoad = true

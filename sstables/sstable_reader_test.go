@@ -130,6 +130,26 @@ func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 	}
 }
 
+func TestCRCHashEmptyValues(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesEmptyValues"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 2, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 0x2a}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 0x2d}, reader.MetaData().MaxKey)
+
+	get, err := reader.Get(intToByteSlice(45))
+	require.Nil(t, err)
+	require.Equal(t, []byte{}, get)
+
+	get, err = reader.Get(intToByteSlice(42))
+	require.Nil(t, err)
+	require.Equal(t, []byte{0, 0, 0, 0}, get)
+}
+
 func TestNegativeContainsHappyPath(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
