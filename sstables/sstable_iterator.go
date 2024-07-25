@@ -70,10 +70,12 @@ func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVa
 type SSTableFullScanIterator struct {
 	keyIterator skiplist.IteratorI[[]byte, indexVal]
 	dataReader  recordio.ReaderI
+
+	skipHashCheck bool
 }
 
 func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
-	key, _, err := it.keyIterator.Next()
+	key, iVal, err := it.keyIterator.Next()
 	if err != nil {
 		if errors.Is(err, skiplist.Done) {
 			return nil, nil, Done
@@ -83,12 +85,38 @@ func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	}
 
 	next, err := it.dataReader.ReadNext()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if it.skipHashCheck {
+		return key, next, nil
+	}
+
+	checksum, err := checksumValue(next)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if checksum != iVal.checksum {
+		// this mismatch could come from default values, reading older formats
+		if iVal.checksum == 0 {
+			return key, next, nil
+		}
+
+		return key, next, ChecksumError{checksum, iVal.checksum}
+	}
+
 	return key, next, err
 }
 
-func newSStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVal], dataReader recordio.ReaderI) (SSTableIteratorI, error) {
+func newSStableFullScanIterator(
+	keyIterator skiplist.IteratorI[[]byte, indexVal],
+	dataReader recordio.ReaderI,
+	skipHashCheck bool) (SSTableIteratorI, error) {
 	return &SSTableFullScanIterator{
-		keyIterator: keyIterator,
-		dataReader:  dataReader,
+		keyIterator:   keyIterator,
+		dataReader:    dataReader,
+		skipHashCheck: skipHashCheck,
 	}, nil
 }

@@ -134,7 +134,43 @@ func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 		}
 	}
 
-	// TODO scanning should also error in similar fashion
+	it, err := reader.ScanStartingAt([]byte{})
+	require.Nil(t, err)
+
+	i := 0
+	expectedBeforeErr := []int{1, 2, 3, 4}
+	for {
+		k, v, err := it.Next()
+		if err != nil {
+			require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
+			break
+		}
+
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]), k)
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]+1), v)
+		i++
+	}
+	require.Equal(t, 3, i)
+
+	it, err = reader.Scan()
+	require.Nil(t, err)
+
+	i = 0
+	for {
+		k, v, err := it.Next()
+		if err != nil {
+			require.Equal(t, ChecksumError{
+				checksum:         0x738fffff90000000,
+				expectedChecksum: 0x688fffff90000000,
+			}, err)
+			break
+		}
+
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]), k)
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]+1), v)
+		i++
+	}
+	require.Equal(t, 3, i)
 
 }
 

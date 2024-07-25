@@ -150,7 +150,7 @@ func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner iterator: %w", reader.opts.basePath, err)
 		}
-		return newSStableFullScanIterator(it, dataReader)
+		return newSStableFullScanIterator(it, dataReader, reader.opts.skipHashCheckOnRead)
 	}
 }
 
