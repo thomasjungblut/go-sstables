@@ -4,8 +4,10 @@ package sstables
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"os"
+	"path"
 	"testing"
 )
 
@@ -19,11 +21,37 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableRecordIOV2")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithBloom")
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithMetaData")
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashes")
+	writeHappyPathSSTableWithEmptyValues(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesEmptyValues")
+
+	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
+	imputeError(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
+}
+
+// this will change a byte at a specific offset for crc hash test cases
+func imputeError(t *testing.T, p string) {
+	f, err := os.OpenFile(path.Join(p, DataFileName), os.O_RDWR, 0655)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	_, err = f.WriteAt([]byte{0x15}, 51)
+	require.NoError(t, err)
 }
 
 func writeHappyPathSSTable(t *testing.T, path string) {
 	writer := newSimpleBytesWriterAt(t, path)
 	list := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
+	err := writer.WriteSkipListMap(list)
+	assert.Nil(t, err)
+}
+
+func writeHappyPathSSTableWithEmptyValues(t *testing.T, path string) {
+	writer := newSimpleBytesWriterAt(t, path)
+	list := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
+	list.Insert(intToByteSlice(42), intToByteSlice(0))
+	list.Insert(intToByteSlice(45), []byte{})
 	err := writer.WriteSkipListMap(list)
 	assert.Nil(t, err)
 }

@@ -67,6 +67,133 @@ func TestSimpleHappyPathWithMetaData(t *testing.T) {
 	assertContentMatchesSkipList(t, reader, skipListMap)
 }
 
+func TestSimpleHappyPathWithCRCHashes(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashes"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 4, 5, 6, 7})
+	assertContentMatchesSkipList(t, reader, skipListMap)
+}
+
+func TestCRCHashMismatchError(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
+	require.ErrorContains(t, err, "at key [[0 0 0 4]]")
+	require.Nil(t, reader)
+}
+
+func TestCRCHashMismatchErrorSkipRecord(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}),
+		SkipInvalidHashesOnLoad())
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, 1, int(reader.MetaData().SkippedRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+	// key 4 should be missing, as it has an invalid checksum
+	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 5, 6, 7})
+	assertContentMatchesSkipList(t, reader, skipListMap)
+}
+
+func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}),
+		SkipHashCheckOnLoad(),
+		EnableHashCheckOnReads(),
+	)
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	// zero, as we're skipping the load-time validation
+	assert.Equal(t, 0, int(reader.MetaData().SkippedRecords))
+	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
+
+	for _, i := range []int{1, 2, 3, 4, 5, 6, 7} {
+		get, err := reader.Get(intToByteSlice(i))
+		if i == 4 {
+			require.Equal(t, intToByteSlice(0x15), get)
+			require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
+		} else {
+			require.Equal(t, intToByteSlice(i+1), get)
+			require.Nil(t, err)
+		}
+	}
+
+	it, err := reader.ScanStartingAt([]byte{})
+	require.Nil(t, err)
+
+	i := 0
+	expectedBeforeErr := []int{1, 2, 3, 4}
+	for {
+		k, v, err := it.Next()
+		if err != nil {
+			require.ErrorContains(t, err, "offset [41]: Checksum mismatch: expected 688fffff90000000, got 738fffff90000000")
+			break
+		}
+
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]), k)
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]+1), v)
+		i++
+	}
+	require.Equal(t, 3, i)
+
+	it, err = reader.Scan()
+	require.Nil(t, err)
+
+	i = 0
+	for {
+		k, v, err := it.Next()
+		if err != nil {
+			require.Equal(t, ChecksumError{
+				checksum:         0x738fffff90000000,
+				expectedChecksum: 0x688fffff90000000,
+			}, err)
+			break
+		}
+
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]), k)
+		require.Equal(t, intToByteSlice(expectedBeforeErr[i]+1), v)
+		i++
+	}
+	require.Equal(t, 3, i)
+
+}
+
+func TestCRCHashEmptyValues(t *testing.T) {
+	reader, err := NewSSTableReader(
+		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesEmptyValues"),
+		ReadWithKeyComparator(skiplist.BytesComparator{}))
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	assert.Equal(t, 2, int(reader.MetaData().NumRecords))
+	assert.Equal(t, []byte{0, 0, 0, 0x2a}, reader.MetaData().MinKey)
+	assert.Equal(t, []byte{0, 0, 0, 0x2d}, reader.MetaData().MaxKey)
+
+	get, err := reader.Get(intToByteSlice(45))
+	require.Nil(t, err)
+	require.Equal(t, []byte{}, get)
+
+	get, err = reader.Get(intToByteSlice(42))
+	require.Nil(t, err)
+	require.Equal(t, []byte{0, 0, 0, 0}, get)
+}
+
 func TestNegativeContainsHappyPath(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTable"),
