@@ -4,8 +4,10 @@ package sstables
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"os"
+	"path"
 	"testing"
 )
 
@@ -22,8 +24,20 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashes")
 	writeHappyPathSSTableWithEmptyValues(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesEmptyValues")
 
-	// TODO(thomas): this one is manually manipulated with a hex editor
 	writeHappyPathSSTable(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
+	imputeError(t, prefix+"SimpleWriteHappyPathSSTableWithCRCHashesMismatch")
+}
+
+// this will change a byte at a specific offset for crc hash test cases
+func imputeError(t *testing.T, p string) {
+	f, err := os.OpenFile(path.Join(p, DataFileName), os.O_RDWR, 0655)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, f.Close())
+	}()
+
+	_, err = f.WriteAt([]byte{0x15}, 51)
+	require.NoError(t, err)
 }
 
 func writeHappyPathSSTable(t *testing.T, path string) {
