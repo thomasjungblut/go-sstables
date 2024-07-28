@@ -123,7 +123,6 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		return fmt.Errorf("error while writing crc64 hash in '%s': %w", writer.opts.basePath, err)
 	}
 
-	// TODO(thomas): did I test the case where we're writing an invalid data record with error? do we correctly adjust the offset in the index?
 	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
