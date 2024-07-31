@@ -152,11 +152,10 @@ func TestFailedIndexAppend(t *testing.T) {
 	require.NoError(t, writer.WriteNext(intToByteSlice(44), intToByteSlice(45)))
 	require.NoError(t, writer.Close())
 
-	reader, _ := getFullScanIterator(t, writer.opts.basePath)
+	reader, it := getFullScanIterator(t, writer.opts.basePath)
 	defer closeReader(t, reader)
 
-	// TODO(thomas): this is failing, as the "optimized" iterator is not skipping partial records
-	// assertIteratorMatchesSlice(t, it, []int{42, 44})
+	assertIteratorMatchesSlice(t, it, []int{42, 44})
 	assertContentMatchesSlice(t, reader, []int{42, 44})
 	_, err = reader.Get(intToByteSlice(43))
 	require.Equal(t, NotFound, err)
@@ -177,6 +176,10 @@ func (f *failingRecordIoWriter) Open() error {
 
 func (f *failingRecordIoWriter) Size() uint64 {
 	return f.w.Size()
+}
+
+func (f *failingRecordIoWriter) Seek(o uint64) error {
+	return f.w.Seek(o)
 }
 
 func (f *failingRecordIoWriter) WriteSync(record []byte) (uint64, error) {

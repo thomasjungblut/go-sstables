@@ -65,6 +65,9 @@ type WriterI interface {
 	Write(record []byte) (uint64, error)
 	// WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to
 	WriteSync(record []byte) (uint64, error)
+	// Seek will reset the current offset to the given offset. The offset is always
+	// denoted as a value from the start (origin) of the file at offset zero.
+	Seek(offset uint64) error
 }
 
 type ReaderI interface {
@@ -85,7 +88,7 @@ type ReadAtI interface {
 
 type ReaderWriterCloserFactory interface {
 	CreateNewReader(filePath string, bufSize int) (*os.File, ByteReaderResetCount, error)
-	CreateNewWriter(filePath string, bufSize int) (*os.File, WriteCloserFlusher, error)
+	CreateNewWriter(filePath string, bufSize int) (*os.File, WriteSeekerCloserFlusher, error)
 }
 
 // NewCompressorForType returns an instance of the desired compressor defined by its identifier.

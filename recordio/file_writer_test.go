@@ -221,6 +221,35 @@ func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
 	require.ErrorIs(t, err, DirectIOSyncWriteErr)
 }
 
+func TestWriterSeek(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	previousOffset := writer.Size()
+	offset, err := writer.Write([]byte{12, 13, 14, 15, 16})
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
+	assert.Equal(t, uint64(0x12), writer.Size())
+	require.Nil(t, err)
+
+	require.NoError(t, writer.Seek(previousOffset))
+
+	offset, err = writer.Write([]byte{1, 2, 3, 4, 5})
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
+	assert.Equal(t, uint64(0x12), writer.Size())
+	require.Nil(t, err)
+
+	require.NoError(t, writer.Close())
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer closeFileReader(t, reader)
+
+	// this should only be exactly one record
+	next, err := reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, []byte{1, 2, 3, 4, 5}, next)
+
+	readNextExpectEOF(t, reader)
+}
+
 func newUncompressedTestWriter() (*FileWriter, error) {
 	tmpFile, err := os.CreateTemp("", "recordio_UncompressedWriter")
 	if err != nil {

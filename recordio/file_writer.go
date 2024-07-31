@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
@@ -23,7 +24,7 @@ type FileWriter struct {
 	closed bool
 
 	file               *os.File
-	bufWriter          WriteCloserFlusher
+	bufWriter          WriteSeekerCloserFlusher
 	currentOffset      uint64
 	compressionType    int
 	compressor         compressor.CompressionI
@@ -88,7 +89,7 @@ func fileHeaderAsByteSlice(compressionType uint32) []byte {
 }
 
 // for legacy reference still around, main paths unused - mostly for tests writing old versions
-//noinspection GoUnusedFunction
+// noinspection GoUnusedFunction
 func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
 	bytes := make([]byte, RecordHeaderSizeBytes)
@@ -204,6 +205,15 @@ func (w *FileWriter) Size() uint64 {
 	return w.currentOffset
 }
 
+func (w *FileWriter) Seek(offset uint64) error {
+	newOffset, err := w.bufWriter.Seek(int64(offset), io.SeekStart)
+	if err != nil {
+		return err
+	}
+	w.currentOffset = uint64(newOffset)
+	return nil
+}
+
 // options
 
 type FileWriterOptions struct {
@@ -301,7 +311,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteSeekerCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
 	return &FileWriter{
 		file:               file,
 		bufWriter:          bufWriter,
