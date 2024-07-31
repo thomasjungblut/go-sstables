@@ -5,8 +5,14 @@ import (
 	"io"
 )
 
-type WriteCloserFlusher interface {
-	io.WriteCloser
+type WriteSeekerCloser interface {
+	io.Writer
+	io.Seeker
+	io.Closer
+}
+
+type WriteSeekerCloserFlusher interface {
+	WriteSeekerCloser
 	Flush() error
 	Size() int
 }
@@ -19,13 +25,23 @@ type WriteCloserFlusher interface {
 // the underlying io.Writer.
 // This is the same writer as bufio.Writer, but it allows us to supply the buffer from the outside.
 // Namely, it has a new constructor in NewWriterBuf & NewAlignedWriterBuf, implements Close() and supports block aligned flushes.
+// Later the interface of the writer added io.Seeker, which the writer now fully implements as well.
 // Additionally, several methods that were not needed are removed to reduce the test surface of the original.
 type Writer struct {
 	err        error
 	buf        []byte
 	n          int
-	wr         io.WriteCloser
+	wr         WriteSeekerCloser
 	alignFlush bool
+}
+
+func (b *Writer) Seek(offset int64, whence int) (int64, error) {
+	err := b.Flush()
+	if err != nil {
+		return 0, err
+	}
+
+	return b.wr.Seek(offset, whence)
 }
 
 func (b *Writer) Close() error {
@@ -36,14 +52,14 @@ func (b *Writer) Close() error {
 	return b.wr.Close()
 }
 
-func NewWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
+func NewWriterBuf(w WriteSeekerCloser, buf []byte) WriteSeekerCloserFlusher {
 	return &Writer{
 		buf: buf,
 		wr:  w,
 	}
 }
 
-func NewAlignedWriterBuf(w io.WriteCloser, buf []byte) WriteCloserFlusher {
+func NewAlignedWriterBuf(w WriteSeekerCloser, buf []byte) WriteSeekerCloserFlusher {
 	return &Writer{
 		buf:        buf,
 		wr:         w,

@@ -153,14 +153,52 @@ func TestFailedIndexAppend(t *testing.T) {
 	require.NoError(t, writer.WriteNext(intToByteSlice(44), intToByteSlice(45)))
 	require.NoError(t, writer.Close())
 
-	reader, _ := getFullScanIterator(t, writer.opts.basePath)
+	reader, it := getFullScanIterator(t, writer.opts.basePath)
 	defer closeReader(t, reader)
 
-	// TODO(thomas): this is failing, as the "optimized" iterator is not skipping partial records
-	// assertIteratorMatchesSlice(t, it, []int{42, 44})
+	assertIteratorMatchesSlice(t, it, []int{42, 44})
 	assertContentMatchesSlice(t, reader, []int{42, 44})
 	_, err = reader.Get(intToByteSlice(43))
 	require.Equal(t, NotFound, err)
+}
+
+func TestFailedIndexAppendShortWrite(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	require.NoError(t, err)
+	require.NoError(t, writer.Open())
+
+	iw := &failingProtoRecordIoWriter{writer.indexWriter, false}
+	writer.indexWriter = iw
+	require.NoError(t, writer.WriteNext(intToByteSlice(42), intToByteSlice(43)))
+	iw.failNext = true
+	require.Error(t, writer.WriteNext(intToByteSlice(43), intToByteSlice(44)))
+	iw.failNext = false
+	// this is deliberately missing the 4 byte value at the end, so the datafile must be truncated by recordio
+	require.NoError(t, writer.WriteNext(intToByteSlice(44), []byte{}))
+	require.NoError(t, writer.Close())
+
+	reader, it := getFullScanIterator(t, writer.opts.basePath)
+	defer closeReader(t, reader)
+
+	k, v, err := it.Next()
+	require.NoError(t, err)
+	require.Equal(t, intToByteSlice(42), k)
+	require.Equal(t, intToByteSlice(43), v)
+
+	k, v, err = it.Next()
+	require.NoError(t, err)
+	require.Equal(t, intToByteSlice(44), k)
+	require.Equal(t, []byte{}, v)
+
+	_, _, err = it.Next()
+	require.Equal(t, Done, err)
+
+	_, err = reader.Get(intToByteSlice(43))
+	require.Equal(t, NotFound, err)
+	v, err = reader.Get(intToByteSlice(42))
+	require.Equal(t, intToByteSlice(43), v)
+	v, err = reader.Get(intToByteSlice(44))
+	require.Equal(t, []byte{}, v)
 }
 
 type failingRecordIoWriter struct {
@@ -178,6 +216,10 @@ func (f *failingRecordIoWriter) Open() error {
 
 func (f *failingRecordIoWriter) Size() uint64 {
 	return f.w.Size()
+}
+
+func (f *failingRecordIoWriter) Seek(o uint64) error {
+	return f.w.Seek(o)
 }
 
 func (f *failingRecordIoWriter) WriteSync(record []byte) (uint64, error) {
