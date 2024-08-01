@@ -67,6 +67,7 @@ type WriterI interface {
 	WriteSync(record []byte) (uint64, error)
 	// Seek will reset the current offset to the given offset. The offset is always
 	// denoted as a value from the start (origin) of the file at offset zero.
+	// An error will be returned when trying to seek into the file header or beyond the current size of the file.
 	Seek(offset uint64) error
 }
 

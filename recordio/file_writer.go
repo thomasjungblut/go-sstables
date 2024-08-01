@@ -23,9 +23,11 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file               *os.File
-	bufWriter          WriteSeekerCloserFlusher
-	currentOffset      uint64
+	file          *os.File
+	bufWriter     WriteSeekerCloserFlusher
+	currentOffset uint64
+	headerOffset  uint64
+
 	compressionType    int
 	compressor         compressor.CompressionI
 	recordHeaderCache  []byte
@@ -55,6 +57,7 @@ func (w *FileWriter) Open() error {
 	}
 
 	w.currentOffset = uint64(offset)
+	w.headerOffset = w.currentOffset
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV2MaxSizeBytes)
 	w.bufferPool = new(pool.BufferPool)
@@ -206,6 +209,13 @@ func (w *FileWriter) Size() uint64 {
 }
 
 func (w *FileWriter) Seek(offset uint64) error {
+	if offset < w.headerOffset {
+		return fmt.Errorf("can't seek into the header range, supplied: %d header: %d", offset, w.headerOffset)
+	}
+	if offset > w.Size() {
+		return fmt.Errorf("can't seek past file size, supplied: %d header: %d", offset, w.Size())
+	}
+
 	newOffset, err := w.bufWriter.Seek(int64(offset), io.SeekStart)
 	if err != nil {
 		return err

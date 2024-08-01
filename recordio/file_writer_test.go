@@ -221,7 +221,7 @@ func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
 	require.ErrorIs(t, err, DirectIOSyncWriteErr)
 }
 
-func TestWriterSeek(t *testing.T) {
+func TestWriterSeekHappyPath(t *testing.T) {
 	writer := newOpenedWriter(t)
 	defer removeFileWriterFile(t, writer)
 
@@ -248,6 +248,43 @@ func TestWriterSeek(t *testing.T) {
 	require.Equal(t, []byte{1, 2, 3, 4, 5}, next)
 
 	readNextExpectEOF(t, reader)
+}
+
+func TestWriterSeekOutOfBounds(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	_, err := writer.Write(ascendingBytes(5))
+	require.NoError(t, err)
+
+	require.Error(t, writer.Seek(0))
+	require.Error(t, writer.Seek(writer.headerOffset-1))
+	require.NoError(t, writer.Seek(writer.headerOffset))
+	require.Error(t, writer.Seek(writer.Size()+1))
+	require.NoError(t, writer.Seek(writer.Size()))
+	require.NoError(t, writer.Close())
+}
+
+func TestWriterSeekShorterReplacementWrite(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	o, err := writer.Write(ascendingBytes(5))
+	require.NoError(t, err)
+	require.NoError(t, writer.Seek(o))
+
+	// this should create a two byte suffix to the file that should not be readable as a record
+	_, err = writer.Write(ascendingBytes(3))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer func() {
+		require.NoError(t, reader.Close())
+	}()
+	readNextExpectAscendingBytesOfLen(t, reader, 3)
+
+	readNextExpectMagicNumberMismatch(t, reader)
 }
 
 func newUncompressedTestWriter() (*FileWriter, error) {
@@ -342,6 +379,12 @@ func readNextExpectEOF(t *testing.T, reader *FileReader) {
 	buf, err := reader.ReadNext()
 	require.Nil(t, buf)
 	assert.Equal(t, io.EOF, errors.Unwrap(err))
+}
+
+func readNextExpectMagicNumberMismatch(t *testing.T, reader *FileReader) {
+	buf, err := reader.ReadNext()
+	require.Nil(t, buf)
+	require.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
 func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
