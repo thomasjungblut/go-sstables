@@ -221,6 +221,75 @@ func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
 	require.ErrorIs(t, err, DirectIOSyncWriteErr)
 }
 
+func TestWriterSeekHappyPath(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	previousOffset := writer.Size()
+	offset, err := writer.Write([]byte{12, 13, 14, 15, 16})
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
+	assert.Equal(t, uint64(0x12), writer.Size())
+	require.Nil(t, err)
+
+	require.NoError(t, writer.Seek(previousOffset))
+
+	offset, err = writer.Write([]byte{1, 2, 3, 4, 5})
+	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
+	assert.Equal(t, uint64(0x12), writer.Size())
+	require.Nil(t, err)
+
+	require.NoError(t, writer.Close())
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer closeFileReader(t, reader)
+
+	// this should only be exactly one record
+	next, err := reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, []byte{1, 2, 3, 4, 5}, next)
+
+	readNextExpectEOF(t, reader)
+}
+
+func TestWriterSeekOutOfBounds(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	_, err := writer.Write(ascendingBytes(5))
+	require.NoError(t, err)
+
+	require.Error(t, writer.Seek(0))
+	require.Error(t, writer.Seek(writer.headerOffset-1))
+	require.NoError(t, writer.Seek(writer.headerOffset))
+	require.Error(t, writer.Seek(writer.Size()+1))
+	require.NoError(t, writer.Seek(writer.Size()))
+	require.NoError(t, writer.Close())
+}
+
+func TestWriterSeekShorterReplacementWrite(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	o, err := writer.Write(ascendingBytes(5))
+	require.NoError(t, err)
+	require.NoError(t, writer.Seek(o))
+
+	// this should create a two byte suffix to the file that should not be readable as a record
+	_, err = writer.Write(ascendingBytes(3))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	reader := newReaderOnTopOfWriter(t, writer)
+	defer func() {
+		require.NoError(t, reader.Close())
+	}()
+	readNextExpectAscendingBytesOfLen(t, reader, 3)
+
+	// TODO(thomas): can we wipe the remainder of the file?
+	// there's a more general concern about having short replacement writes within a record though
+	// maybe we need to leave a marker to skip until the next record / EOF
+	readNextExpectMagicNumberMismatch(t, reader)
+}
+
 func newUncompressedTestWriter() (*FileWriter, error) {
 	tmpFile, err := os.CreateTemp("", "recordio_UncompressedWriter")
 	if err != nil {
@@ -313,6 +382,12 @@ func readNextExpectEOF(t *testing.T, reader *FileReader) {
 	buf, err := reader.ReadNext()
 	require.Nil(t, buf)
 	assert.Equal(t, io.EOF, errors.Unwrap(err))
+}
+
+func readNextExpectMagicNumberMismatch(t *testing.T, reader *FileReader) {
+	buf, err := reader.ReadNext()
+	require.Nil(t, buf)
+	require.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
 func newReaderOnTopOfWriter(t *testing.T, writer *FileWriter) *FileReader {
