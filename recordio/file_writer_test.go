@@ -284,6 +284,9 @@ func TestWriterSeekShorterReplacementWrite(t *testing.T) {
 	}()
 	readNextExpectAscendingBytesOfLen(t, reader, 3)
 
+	// TODO(thomas): can we wipe the remainder of the file?
+	// there's a more general concern about having short replacement writes within a record though
+	// maybe we need to leave a marker to skip until the next record / EOF
 	readNextExpectMagicNumberMismatch(t, reader)
 }
 
