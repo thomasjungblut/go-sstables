@@ -22,4 +22,6 @@ message MetaData {
     uint64 totalBytes = 6;
     uint32 version = 7; // currently version 1, the default is version 0 with protos as values
     uint64 skippedRecords = 8;
+    uint64 tombRecords = 9;
+    uint64 tombBytes = 10;    
 }
