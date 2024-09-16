@@ -115,7 +115,7 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 		}
 	}()
 
-	// TODO(thomas): this includes tombstones, do we really need to keep them?
+	// Merge without tombstones, no need to keep it ?
 	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, sstables.ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
