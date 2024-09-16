@@ -40,6 +40,7 @@ func TestExecCompactionSameContent(t *testing.T) {
 	assert.Equal(t, "sstable_000000000000042", compactionMeta.ReplacementPath)
 	assert.Equal(t, []string{"sstable_000000000000042", "sstable_000000000000043"}, compactionMeta.SstablePaths)
 
+	// Where is the corresponding Put ???
 	v, err := db.Get("hello")
 	assert.Nil(t, err)
 	assert.Equal(t, "world", v)
