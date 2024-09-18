@@ -2,16 +2,17 @@ package simpledb
 
 import (
 	"errors"
-	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
-	"github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
-	"github.com/thomasjungblut/go-sstables/sstables"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
+	"github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables"
 )
 
 func backgroundCompaction(db *DB) {
@@ -115,7 +116,10 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 		}
 	}()
 
-	// Merge without tombstones, no need to keep it ?
+	// we need to keep it if the sstable is not the first with this key.
+	// SS1(KEY1=toto) SS2(KEY2=deleted)  in this case the KEY2 can be removed in SS2
+	// SS1(KEY2=toto) SS2(KEY2=deleted)  in this case the KEY2 can't be removed in SS2
+
 	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, sstables.ScanReduceLatestWins)
 	if err != nil {
 		return nil, err
