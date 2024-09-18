@@ -2,9 +2,14 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/thomasjungblut/go-sstables/sstables/proto"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/memstore"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"github.com/thomasjungblut/go-sstables/sstables/proto"
 )
 
 func TestExecCompactionLessFilesThanExpected(t *testing.T) {
