@@ -2,9 +2,10 @@ package sstables
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"strings"
 )
 
 // SuperSSTableReader unifies several sstables under one single reader with the same interface.
@@ -108,8 +109,11 @@ func ScanReduceLatestWins(key []byte, values [][]byte, context []int) ([]byte, [
 			maxCtxIndex = i
 		}
 	}
-
-	return key, values[maxCtxIndex]
+	val := values[maxCtxIndex]
+	if len(val) == 0 {
+		return nil, nil
+	}
+	return key, val
 }
 
 func (s SuperSSTableReader) Close() (err error) {
