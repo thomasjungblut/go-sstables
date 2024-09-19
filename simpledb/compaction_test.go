@@ -54,19 +54,29 @@ func TestExecCompactionSameContent(t *testing.T) {
 	assert.Nil(t, db.sstableManager.currentReader.Close())
 }
 
-func writeSSTableWithTombstoneInDatabaseFolder(t *testing.T, db *DB, p string) {
+func writeSSTableWithDataInDatabaseFolder(t *testing.T, db *DB, p string) {
 	fakeTablePath := filepath.Join(db.basePath, p)
 	assert.Nil(t, os.MkdirAll(fakeTablePath, 0700))
 	mStore := memstore.NewMemStore()
 	for i := 0; i < 1000; i++ {
 		assert.Nil(t, mStore.Add([]byte(fmt.Sprintf("%d", i)), []byte(fmt.Sprintf("%d", i))))
 	}
+	assert.Nil(t, mStore.Flush(
+		sstables.WriteBasePath(fakeTablePath),
+		sstables.WithKeyComparator(db.cmp),
+	))
+}
+
+func writeSSTableWithTombstoneInDatabaseFolder(t *testing.T, db *DB, p string) {
+	fakeTablePath := filepath.Join(db.basePath, p)
+	assert.Nil(t, os.MkdirAll(fakeTablePath, 0700))
+	mStore := memstore.NewMemStore()
 
 	// delete all key between 500 and 800
 	for i := 500; i < 800; i++ {
-		assert.Nil(t, mStore.Delete([]byte(fmt.Sprintf("%d", i))))
+		assert.Nil(t, mStore.Tombstone([]byte(fmt.Sprintf("%d", i))))
 	}
-	assert.Nil(t, mStore.Flush(
+	assert.Nil(t, mStore.FlushWithTombstones(
 		sstables.WriteBasePath(fakeTablePath),
 		sstables.WithKeyComparator(db.cmp),
 	))
@@ -80,16 +90,20 @@ func TestExecCompactionWithTombstone(t *testing.T) {
 	db.closed = false
 	db.compactionThreshold = 0
 
+	writeSSTableWithDataInDatabaseFolder(t, db, fmt.Sprintf(SSTablePattern, 42))
 	// only one SStable with holes should shrink
-	writeSSTableWithTombstoneInDatabaseFolder(t, db, fmt.Sprintf(SSTablePattern, 42))
+	writeSSTableWithTombstoneInDatabaseFolder(t, db, fmt.Sprintf(SSTablePattern, 43))
 	assert.Nil(t, db.reconstructSSTables())
-	assert.Equal(t, 1000, int(db.sstableManager.currentSSTable().MetaData().NumRecords))
+	// 1000 initial + 300 Tombstone on second table
+	assert.Equal(t, 1300, int(db.sstableManager.currentSSTable().MetaData().GetNumRecords()))
 
 	compactionMeta, err := executeCompaction(db)
 	assert.Nil(t, err)
 	assert.Equal(t, "sstable_000000000000042", compactionMeta.ReplacementPath)
-	assert.Equal(t, []string{"sstable_000000000000042"}, compactionMeta.SstablePaths)
-
+	assert.Equal(t, []string{"sstable_000000000000042", "sstable_000000000000043"}, compactionMeta.SstablePaths)
+	fmt.Print(compactionMeta)
+	err = db.sstableManager.reflectCompactionResult(compactionMeta)
+	assert.NoError(t, err)
 	v, err := db.Get("512")
 	assert.ErrorIs(t, err, ErrNotFound)
 	assert.Equal(t, "", v)
