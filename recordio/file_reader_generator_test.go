@@ -16,7 +16,7 @@ func TestGenerateTestFiles(t *testing.T) {
 		return
 	}
 
-	prefix := "test_files/v2_compat/"
+	prefix := "test_files/v3_compat/"
 	writeUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord")
 	writeUncompressedMultiRecordAscending(t, prefix+"recordio_UncompressedWriterMultiRecord_asc")
 	writeCompressedMultiRecordAscending(t, prefix+"recordio_SnappyWriterMultiRecord_asc")
