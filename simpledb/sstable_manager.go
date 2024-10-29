@@ -2,14 +2,15 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
-	"github.com/thomasjungblut/go-sstables/sstables"
-	"golang.org/x/exp/slices"
 	"os"
 	"path/filepath"
 	"sort"
 	"sync"
+
+	"github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"golang.org/x/exp/slices"
 )
 
 type SSTableManager struct {
@@ -117,6 +118,7 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	defer s.managerLock.RUnlock()
 
 	numRecords := uint64(0)
+	canRemoveTombstone := false
 	var paths []string
 	for i := 0; i < len(s.allSSTableReaders); i++ {
 		reader := s.allSSTableReaders[i]
@@ -124,14 +126,18 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 		if reader.MetaData().NumRecords > 0 && reader.MetaData().TotalBytes < compactionMaxSizeBytes {
 			paths = append(paths, reader.BasePath())
 			numRecords += reader.MetaData().NumRecords
+			if i == 0 {
+				canRemoveTombstone = true
+			}
 		}
 	}
 
 	sort.Strings(paths)
 
 	return compactionAction{
-		pathsToCompact: paths,
-		totalRecords:   numRecords,
+		pathsToCompact:     paths,
+		totalRecords:       numRecords,
+		canRemoveTombstone: canRemoveTombstone,
 	}
 }
 

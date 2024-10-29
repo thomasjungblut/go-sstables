@@ -51,8 +51,9 @@ type DatabaseI interface {
 }
 
 type compactionAction struct {
-	pathsToCompact []string
-	totalRecords   uint64
+	pathsToCompact     []string
+	totalRecords       uint64
+	canRemoveTombstone bool // if the compaction don't start from the first sstable we cannot remove tombstone
 }
 
 type memStoreFlushAction struct {
