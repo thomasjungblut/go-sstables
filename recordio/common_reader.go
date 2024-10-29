@@ -41,8 +41,8 @@ func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 }
 
 func readRecordHeaderV1(buffer []byte) (uint64, uint64, error) {
-	if len(buffer) != RecordHeaderSizeBytes {
-		return 0, 0, fmt.Errorf("record header buffer size mismatch, expected %d but was %d", RecordHeaderSizeBytes, len(buffer))
+	if len(buffer) != RecordHeaderSizeBytesV1V2 {
+		return 0, 0, fmt.Errorf("record header buffer size mismatch, expected %d but was %d", RecordHeaderSizeBytesV1V2, len(buffer))
 	}
 
 	magicNumber := binary.LittleEndian.Uint32(buffer[0:4])

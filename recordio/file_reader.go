@@ -168,7 +168,7 @@ func (r *FileReader) SkipNext() error {
 
 // SkipNextV1 is legacy support path for non-vint compressed V1
 func SkipNextV1(r *FileReader) error {
-	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytesV1V2)
 	defer r.bufferPool.Put(headerBuf)
 
 	numRead, err := io.ReadFull(r.reader, headerBuf)
@@ -176,8 +176,8 @@ func SkipNextV1(r *FileReader) error {
 		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
-	if numRead != RecordHeaderSizeBytes {
-		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytes, numRead)
+	if numRead != RecordHeaderSizeBytesV1V2 {
+		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytesV1V2, numRead)
 	}
 
 	r.currentOffset = r.currentOffset + uint64(numRead)
@@ -244,7 +244,7 @@ func (r *FileReader) Close() error {
 
 // legacy support path for non-vint compressed V1
 func readNextV1(r *FileReader) ([]byte, error) {
-	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytes)
+	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytesV1V2)
 	defer r.bufferPool.Put(headerBuf)
 
 	numRead, err := io.ReadFull(r.reader, headerBuf)
@@ -252,8 +252,8 @@ func readNextV1(r *FileReader) ([]byte, error) {
 		return nil, fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
-	if numRead != RecordHeaderSizeBytes {
-		return nil, fmt.Errorf("not enough bytes in the record header of '%s' found, expected %d but were %d", r.file.Name(), RecordHeaderSizeBytes, numRead)
+	if numRead != RecordHeaderSizeBytesV1V2 {
+		return nil, fmt.Errorf("not enough bytes in the record header of '%s' found, expected %d but were %d", r.file.Name(), RecordHeaderSizeBytesV1V2, numRead)
 	}
 
 	r.currentOffset = r.currentOffset + uint64(numRead)

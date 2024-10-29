@@ -92,7 +92,7 @@ func fileHeaderAsByteSlice(compressionType uint32) []byte {
 // noinspection GoUnusedFunction
 func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
-	bytes := make([]byte, RecordHeaderSizeBytes)
+	bytes := make([]byte, RecordHeaderSizeBytesV1V2)
 	binary.LittleEndian.PutUint32(bytes[0:4], MagicNumberSeparator)
 	binary.LittleEndian.PutUint64(bytes[4:12], payloadSizeUncompressed)
 	binary.LittleEndian.PutUint64(bytes[12:20], payloadSizeCompressed)
