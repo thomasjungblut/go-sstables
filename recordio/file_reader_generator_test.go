@@ -16,7 +16,7 @@ func TestGenerateTestFiles(t *testing.T) {
 		return
 	}
 
-	prefix := "test_files/v2_compat/"
+	prefix := "test_files/v3_compat/"
 	writeUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord")
 	writeUncompressedMultiRecordAscending(t, prefix+"recordio_UncompressedWriterMultiRecord_asc")
 	writeCompressedMultiRecordAscending(t, prefix+"recordio_SnappyWriterMultiRecord_asc")
@@ -26,9 +26,20 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeCompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_comp2", CompressionTypeSnappy)
 	writeCompressedSingleRecordAugmented(t, prefix+"recordio_UncompressedSingleRecord_comp300", 300) //unknown compression type
 	writeUncompressedSingleRecordAugmentedMagicNumber(t, prefix+"recordio_UncompressedSingleRecord_mnm")
+	writeUncompressedNilAndEmptyRecords(t, prefix+"recordio_UncompressedNilAndEmptyRecord")
 
 	writeDirectIOUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_directio")
 	writeDirectIOUncompressedSingleRecordRandomTrailer(t, prefix+"recordio_UncompressedSingleRecord_directio_trailer")
+}
+
+func writeUncompressedNilAndEmptyRecords(t *testing.T, path string) {
+	writer, err := newUncompressedOpenedWriterAtPath(path)
+	defer closeFileWriter(t, writer)
+	assert.Nil(t, err)
+	_, err = writer.Write(nil)
+	assert.Nil(t, err)
+	_, err = writer.Write([]byte{})
+	assert.Nil(t, err)
 }
 
 func writeDirectIOUncompressedSingleRecord(t *testing.T, path string) {

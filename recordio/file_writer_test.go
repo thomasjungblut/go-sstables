@@ -31,7 +31,7 @@ func TestWriterWriteNil(t *testing.T) {
 
 	buf, err := reader.ReadNext()
 	require.Nil(t, err)
-	assert.Equal(t, []byte{}, buf)
+	require.Nil(t, buf)
 	readNextExpectEOF(t, reader)
 }
 
@@ -40,10 +40,10 @@ func TestSingleWriteSize(t *testing.T) {
 	defer removeFileWriterFile(t, writer)
 
 	size := writer.Size()
-	assert.Equal(t, uint64(0x1a), size)
+	assert.Equal(t, uint64(0x1b), size)
 	stat, err := os.Stat(writer.file.Name())
 	require.Nil(t, err)
-	assert.Equal(t, int64(0x1a), stat.Size())
+	assert.Equal(t, int64(0x1b), stat.Size())
 	assert.Equal(t, size, uint64(stat.Size()))
 }
 
@@ -53,28 +53,28 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 
 	offset, err := writer.Write(randomRecordOfSize(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
-	assert.Equal(t, uint64(0x12), writer.Size())
+	assert.Equal(t, uint64(0x13), writer.Size())
 	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(10))
-	assert.Equal(t, uint64(0x12), offset)
-	assert.Equal(t, uint64(0x21), writer.Size())
+	assert.Equal(t, uint64(0x13), offset)
+	assert.Equal(t, uint64(0x23), writer.Size())
 	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(25))
-	assert.Equal(t, uint64(0x21), offset)
-	assert.Equal(t, uint64(0x3f), writer.Size())
+	assert.Equal(t, uint64(0x23), offset)
+	assert.Equal(t, uint64(0x42), writer.Size())
 	require.Nil(t, err)
 
-	assert.Equal(t, uint64(0x3f), writer.currentOffset)
-	assert.Equal(t, uint64(0x3f), writer.Size())
+	assert.Equal(t, uint64(0x42), writer.currentOffset)
+	assert.Equal(t, uint64(0x42), writer.Size())
 
 	err = writer.Close()
 	require.Nil(t, err)
 
 	stat, err := os.Stat(writer.file.Name())
 	require.Nil(t, err)
-	assert.Equal(t, int64(63), stat.Size())
+	assert.Equal(t, int64(66), stat.Size())
 
 	reader := newReaderOnTopOfWriter(t, writer)
 	defer closeFileReader(t, reader)
