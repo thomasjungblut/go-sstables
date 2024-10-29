@@ -28,10 +28,10 @@ func TestSimpleWriteWithRotationHappyPath(t *testing.T) {
 		appendAndRecord(t, log, record, &recorder)
 	}
 
-	// should have four files by now, as we did three rounds at 8K
+	// should have five files by now, as we did three rounds at 8K
 	// plus the overhead of headers which accounts for another WAL on overflow
-	// and since this is the next WAL number, it should be total of 5
-	assert.Equal(t, uint(5), log.nextWriterNumber)
+	// and since this is the next WAL number, it should be total of 6
+	assert.Equal(t, uint(6), log.nextWriterNumber)
 	err := log.Close()
 	require.Nil(t, err)
 	assertRecorderMatchesReplay(t, log.walOptions, recorder)

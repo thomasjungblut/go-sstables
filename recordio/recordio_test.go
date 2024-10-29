@@ -90,8 +90,19 @@ func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T) 
 		require.NoError(t, err)
 		numRead++
 	}
+
+	// empty case
+	_, err = writer.Write(make([]byte, 0))
+	require.NoError(t, err)
+	numRead++
+
+	// nil case
+	_, err = writer.Write(nil)
+	require.NoError(t, err)
+	numRead++
+
 	require.NoError(t, scanner.Err())
-	assert.Equal(t, 59, numRead)
+	assert.Equal(t, 61, numRead)
 	require.NoError(t, writer.Close())
 	require.NoError(t, inFile.Close())
 
@@ -110,6 +121,17 @@ func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T) 
 	}
 	require.NoError(t, scanner.Err())
 	assert.Equal(t, 59, numRead)
+
+	// empty case
+	bytes, err := reader.ReadNext()
+	require.NoError(t, err)
+	assert.Equal(t, []byte{}, bytes)
+
+	// nil case
+	bytes, err = reader.ReadNext()
+	require.NoError(t, err)
+	assert.Nil(t, bytes)
+
 	// ensure that the reader does not find anything beyond this
 	_, err = reader.ReadNext()
 	require.ErrorIs(t, err, io.EOF)
