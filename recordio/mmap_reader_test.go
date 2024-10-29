@@ -39,12 +39,12 @@ func TestMMapReaderSingleRecordOffsetBiggerThanFile(t *testing.T) {
 
 func TestMMapReaderVersionMismatchV0(t *testing.T) {
 	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v0", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 2 but was 0")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 0")
 }
 
 func TestMMapReaderVersionMismatchV256(t *testing.T) {
 	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v256", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 2 but was 256")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 256")
 }
 
 func TestMMapReaderCompressionGzipHeader(t *testing.T) {

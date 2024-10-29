@@ -77,6 +77,33 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 	return payloadSizeUncompressed, payloadSizeCompressed, nil
 }
 
+func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
+	magicNumber, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if magicNumber != MagicNumberSeparatorLong {
+		return 0, 0, false, MagicNumberMismatchErr
+	}
+
+	recordNil, err := r.ReadByte()
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeUncompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	return payloadSizeUncompressed, payloadSizeCompressed, recordNil == 1, nil
+}
+
 func allocateRecordBuffer(header *Header, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (uint64, []byte) {
 	expectedBytesRead := payloadSizeUncompressed
 	if header.compressor != nil {

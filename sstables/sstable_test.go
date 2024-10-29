@@ -113,6 +113,36 @@ func TestReadStreamedWriteEndToEndForRangeTesting(t *testing.T) {
 	assertExhaustiveRangeReads(t, writer.opts.basePath, expectedNumbers)
 }
 
+func TestNilEmptyReadAndWrites(t *testing.T) {
+	writer, err := newTestSSTableStreamWriter()
+	require.Nil(t, err)
+	defer cleanWriterDir(t, writer)
+
+	require.NoError(t, writer.Open())
+	require.NoError(t, writer.WriteNext([]byte("akey"), nil))
+	require.NoError(t, writer.WriteNext([]byte("bkey"), []byte{}))
+	require.NoError(t, writer.Close())
+
+	list := skiplist.NewSkipListMap[[]byte, []byte](skiplist.BytesComparator{})
+	list.Insert([]byte("akey"), nil)
+	list.Insert([]byte("bkey"), []byte{})
+
+	r, it := getFullScanIterator(t, writer.opts.basePath)
+	defer closeReader(t, r)
+	assertContentMatchesSkipList(t, r, list)
+
+	k, v, err := it.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("akey"), k)
+	require.Equal(t, nil, v)
+	k, v, err = it.Next()
+	require.NoError(t, err)
+	require.Equal(t, []byte("bkey"), k)
+	require.Equal(t, []byte{}, v)
+	_, _, err = it.Next()
+	require.Equal(t, Done, err)
+}
+
 func streamedWrite1kElements(t *testing.T, writer *SSTableStreamWriter) []int {
 	return streamedWriteElements(t, writer, 1000)
 }

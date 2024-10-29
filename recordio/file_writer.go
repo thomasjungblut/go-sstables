@@ -15,6 +15,7 @@ import (
 // The file header has a 32 bit version number and a 32 bit compression type enum according to the table above.
 // Each record written in the file follows the following format (sequentially):
 // - MagicNumber (encoding/binary/Uvarint) to separate records from each other.
+// - single byte set to 1 if the record is supposed to be nil. Otherwise, 0.
 // - Uncompressed data payload size (encoding/binary/Uvarint).
 // - Compressed data payload size (encoding/binary/Uvarint), or 0 if the data is not compressed.
 // - Payload as plain bytes, possibly compressed
@@ -55,7 +56,7 @@ func (w *FileWriter) Open() error {
 
 	w.currentOffset = uint64(offset)
 	w.open = true
-	w.recordHeaderCache = make([]byte, RecordHeaderV2MaxSizeBytes)
+	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
 	w.bufferPool = new(pool.BufferPool)
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
@@ -88,7 +89,7 @@ func fileHeaderAsByteSlice(compressionType uint32) []byte {
 }
 
 // for legacy reference still around, main paths unused - mostly for tests writing old versions
-//noinspection GoUnusedFunction
+// noinspection GoUnusedFunction
 func writeRecordHeaderV1(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	// 4 byte magic number, 8 byte uncompressed size, 8 bytes for compressed size = 20 bytes
 	bytes := make([]byte, RecordHeaderSizeBytes)
@@ -110,8 +111,34 @@ func fillRecordHeaderV2(bytes []byte, payloadSizeUncompressed uint64, payloadSiz
 	return bytes[:off]
 }
 
+// for legacy reference still around, main paths unused - mostly for tests writing old versions
+// noinspection GoUnusedFunction
 func writeRecordHeaderV2(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (int, error) {
 	header := fillRecordHeaderV2(writer.recordHeaderCache, payloadSizeUncompressed, payloadSizeCompressed)
+	written, err := writer.bufWriter.Write(header)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
+}
+
+func fillRecordHeaderV3(bytes []byte, payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNil bool) []byte {
+	off := binary.PutUvarint(bytes, MagicNumberSeparatorLong)
+	if recordNil {
+		bytes[off] = 1
+	} else {
+		bytes[off] = 0
+	}
+	off += 1
+	off += binary.PutUvarint(bytes[off:], payloadSizeUncompressed)
+	off += binary.PutUvarint(bytes[off:], payloadSizeCompressed)
+
+	return bytes[:off]
+}
+
+func writeRecordHeaderV3(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNil bool) (int, error) {
+	header := fillRecordHeaderV3(writer.recordHeaderCache, payloadSizeUncompressed, payloadSizeCompressed, recordNil)
 	written, err := writer.bufWriter.Write(header)
 	if err != nil {
 		return 0, err
@@ -143,9 +170,14 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	}
 
 	prevOffset := w.currentOffset
-	headerBytesWritten, err := writeRecordHeaderV2(w, uncompressedSize, compressedSize)
+	headerBytesWritten, err := writeRecordHeaderV3(w, uncompressedSize, compressedSize, record == nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write record header in file at '%s' failed with %w", w.file.Name(), err)
+	}
+
+	if record == nil {
+		w.currentOffset = prevOffset + uint64(headerBytesWritten)
+		return prevOffset, nil
 	}
 
 	recordBytesWritten, err := w.bufWriter.Write(recordToWrite)

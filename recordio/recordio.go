@@ -10,17 +10,22 @@ import (
 
 const Version1 uint32 = 0x01
 const Version2 uint32 = 0x02
-const CurrentVersion = Version2
+const Version3 uint32 = 0x03
+const CurrentVersion = Version3
 const MagicNumberSeparator uint32 = 0x130691
 const MagicNumberSeparatorLong uint64 = 0x130691
 
 // FileHeaderSizeBytes has a 4 byte version number, 4 byte compression code = 8 bytes
 const FileHeaderSizeBytes = 8
-const RecordHeaderSizeBytes = 20
+const RecordHeaderSizeBytes = 21
 
 // RecordHeaderV2MaxSizeBytes is the max buffer sizes to prevent PutUvarint to panic:
 // 10 byte magic number, 10 byte uncompressed size, 10 bytes for compressed size = 30 bytes
 const RecordHeaderV2MaxSizeBytes = binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64
+
+// RecordHeaderV3MaxSizeBytes is the max buffer sizes to prevent PutUvarint to panic:
+// 10 byte magic number, 10 byte uncompressed size, 10 bytes for compressed size, 1 byte for nil = 31 bytes
+const RecordHeaderV3MaxSizeBytes = binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + 1
 
 // never reorder, always append
 const (
