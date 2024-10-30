@@ -123,6 +123,7 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 		return fmt.Errorf("error while writing crc64 hash in '%s': %w", writer.opts.basePath, err)
 	}
 
+	preWriteOffset := writer.dataWriter.Size()
 	recordOffset, err := writer.dataWriter.Write(value)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
@@ -130,7 +131,9 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 
 	_, err = writer.indexWriter.Write(&sProto.IndexEntry{Key: key, ValueOffset: recordOffset, Checksum: crc.Sum64()})
 	if err != nil {
-		return fmt.Errorf("error writeNext index writer error in '%s': %w", writer.opts.basePath, err)
+		// in case of failures we need to try to rewind the data writer's offset to preWriteOffset
+		seekErr := writer.dataWriter.Seek(preWriteOffset)
+		return fmt.Errorf("error writeNext index writer/seeker error in '%s': %w", writer.opts.basePath, errors.Join(err, seekErr))
 	}
 
 	writer.metaData.NumRecords += 1

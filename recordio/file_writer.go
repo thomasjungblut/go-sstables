@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
@@ -23,9 +24,11 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file               *os.File
-	bufWriter          WriteCloserFlusher
-	currentOffset      uint64
+	file          *os.File
+	bufWriter     WriteSeekerCloserFlusher
+	currentOffset uint64
+	headerOffset  uint64
+
 	compressionType    int
 	compressor         compressor.CompressionI
 	recordHeaderCache  []byte
@@ -55,6 +58,7 @@ func (w *FileWriter) Open() error {
 	}
 
 	w.currentOffset = uint64(offset)
+	w.headerOffset = w.currentOffset
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
 	w.bufferPool = new(pool.BufferPool)
@@ -236,6 +240,22 @@ func (w *FileWriter) Size() uint64 {
 	return w.currentOffset
 }
 
+func (w *FileWriter) Seek(offset uint64) error {
+	if offset < w.headerOffset {
+		return fmt.Errorf("can't seek into the header range, supplied: %d header: %d", offset, w.headerOffset)
+	}
+	if offset > w.Size() {
+		return fmt.Errorf("can't seek past file size, supplied: %d header: %d", offset, w.Size())
+	}
+
+	newOffset, err := w.bufWriter.Seek(int64(offset), io.SeekStart)
+	if err != nil {
+		return err
+	}
+	w.currentOffset = uint64(newOffset)
+	return nil
+}
+
 // options
 
 type FileWriterOptions struct {
@@ -333,7 +353,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteSeekerCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
 	return &FileWriter{
 		file:               file,
 		bufWriter:          bufWriter,

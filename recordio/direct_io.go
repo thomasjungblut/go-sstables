@@ -21,7 +21,7 @@ func (d DirectIOFactory) CreateNewReader(filePath string, bufSize int) (*os.File
 	return readFile, NewCountingByteReader(NewReaderBuf(readFile, block)), nil
 }
 
-func (d DirectIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File, WriteCloserFlusher, error) {
+func (d DirectIOFactory) CreateNewWriter(filePath string, bufSize int) (*os.File, WriteSeekerCloserFlusher, error) {
 	writeFile, err := directio.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, nil, err
