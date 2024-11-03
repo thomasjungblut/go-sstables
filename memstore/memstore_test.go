@@ -3,6 +3,7 @@ package memstore
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"os"
 	"testing"
@@ -246,7 +247,7 @@ func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
 
 	val, err := reader.Get([]byte("akey"))
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{}, val)
+	assert.Nil(t, val)
 
 	val, err = reader.Get([]byte("bkey"))
 	assert.Nil(t, err)
@@ -255,6 +256,32 @@ func TestMemStoreFlushWithTombStonesInclusive(t *testing.T) {
 	// negative test
 	_, err = reader.Get([]byte("ckey"))
 	assert.Equal(t, sstables.NotFound, err)
+}
+
+func TestMemStoreTombstoneBehavior(t *testing.T) {
+	m := newMemStoreTest()
+	require.NoError(t, m.Upsert([]byte("akey"), []byte("aval")))
+	require.NoError(t, m.Tombstone([]byte("akey")))
+	require.NoError(t, m.Tombstone([]byte("bkey")))
+
+	tmpDir, err := os.MkdirTemp("", "memstore_flush")
+	require.Nil(t, err)
+	defer func() { require.Nil(t, os.RemoveAll(tmpDir)) }()
+
+	require.Nil(t, m.FlushWithTombstones(sstables.WriteBasePath(tmpDir)))
+	reader, err := sstables.NewSSTableReader(
+		sstables.ReadBasePath(tmpDir),
+		sstables.ReadWithKeyComparator(m.comparator))
+	require.Nil(t, err)
+	defer closeReader(t, reader)
+
+	val, err := reader.Get([]byte("akey"))
+	require.Nil(t, err)
+	require.Nil(t, val)
+
+	val, err = reader.Get([]byte("bkey"))
+	require.Nil(t, err)
+	require.Nil(t, val)
 }
 
 func TestMemStoreSStableIteratorUpsertOnly(t *testing.T) {
