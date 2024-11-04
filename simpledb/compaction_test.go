@@ -112,3 +112,33 @@ func TestExecCompactionWithTombstone(t *testing.T) {
 	// check size of compacted sstable
 	assert.Equal(t, 700, int(db.sstableManager.currentSSTable().MetaData().NumRecords))
 }
+func TestExecCompactionWithTombstoneRewriten(t *testing.T) {
+	db := newOpenedSimpleDB(t, "simpledb_compactionSameContent")
+	defer cleanDatabaseFolder(t, db)
+	// we'll close the database to mock some internals directly, yes it's very hacky
+	closeDatabase(t, db)
+	db.closed = false
+	db.compactionThreshold = 0
+
+	writeSSTableWithTombstoneInDatabaseFolder(t, db, fmt.Sprintf(SSTablePattern, 42))
+	// the tombstone are overwrite
+	writeSSTableWithDataInDatabaseFolder(t, db, fmt.Sprintf(SSTablePattern, 43))
+	assert.Nil(t, db.reconstructSSTables())
+	assert.Equal(t, 1300, int(db.sstableManager.currentSSTable().MetaData().GetNumRecords()))
+
+	compactionMeta, err := executeCompaction(db)
+	assert.Nil(t, err)
+	assert.Equal(t, "sstable_000000000000042", compactionMeta.ReplacementPath)
+	assert.Equal(t, []string{"sstable_000000000000042", "sstable_000000000000043"}, compactionMeta.SstablePaths)
+	fmt.Print(compactionMeta)
+	err = db.sstableManager.reflectCompactionResult(compactionMeta)
+	assert.NoError(t, err)
+	v, err := db.Get("512")
+	assert.NoError(t, err)
+	assert.Equal(t, "512", v)
+	// for cleanups
+	assert.Nil(t, db.sstableManager.currentReader.Close())
+
+	// check size of compacted sstable
+	assert.Equal(t, 1000, int(db.sstableManager.currentSSTable().MetaData().NumRecords))
+}
