@@ -123,12 +123,15 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	for i := 0; i < len(s.allSSTableReaders); i++ {
 		reader := s.allSSTableReaders[i]
 		// avoid the EmptySStableReader (or empty files) and only include small enough SSTables
+		// TODO(thomas): empty sstables should be removed entirely during compaction
 		if reader.MetaData().NumRecords > 0 && reader.MetaData().TotalBytes < compactionMaxSizeBytes {
-			paths = append(paths, reader.BasePath())
-			numRecords += reader.MetaData().NumRecords
+			// we can only ensure to remove tombstones when we compact from the beginning of all non-empty tables
 			if i == 0 {
 				canRemoveTombstone = true
 			}
+
+			paths = append(paths, reader.BasePath())
+			numRecords += reader.MetaData().NumRecords
 		}
 	}
 

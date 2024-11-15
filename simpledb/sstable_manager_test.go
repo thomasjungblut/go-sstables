@@ -67,10 +67,37 @@ func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
 		path:     "4",
 	})
 
-	assertCompactionAction(t, 0, []string(nil), manager.candidateTablesForCompaction(25))
-	assertCompactionAction(t, 5, []string{"2"}, manager.candidateTablesForCompaction(51))
-	assertCompactionAction(t, 15, []string{"1", "2"}, manager.candidateTablesForCompaction(101))
-	assertCompactionAction(t, 115, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(1500))
+	assertCompactionAction(t, 0, []string(nil), false, manager.candidateTablesForCompaction(25))
+	assertCompactionAction(t, 5, []string{"2"}, false, manager.candidateTablesForCompaction(51))
+	assertCompactionAction(t, 15, []string{"1", "2"}, true, manager.candidateTablesForCompaction(101))
+	assertCompactionAction(t, 115, []string{"1", "2", "3"}, true, manager.candidateTablesForCompaction(1500))
+}
+
+func TestSSTableManagerSelectCompactionCandidatesEmptyStart(t *testing.T) {
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
+		path:     "1",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 50},
+		path:     "2",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
+		path:     "3",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 25, TotalBytes: 175},
+		path:     "4",
+	})
+
+	assertCompactionAction(t, 5, []string{"2"}, true, manager.candidateTablesForCompaction(100))
+	assertCompactionAction(t, 30, []string{"2", "4"}, false, manager.candidateTablesForCompaction(200))
 }
 
 func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
@@ -98,10 +125,11 @@ func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
 	assert.Equal(t, "3", filepath.Base(manager.allSSTableReaders[1].BasePath()))
 }
 
-func assertCompactionAction(t *testing.T, numRecords int, paths []string, actualAction compactionAction) {
+func assertCompactionAction(t *testing.T, numRecords int, paths []string, expectedTombstoneRemoval bool,
+	actualAction compactionAction) {
 	assert.Equal(t, numRecords, int(actualAction.totalRecords))
-	assert.Equal(t, len(paths), len(actualAction.pathsToCompact))
 	assert.Equal(t, paths, actualAction.pathsToCompact)
+	assert.Equal(t, expectedTombstoneRemoval, actualAction.canRemoveTombstone)
 }
 
 type MockSSTableReader struct {
