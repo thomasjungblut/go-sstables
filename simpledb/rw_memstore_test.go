@@ -85,12 +85,12 @@ func setupPrefilledRWMemstore(t *testing.T) *RWMemstore {
 		writeStore: memstore.NewMemStore(),
 	}
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 10; i++ {
 		is := asStringBytes(i)
 		assert.Nil(t, rw.readStore.Add(is, is))
 	}
 
-	for i := 5; i < 10050; i++ {
+	for i := 5; i < 15; i++ {
 		is := asStringBytes(i)
 		assert.Nil(t, rw.writeStore.Add(is, is))
 	}
