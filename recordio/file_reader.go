@@ -350,28 +350,53 @@ func readNextV2(r *FileReader) ([]byte, error) {
 	return returnSlice, nil
 }
 
-// TODO(thomas): we have to add an option pattern here as well
-
-// NewFileReaderWithPath creates a new recordio file reader that can read RecordIO files at the given path.
-func NewFileReaderWithPath(path string) (ReaderI, error) {
-	return newFileReaderWithFactory(path, BufferedIOFactory{})
+// options
+type FileReaderOptions struct {
+	path            string
+	file            *os.File
+	bufferSizeBytes int
 }
 
-// NewFileReaderWithFile creates a new recordio file reader that can read RecordIO files with the given file.
-// The file will be managed from here on out (ie closing).
-func NewFileReaderWithFile(file *os.File) (ReaderI, error) {
-	// we're closing the existing file, as it's being recreated by the factory below
-	err := file.Close()
-	if err != nil {
-		return nil, fmt.Errorf("error while closing existing file handle at '%s': %w", file.Name(), err)
+type FileReaderOption func(*FileReaderOptions)
+
+// ReaderPath defines the file path where to read the recordio file
+// Either this or File must be supplied.
+func ReaderPath(p string) FileReaderOption {
+	return func(args *FileReaderOptions) {
+		args.path = p
+	}
+}
+
+// ReaderFile uses the given os.File as the sink to write into. The code manages the given file lifecycle (ie closing).
+// Either this or Path must be supplied
+func ReaderFile(p *os.File) FileReaderOption {
+	return func(args *FileReaderOptions) {
+		args.file = p
+	}
+}
+
+// BufferSizeBytes sets the write buffer size, by default it uses DefaultBufferSize.
+// This is the internal memory buffer before it's written to disk.
+func ReaderBufferSizeBytes(p int) FileReaderOption {
+	return func(args *FileReaderOptions) {
+		args.bufferSizeBytes = p
+	}
+}
+
+// NewFileReader creates a new reader with the given options, either Path or File must be supplied, compression is optional.
+func NewFileReader(readerOptions ...FileReaderOption) (ReaderI, error) {
+	opts := &FileReaderOptions{
+		path:            "",
+		file:            nil,
+		bufferSizeBytes: DefaultBufferSize,
 	}
 
-	return newFileReaderWithFactory(file.Name(), BufferedIOFactory{})
-}
+	for _, readOption := range readerOptions {
+		readOption(opts)
+	}
 
-// NewFileReaderWithFactory creates a new recordio file reader under a path and a given ReaderWriterCloserFactory.
-func newFileReaderWithFactory(path string, factory ReaderWriterCloserFactory) (ReaderI, error) {
-	f, r, err := factory.CreateNewReader(path, DefaultBufferSize)
+	factory := BufferedIOFactory{}
+	f, r, err := factory.CreateNewReader(opts.path, opts.bufferSizeBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -383,4 +408,21 @@ func newFileReaderWithFactory(path string, factory ReaderWriterCloserFactory) (R
 		closed:        false,
 		currentOffset: 0,
 	}, nil
+}
+
+// NewFileReaderWithPath creates a new recordio file reader that can read RecordIO files at the given path.
+func NewFileReaderWithPath(path string) (ReaderI, error) {
+	return NewFileReader(ReaderPath(path))
+}
+
+// NewFileReaderWithFile creates a new recordio file reader that can read RecordIO files with the given file.
+// The file will be managed from here on out (ie closing).
+func NewFileReaderWithFile(file *os.File) (ReaderI, error) {
+	// we're closing the existing file, as it's being recreated by the factory below
+	err := file.Close()
+	if err != nil {
+		return nil, fmt.Errorf("error while closing existing file handle at '%s': %w", file.Name(), err)
+	}
+
+	return NewFileReader(ReaderPath(file.Name()))
 }
