@@ -67,7 +67,7 @@ func TestReadWriteEndToEndDirectIO(t *testing.T) {
 	require.NoError(t, err)
 
 	reader := func() ReaderI {
-		reader, err := NewFileReader(ReaderPath(tmpFile.Name()))
+		reader, err := NewFileReader(ReaderPath(tmpFile.Name()), ReaderIoFactory(DirectIOFactory{}))
 		require.NoError(t, err)
 		require.NoError(t, reader.Open())
 		return reader
