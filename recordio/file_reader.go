@@ -403,8 +403,7 @@ func NewFileReader(readerOptions ...FileReaderOption) (ReaderI, error) {
 		readOption(opts)
 	}
 
-	factory := BufferedIOFactory{}
-	f, r, err := factory.CreateNewReader(opts.path, opts.bufferSizeBytes)
+	f, r, err := opts.factory.CreateNewReader(opts.path, opts.bufferSizeBytes)
 	if err != nil {
 		return nil, err
 	}
