@@ -240,7 +240,10 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 		err = executeFlush(db, memStoreFlushAction{
 			memStore: swapMemstore(db),
 		})
-
+		if err != nil {
+			log.Printf("Error Flush memstore %v", err)
+			return err
+		}
 		elapsedDuration := time.Since(start)
 		log.Printf("done replaying WAL in %v with %d records\n", elapsedDuration, numRecords)
 	}

@@ -29,7 +29,7 @@ func backgroundCompaction(db *DB) {
 			select {
 			case <-db.compactionTickerStopChannel:
 				return nil
-			case _ = <-db.compactionTicker.C:
+			case <-db.compactionTicker.C:
 				metadata, err := executeCompaction(db)
 				if err != nil {
 					return err

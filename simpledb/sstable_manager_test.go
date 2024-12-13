@@ -1,16 +1,17 @@
 package simpledb
 
 import (
-	"github.com/stretchr/testify/assert"
-	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
-	"github.com/thomasjungblut/go-sstables/skiplist"
-	"github.com/thomasjungblut/go-sstables/sstables"
-	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
+	"github.com/thomasjungblut/go-sstables/skiplist"
+	"github.com/thomasjungblut/go-sstables/sstables"
+	"github.com/thomasjungblut/go-sstables/sstables/proto"
 )
 
 func TestSSTableManagerAdditionHappyPath(t *testing.T) {
@@ -67,10 +68,10 @@ func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
 		path:     "4",
 	})
 
-	assertCompactionAction(t, 0, []string(nil), manager.candidateTablesForCompaction(25))
-	assertCompactionAction(t, 5, []string{"2"}, manager.candidateTablesForCompaction(51))
-	assertCompactionAction(t, 15, []string{"1", "2"}, manager.candidateTablesForCompaction(101))
-	assertCompactionAction(t, 115, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(1500))
+	assertCompactionAction(t, 0, []string{"4"}, manager.candidateTablesForCompaction(25))
+	assertCompactionAction(t, 5, []string{"2", "4"}, manager.candidateTablesForCompaction(51))
+	assertCompactionAction(t, 15, []string{"1", "2", "4"}, manager.candidateTablesForCompaction(101))
+	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(1500))
 }
 
 func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
