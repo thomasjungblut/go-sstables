@@ -1,10 +1,11 @@
 package simpledb
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/thomasjungblut/go-sstables/memstore"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/memstore"
 )
 
 func TestRWMemstoreAddShouldGoToWriteStore(t *testing.T) {

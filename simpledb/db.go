@@ -427,7 +427,7 @@ func CompactionFileThreshold(n int) ExtraOption {
 }
 
 // CompactionMaxSizeBytes tells whether an SSTable is considered for compaction.
-// SSTables over the given threshold will not be compacted any further. Default is 5GB in DefaultCompactionMaxSizeBytes.
+// SSTables over the given threshold will not be compacted any further. Default is 5GB in DefaultCompactionMaxSizeBytes
 func CompactionMaxSizeBytes(n uint64) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionMaxSizeBytes = n
