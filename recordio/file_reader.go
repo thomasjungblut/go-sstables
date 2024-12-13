@@ -355,6 +355,7 @@ type FileReaderOptions struct {
 	path            string
 	file            *os.File
 	bufferSizeBytes int
+	factory         IOFactory
 }
 
 type FileReaderOption func(*FileReaderOptions)
@@ -375,7 +376,14 @@ func ReaderFile(p *os.File) FileReaderOption {
 	}
 }
 
-// BufferSizeBytes sets the write buffer size, by default it uses DefaultBufferSize.
+// BufferSizeBytes sets the IoFactory, by default it uses BufferedIOFactory.
+func ReaderIoFactory(factory IOFactory) FileReaderOption {
+	return func(args *FileReaderOptions) {
+		args.factory = factory
+	}
+}
+
+// set Factory , by default it uses DefaultBufferSize.
 // This is the internal memory buffer before it's written to disk.
 func ReaderBufferSizeBytes(p int) FileReaderOption {
 	return func(args *FileReaderOptions) {
