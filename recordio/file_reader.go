@@ -397,6 +397,7 @@ func NewFileReader(readerOptions ...FileReaderOption) (ReaderI, error) {
 		path:            "",
 		file:            nil,
 		bufferSizeBytes: DefaultBufferSize,
+		factory:         BufferedIOFactory{},
 	}
 
 	for _, readOption := range readerOptions {
