@@ -3,17 +3,18 @@ package sstables
 import (
 	"errors"
 	"fmt"
+	"hash/crc64"
+	"hash/fnv"
+	"io"
+	"os"
+	"path/filepath"
+
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	pb "google.golang.org/protobuf/proto"
-	"hash/crc64"
-	"hash/fnv"
-	"io"
-	"os"
-	"path/filepath"
 )
 
 var ChecksumErr = ChecksumError{}
@@ -117,7 +118,7 @@ func (reader *SSTableReader) getValueAtOffset(iVal indexVal, skipHashCheck bool)
 
 func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 	if reader.v0DataReader != nil {
-		dataReader, err := rProto.NewProtoReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
+		dataReader, err := rProto.NewReader(rProto.ReaderPath(filepath.Join(reader.opts.basePath, DataFileName)))
 		if err != nil {
 			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner: %w", reader.opts.basePath, err)
 		}
@@ -335,7 +336,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 }
 
 func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (indexMap skiplist.MapI[[]byte, indexVal], err error) {
-	reader, err := rProto.NewProtoReaderWithPath(indexPath)
+	reader, err := rProto.NewReader(rProto.ReaderPath(indexPath))
 	if err != nil {
 		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
 	}

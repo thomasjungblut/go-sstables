@@ -1,9 +1,11 @@
 package proto
 
 import (
+	"errors"
+	"os"
+
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"google.golang.org/protobuf/proto"
-	"os"
 )
 
 type Reader struct {
@@ -36,22 +38,59 @@ func (r *Reader) Close() error {
 	return r.reader.Close()
 }
 
-func NewProtoReaderWithPath(path string) (ReaderI, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
+// options
 
-	r, err := NewProtoReaderWithFile(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
+type ReaderOptions struct {
+	path         string
+	file         *os.File
+	bufSizeBytes int
 }
 
-func NewProtoReaderWithFile(file *os.File) (ReaderI, error) {
-	reader, err := recordio.NewFileReaderWithFile(file)
+type ReaderOption func(*ReaderOptions)
+
+func ReaderPath(p string) ReaderOption {
+	return func(args *ReaderOptions) {
+		args.path = p
+	}
+}
+
+func ReaderFile(p *os.File) ReaderOption {
+	return func(args *ReaderOptions) {
+		args.file = p
+	}
+}
+
+func ReadBufferSizeBytes(p int) ReaderOption {
+	return func(args *ReaderOptions) {
+		args.bufSizeBytes = p
+	}
+}
+
+// create a new reader with the given options. Either Path or File must be supplied
+func NewReader(readerOptions ...ReaderOption) (ReaderI, error) {
+	opts := &ReaderOptions{
+		path:         "",
+		file:         nil,
+		bufSizeBytes: 1024 * 1024 * 4,
+	}
+
+	for _, readerOption := range readerOptions {
+		readerOption(opts)
+	}
+
+	if (opts.file != nil) && (opts.path != "") {
+		return nil, errors.New("either os.File or string path must be supplied, never both")
+	}
+
+	if opts.file == nil {
+		if opts.path == "" {
+			return nil, errors.New("path was not supplied")
+		}
+	}
+	reader, err := recordio.NewFileReader(
+		recordio.ReaderPath(opts.path),
+		recordio.ReaderFile(opts.file),
+		recordio.ReaderBufferSizeBytes(opts.bufSizeBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -59,4 +98,15 @@ func NewProtoReaderWithFile(file *os.File) (ReaderI, error) {
 	return &Reader{
 		reader: reader,
 	}, nil
+
+}
+
+// Deprecated: use the NewProtoReader with options.
+func NewProtoReaderWithPath(path string) (ReaderI, error) {
+	return NewReader(ReaderPath(path))
+}
+
+// Deprecated: use the NewProtoReader with options.
+func NewProtoReaderWithFile(file *os.File) (ReaderI, error) {
+	return NewReader(ReaderFile(file))
 }
