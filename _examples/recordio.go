@@ -2,12 +2,13 @@ package main
 
 import (
 	"errors"
-	"github.com/thomasjungblut/go-sstables/_examples/proto"
-	"github.com/thomasjungblut/go-sstables/recordio"
-	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"io"
 	"log"
 	"os"
+
+	"github.com/thomasjungblut/go-sstables/_examples/proto"
+	"github.com/thomasjungblut/go-sstables/recordio"
+	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 }
 
 func simpleRead(path string) {
-	reader, err := rProto.NewProtoReaderWithPath(path)
+	reader, err := rProto.NewReader(rProto.ReaderPath(path))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

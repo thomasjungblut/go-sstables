@@ -2,13 +2,14 @@ package proto
 
 import (
 	"bufio"
+	"math/rand"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"github.com/thomasjungblut/go-sstables/recordio/test_files"
-	"math/rand"
-	"os"
-	"testing"
 )
 
 const TestFile = "../test_files/berlin52.tsp"
@@ -63,7 +64,7 @@ func endToEndReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.File) {
 	require.NoError(t, writer.Close())
 	require.NoError(t, inFile.Close())
 
-	reader, err := NewProtoReaderWithPath(tmpFile.Name())
+	reader, err := NewReader(ReaderPath(tmpFile.Name()))
 	require.NoError(t, err)
 	require.NoError(t, reader.Open())
 

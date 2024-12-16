@@ -3,17 +3,18 @@ package sstables
 import (
 	"errors"
 	"fmt"
+	"hash/crc64"
+	"hash/fnv"
+	"io"
+	"os"
+	"path/filepath"
+
 	"github.com/steakknife/bloomfilter"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	pb "google.golang.org/protobuf/proto"
-	"hash/crc64"
-	"hash/fnv"
-	"io"
-	"os"
-	"path/filepath"
 )
 
 var ChecksumErr = ChecksumError{}
@@ -117,7 +118,7 @@ func (reader *SSTableReader) getValueAtOffset(iVal indexVal, skipHashCheck bool)
 
 func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 	if reader.v0DataReader != nil {
-		dataReader, err := rProto.NewProtoReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
+		dataReader, err := rProto.NewReader(rProto.ReaderPath(filepath.Join(reader.opts.basePath, DataFileName)))
 		if err != nil {
 			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner: %w", reader.opts.basePath, err)
 		}
@@ -135,7 +136,10 @@ func (reader *SSTableReader) Scan() (SSTableIteratorI, error) {
 		}
 		return newV0SStableFullScanIterator(it, dataReader)
 	} else {
-		dataReader, err := recordio.NewFileReaderWithPath(filepath.Join(reader.opts.basePath, DataFileName))
+		dataReader, err := recordio.NewFileReader(
+			recordio.ReaderPath(filepath.Join(reader.opts.basePath, DataFileName)),
+			recordio.ReaderBufferSizeBytes(reader.opts.readBufferSizeBytes),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("error in sstable '%s' while creating a scanner: %w", reader.opts.basePath, err)
 		}
@@ -263,6 +267,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		skipInvalidHashesOnLoad: false,
 		skipHashCheckOnLoad:     false,
 		skipHashCheckOnRead:     true,
+		readBufferSizeBytes:     4 * 1024 * 1024,
 	}
 
 	for _, readOption := range readerOptions {
@@ -277,7 +282,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		return nil, errors.New("SSTableReader: no key comparator supplied")
 	}
 
-	index, err := readIndex(filepath.Join(opts.basePath, IndexFileName), opts.keyComparator)
+	index, err := readIndex(filepath.Join(opts.basePath, IndexFileName), opts.keyComparator, opts.readBufferSizeBytes)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading index of sstable in '%s': %w", opts.basePath, err)
 	}
@@ -334,8 +339,11 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	return reader, nil
 }
 
-func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte]) (indexMap skiplist.MapI[[]byte, indexVal], err error) {
-	reader, err := rProto.NewProtoReaderWithPath(indexPath)
+func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte], readBufferSize int) (indexMap skiplist.MapI[[]byte, indexVal], err error) {
+	reader, err := rProto.NewReader(
+		rProto.ReaderPath(indexPath),
+		rProto.ReadBufferSizeBytes(readBufferSize),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
 	}
@@ -423,6 +431,7 @@ type SSTableReaderOptions struct {
 	skipInvalidHashesOnLoad bool
 	skipHashCheckOnLoad     bool
 	skipHashCheckOnRead     bool
+	readBufferSizeBytes     int
 }
 
 type ReadOption func(*SSTableReaderOptions)
@@ -459,5 +468,11 @@ func SkipHashCheckOnLoad() ReadOption {
 func EnableHashCheckOnReads() ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.skipHashCheckOnRead = false
+	}
+}
+
+func ReadBufferSizeBytes(size int) ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.readBufferSizeBytes = size
 	}
 }
