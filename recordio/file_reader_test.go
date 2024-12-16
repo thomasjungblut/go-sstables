@@ -1,10 +1,13 @@
 package recordio
 
 import (
+	"errors"
+	"io"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io"
-	"testing"
 )
 
 func TestReaderHappyPathSingleRecord(t *testing.T) {
@@ -185,6 +188,21 @@ func TestReaderForbidsDoubleOpens(t *testing.T) {
 	err := reader.Open()
 	require.Nil(t, err)
 	expectErrorStringOnOpen(t, reader, "already opened")
+}
+
+func TestReaderInitNoPath(t *testing.T) {
+	_, err := NewFileReader()
+	assert.Equal(t, errors.New("NewFileReader: either os.File or string path must be supplied, never both"), err)
+}
+
+func TestReaderInitPathAndFile(t *testing.T) {
+	f, err := os.OpenFile("test_files/readerTestFile", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	assert.NoError(t, err)
+	defer os.Remove("test_files/readerTestFile")
+	defer f.Close()
+	reader, err := NewFileReader(ReaderFile(f), ReaderPath("test_files/readerTestFile2"))
+	assert.Equal(t, errors.New("NewFileReader: either os.File or string path must be supplied, never both"), err)
+	assert.Nil(t, reader)
 }
 
 func expectErrorStringOnOpen(t *testing.T, reader OpenClosableI, expectedError string) {

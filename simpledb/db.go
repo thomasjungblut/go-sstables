@@ -25,6 +25,8 @@ const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 const NumSSTablesToTriggerCompaction int = 10
 const DefaultCompactionMaxSizeBytes uint64 = 5 * 1024 * 1024 * 1024 // 5gb
 const DefaultCompactionInterval = 5 * time.Second
+const DefaultWriteBufferSizeBytes uint64 = 4 * 1024 * 1024 // 4Mb
+const DefaultReadBufferSizeBytes uint64 = 4 * 1024 * 1024  // 4Mb
 
 var ErrNotFound = errors.New("ErrNotFound")
 var ErrNotOpenedYet = errors.New("database has not been opened yet, please call Open() first")
@@ -90,6 +92,9 @@ type DB struct {
 	compactionTicker            *time.Ticker
 	compactionTickerStopChannel chan interface{}
 	doneCompactionChannel       chan bool
+
+	writeBufferSizeBytes uint64
+	readBufferSizeBytes  uint64
 }
 
 func (db *DB) Open() error {
@@ -327,6 +332,8 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
+		DefaultWriteBufferSizeBytes,
+		DefaultReadBufferSizeBytes,
 	}
 
 	for _, extraOption := range extraOptions {
@@ -364,6 +371,8 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		doneFlushChannel:            doneFlushChan,
 		compactionTickerStopChannel: compactionTimerStopChannel,
 		doneCompactionChannel:       doneCompactionChan,
+		readBufferSizeBytes:         extraOpts.readBufferSizeBytes,
+		writeBufferSizeBytes:        extraOpts.writeBufferSizeBytes,
 	}, nil
 }
 
@@ -377,6 +386,8 @@ type ExtraOptions struct {
 	compactionFileThreshold int
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
+	writeBufferSizeBytes    uint64
+	readBufferSizeBytes     uint64
 }
 
 type ExtraOption func(options *ExtraOptions)
@@ -431,5 +442,19 @@ func CompactionFileThreshold(n int) ExtraOption {
 func CompactionMaxSizeBytes(n uint64) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionMaxSizeBytes = n
+	}
+}
+
+// WriteBufferSizeBytes is the write buffer size for all buffer used by simple db.
+func WriteBufferSizeBytes(n uint64) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.writeBufferSizeBytes = n
+	}
+}
+
+// ReadBufferSizeBytes is the read buffer size for all buffer used by simple db.
+func ReadBufferSizeBytes(n uint64) ExtraOption {
+	return func(args *ExtraOptions) {
+		args.readBufferSizeBytes = n
 	}
 }

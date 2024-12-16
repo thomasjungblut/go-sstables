@@ -151,6 +151,7 @@ func (db *DB) reconstructSSTables() error {
 			reader, err := sstables.NewSSTableReader(
 				sstables.ReadBasePath(p),
 				sstables.ReadWithKeyComparator(db.cmp),
+				sstables.ReadBufferSizeBytes(int(db.readBufferSizeBytes)),
 			)
 			if err != nil {
 				return err

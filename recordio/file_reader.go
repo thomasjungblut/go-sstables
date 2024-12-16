@@ -404,6 +404,10 @@ func NewFileReader(readerOptions ...FileReaderOption) (ReaderI, error) {
 		readOption(opts)
 	}
 
+	if (opts.file == nil) == (opts.path == "") {
+		return nil, errors.New("NewFileReader: either os.File or string path must be supplied, never both")
+	}
+	
 	f, r, err := opts.factory.CreateNewReader(opts.path, opts.bufferSizeBytes)
 	if err != nil {
 		return nil, err
