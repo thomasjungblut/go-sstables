@@ -149,7 +149,11 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 }
 
 func saveCompactionMetadata(writeFolder string, compactionMetadata *proto.CompactionMetadata) (err error) {
-	metaWriter, err := rProto.NewWriter(rProto.Path(filepath.Join(writeFolder, CompactionFinishedSuccessfulFileName)))
+	metaWriter, err := rProto.NewWriter(
+		rProto.Path(filepath.Join(writeFolder, CompactionFinishedSuccessfulFileName)),
+		rProto.WriteBufferSizeBytes(4*1024),
+	)
+
 	if err != nil {
 		return err
 	}
