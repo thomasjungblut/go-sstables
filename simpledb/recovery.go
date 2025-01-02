@@ -39,7 +39,7 @@ func (db *DB) repairCompactions() error {
 				}
 
 				// try to read it, if it's corrupted we would also delete it
-				reader, err := rProto.NewProtoReaderWithPath(metaPath)
+				reader, err := rProto.NewReader(rProto.ReaderPath(metaPath))
 				if err != nil {
 					return err
 				}
@@ -151,6 +151,7 @@ func (db *DB) reconstructSSTables() error {
 			reader, err := sstables.NewSSTableReader(
 				sstables.ReadBasePath(p),
 				sstables.ReadWithKeyComparator(db.cmp),
+				sstables.ReadBufferSizeBytes(int(db.readBufferSizeBytes)),
 			)
 			if err != nil {
 				return err

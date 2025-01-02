@@ -2,9 +2,6 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/thomasjungblut/go-sstables/memstore"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/memstore"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
 func TestFlushHappyPath(t *testing.T) {
@@ -33,11 +34,13 @@ func TestFlushHappyPath(t *testing.T) {
 	}
 
 	db := &DB{
-		cmp:               skiplist.BytesComparator{},
-		basePath:          tmpDir,
-		currentGeneration: 42,
-		rwLock:            &sync.RWMutex{},
-		sstableManager:    NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, tmpDir),
+		cmp:                  skiplist.BytesComparator{},
+		basePath:             tmpDir,
+		currentGeneration:    42,
+		rwLock:               &sync.RWMutex{},
+		sstableManager:       NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, tmpDir),
+		readBufferSizeBytes:  DefaultReadBufferSizeBytes,
+		writeBufferSizeBytes: DefaultWriteBufferSizeBytes,
 	}
 	err = executeFlush(db, action)
 	assert.Nil(t, err)
