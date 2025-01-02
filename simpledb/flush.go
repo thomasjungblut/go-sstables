@@ -2,13 +2,14 @@ package simpledb
 
 import (
 	"fmt"
-	"github.com/thomasjungblut/go-sstables/memstore"
-	"github.com/thomasjungblut/go-sstables/sstables"
 	"log"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	"github.com/thomasjungblut/go-sstables/memstore"
+	"github.com/thomasjungblut/go-sstables/sstables"
 )
 
 func flushMemstoreContinuously(db *DB) {
@@ -50,6 +51,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 	err = memStoreToFlush.FlushWithTombstones(
 		sstables.WriteBasePath(writePath),
 		sstables.WithKeyComparator(db.cmp),
+		sstables.WriteBufferSizeBytes(int(db.writeBufferSizeBytes)),
 		sstables.BloomExpectedNumberOfElements(numElements))
 	if err != nil {
 		return err
@@ -65,6 +67,7 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 	reader, err := sstables.NewSSTableReader(
 		sstables.ReadBasePath(writePath),
 		sstables.ReadWithKeyComparator(db.cmp),
+		sstables.ReadBufferSizeBytes(int(db.readBufferSizeBytes)),
 	)
 	if err != nil {
 		return err

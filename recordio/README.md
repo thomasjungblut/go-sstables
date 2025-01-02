@@ -130,7 +130,7 @@ import (
    rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 )
 
-reader, err := rProto.NewProtoReaderWithPath(path)
+reader, err := rProto.NewProtoReader(rProto.ReaderPath(path))
 if err != nil { log.Fatalf("error: %v", err) }
 
 err = reader.Open()
