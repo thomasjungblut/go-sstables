@@ -2,6 +2,7 @@ package memstore
 
 import (
 	"errors"
+
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
@@ -19,6 +20,8 @@ type MemStoreI interface {
 	Add(key []byte, value []byte) error
 	// Contains returns true when the given key exists, false otherwise
 	Contains(key []byte) bool
+	// IsTombstoned returns true when the given key exists and is tombstoned, false otherwise
+	IsTombstoned(key []byte) bool
 	// Get returns the values for the given key, if not exists returns a KeyNotFound error
 	// if the key exists (meaning it was added and deleted) it will return KeyTombstoned as an error
 	Get(key []byte) ([]byte, error)
@@ -79,6 +82,21 @@ func (m *MemStore) Contains(key []byte) bool {
 		return false
 	}
 	return true
+}
+
+func (m *MemStore) IsTombstoned(key []byte) bool {
+	exist := m.skipListMap.Contains(key)
+	if !exist {
+		return false
+	}
+	element, err := m.skipListMap.Get(key)
+	if errors.Is(err, skiplist.NotFound) {
+		return false
+	}
+	if *element.value == nil {
+		return true
+	}
+	return false
 }
 
 func (m *MemStore) Get(key []byte) ([]byte, error) {
