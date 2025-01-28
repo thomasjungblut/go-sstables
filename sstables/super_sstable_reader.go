@@ -16,12 +16,20 @@ type SuperSSTableReader struct {
 }
 
 func (s SuperSSTableReader) Contains(key []byte) bool {
-	// this can't be implemented using contains because NotFound is the same as false, thus we have to go via Get
-	_, err := s.Get(key)
-	if err != nil && errors.Is(err, NotFound) {
-		return false
+	// scanning from back to front to get the latest definitive answer
+	for i := len(s.readers) - 1; i >= 0; i-- {
+		// first check if key exist to return fast
+		keyExist := s.readers[i].Contains(key)
+		if !keyExist {
+			continue
+		}
+		// we have to check if the value is not tombstoned
+		// maybe had to be implemented in an IsTombstoned in sstableReader
+		res, _ := s.readers[i].Get(key)
+		return res != nil
 	}
-	return true
+
+	return false
 }
 
 func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {
