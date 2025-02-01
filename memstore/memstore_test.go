@@ -2,11 +2,12 @@ package memstore
 
 import (
 	"errors"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"os"
-	"testing"
 )
 
 func TestMemStoreAddHappyPath(t *testing.T) {
@@ -18,6 +19,8 @@ func TestMemStoreAddHappyPath(t *testing.T) {
 	err = m.Add([]byte("a"), []byte("aVal"))
 	assert.Nil(t, err)
 	assert.True(t, m.Contains([]byte("a")))
+	assert.False(t, m.IsTombstoned([]byte("a")))
+
 	val, err = m.Get([]byte("a"))
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("aVal"), val)
@@ -80,6 +83,7 @@ func TestMemStoreDeleteTombstones(t *testing.T) {
 
 	err = m.Delete([]byte("a"))
 	assert.False(t, m.Contains([]byte("a")))
+	assert.True(t, m.IsTombstoned([]byte("a")))
 	// make sure that the value was changed under the hood
 	kv, err = m.skipListMap.Get([]byte("a"))
 	assert.Nil(t, err)
