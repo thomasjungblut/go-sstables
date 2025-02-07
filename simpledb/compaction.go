@@ -116,11 +116,8 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 		}
 	}()
 
-	// we need to keep it if the sstable is not the first with this key.
-	// SS1(KEY1=toto) SS2(KEY2=deleted)  in this case the KEY2 can be removed in SS2
-	// SS1(KEY2=toto) SS2(KEY2=deleted)  in this case the KEY2 can't be removed in SS2
-
-	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, sstables.ScanReduceLatestWins)
+	reduceFunc := sstables.ScanReduceLatestWinsSkipTombstones
+	err = sstables.NewSSTableMerger(db.cmp).MergeCompact(iterators, writer, reduceFunc)
 	if err != nil {
 		return nil, err
 	}

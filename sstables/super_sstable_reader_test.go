@@ -293,6 +293,34 @@ func TestScanReduceFunc(t *testing.T) {
 	k, v = ScanReduceLatestWins(expectedKey, values, []int{0, 0, 0, 0})
 	assert.Equal(t, expectedKey, k)
 	assert.Equal(t, v, values[0])
+
+	// tombstone case, where the latest value is empty and returned as such
+	values = [][]byte{{}, {1}, {2}, {3}}
+	k, v = ScanReduceLatestWins(expectedKey, values, []int{1, 0, 0, 0})
+	assert.Equal(t, expectedKey, k)
+	assert.Equal(t, v, values[0])
+}
+
+func TestScanReduceLatestWinsWithTombstonesFunc(t *testing.T) {
+	expectedKey := []byte{0}
+	values := [][]byte{{0}, {1}, {2}, {3}}
+	k, v := ScanReduceLatestWinsSkipTombstones(expectedKey, values, []int{3, 2, 1, 0})
+	assert.Equal(t, expectedKey, k)
+	assert.Equal(t, v, values[0])
+
+	k, v = ScanReduceLatestWinsSkipTombstones(expectedKey, values, []int{0, 2, 1, 0})
+	assert.Equal(t, expectedKey, k)
+	assert.Equal(t, v, values[1])
+
+	k, v = ScanReduceLatestWinsSkipTombstones(expectedKey, values, []int{0, 0, 0, 0})
+	assert.Equal(t, expectedKey, k)
+	assert.Equal(t, v, values[0])
+
+	// tombstone case, where the latest value is empty and returned as nil
+	values = [][]byte{{}, {1}, {2}, {3}}
+	k, v = ScanReduceLatestWinsSkipTombstones(expectedKey, values, []int{1, 0, 0, 0})
+	assert.Nil(t, k)
+	assert.Nil(t, v)
 }
 
 func TestSuperStaggeredAndOverlappingFull(t *testing.T) {

@@ -53,9 +53,8 @@ type DatabaseI interface {
 }
 
 type compactionAction struct {
-	pathsToCompact     []string
-	totalRecords       uint64
-	canRemoveTombstone bool // if the compaction don't start from the first sstable we cannot remove tombstone
+	pathsToCompact []string
+	totalRecords   uint64
 }
 
 type memStoreFlushAction struct {
@@ -438,7 +437,8 @@ func CompactionFileThreshold(n int) ExtraOption {
 }
 
 // CompactionMaxSizeBytes tells whether an SSTable is considered for compaction.
-// SSTables over the given threshold will not be compacted any further. Default is 5GB in DefaultCompactionMaxSizeBytes
+// This is a best-effort implementation, depending on the write/delete pattern you may need to compact bigger tables.
+// Default is 5GB in DefaultCompactionMaxSizeBytes
 func CompactionMaxSizeBytes(n uint64) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionMaxSizeBytes = n

@@ -1,14 +1,15 @@
 package simpledb
 
 import (
+	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
@@ -45,35 +46,6 @@ func TestSSTableManagerClearingReaders(t *testing.T) {
 	assert.Equal(t, reflect.TypeOf(sstables.EmptySStableReader{}), reflect.TypeOf(manager.currentSSTable()))
 }
 
-func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
-	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
-
-	manager.addReader(&MockSSTableReader{
-		metadata: &proto.MetaData{NumRecords: 10, TotalBytes: 100},
-		path:     "1",
-	})
-
-	manager.addReader(&MockSSTableReader{
-		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 50},
-		path:     "2",
-	})
-
-	manager.addReader(&MockSSTableReader{
-		metadata: &proto.MetaData{NumRecords: 100, TotalBytes: 1200},
-		path:     "3",
-	})
-
-	manager.addReader(&MockSSTableReader{
-		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
-		path:     "4",
-	})
-
-	assertCompactionAction(t, 0, []string{"4"}, manager.candidateTablesForCompaction(25))
-	assertCompactionAction(t, 5, []string{"2", "4"}, manager.candidateTablesForCompaction(51))
-	assertCompactionAction(t, 15, []string{"1", "2", "4"}, manager.candidateTablesForCompaction(101))
-	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(1500))
-}
-
 func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
 	dir, err := os.MkdirTemp("", "simpledb_compactionReflection")
 	assert.Nil(t, err)
@@ -99,10 +71,116 @@ func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
 	assert.Equal(t, "3", filepath.Base(manager.allSSTableReaders[1].BasePath()))
 }
 
+func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 10, TotalBytes: 100},
+		path:     "1",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 50},
+		path:     "2",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 100, TotalBytes: 1200},
+		path:     "3",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
+		path:     "4",
+	})
+
+	assertCompactionAction(t, 0, []string{"4"}, manager.candidateTablesForCompaction(25))
+	assertCompactionAction(t, 105, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(51))
+	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(101))
+	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(1500))
+}
+
+func TestSSTableManagerSelectCompactionCandidatesEmptyStart(t *testing.T) {
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
+		path:     "1",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 50},
+		path:     "2",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, TotalBytes: 0},
+		path:     "3",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 25, TotalBytes: 175},
+		path:     "4",
+	})
+
+	assertCompactionAction(t, 5, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(100))
+	assertCompactionAction(t, 30, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(200))
+}
+
+func TestSSTableManagerSelectCompactionCandidatesTombstonedHoles(t *testing.T) {
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 1000, TotalBytes: 2000},
+		path:     "1",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 1000},
+		path:     "2",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 3000, TotalBytes: 3000},
+		path:     "3",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, TotalBytes: 1000},
+		path:     "4",
+	})
+
+	assertCompactionAction(t, 3010, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(2000))
+}
+
 func assertCompactionAction(t *testing.T, numRecords int, paths []string, actualAction compactionAction) {
 	assert.Equal(t, numRecords, int(actualAction.totalRecords))
-	assert.Equal(t, len(paths), len(actualAction.pathsToCompact))
 	assert.Equal(t, paths, actualAction.pathsToCompact)
+}
+
+func TestFloodFill(t *testing.T) {
+	cases := []struct {
+		input    []bool
+		expected []bool
+	}{
+		{input: []bool{true}, expected: []bool{true}},
+		{input: []bool{false}, expected: []bool{false}},
+		{input: []bool{true, false}, expected: []bool{true, false}},
+		{input: []bool{false, true}, expected: []bool{false, true}},
+		{input: []bool{true, false, true, false, false, false}, expected: []bool{true, true, true, false, false, false}},
+		{input: []bool{true, false, false, true, false, true}, expected: []bool{true, true, true, true, true, true}},
+		{input: []bool{false, false, true, false, false, true}, expected: []bool{false, false, true, true, true, true}},
+		{input: []bool{true, false, false, false, false}, expected: []bool{true, false, false, false, false}},
+		{input: []bool{false, false, false, false, true}, expected: []bool{false, false, false, false, true}},
+		{input: []bool{false, false, false, true, false}, expected: []bool{false, false, false, true, false}},
+		{input: []bool{false, false, false, true, true}, expected: []bool{false, false, false, true, true}},
+		{input: []bool{true, false, false, true, true}, expected: []bool{true, true, true, true, true}},
+	}
+	for n, c := range cases {
+		t.Run("testcase "+strconv.Itoa(n), func(t *testing.T) {
+			assert.Equal(t, c.expected, floodFill(c.input))
+		})
+	}
 }
 
 type MockSSTableReader struct {

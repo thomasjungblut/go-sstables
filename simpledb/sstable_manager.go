@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
@@ -117,28 +116,67 @@ func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uin
 	s.managerLock.RLock()
 	defer s.managerLock.RUnlock()
 
-	numRecords := uint64(0)
-	canRemoveTombstone := false
-	var paths []string
+	var selectedForCompaction []bool
 	for i := 0; i < len(s.allSSTableReaders); i++ {
-		reader := s.allSSTableReaders[i]
-		// avoid the EmptySStableReader (or empty files) and only include small enough SSTables
-		if reader.MetaData().TotalBytes < compactionMaxSizeBytes {
-			paths = append(paths, reader.BasePath())
-			numRecords += reader.MetaData().NumRecords
-			if numRecords == 0 {
-				canRemoveTombstone = true
-			}
+		selectedForCompaction = append(selectedForCompaction, s.allSSTableReaders[i].MetaData().TotalBytes < compactionMaxSizeBytes)
+	}
+
+	/*
+		Imagine the following scenario we have with tombstones:
+			- Table 1 (size 2gig)
+			- Table 2 (size 1gig)
+			- Table 3 (size 3gig)
+			- Table 4 (size 1gig)
+
+		Given maxSize=2gig, the above selection would select table 2 and 4 as candidates.
+		Which will create an entirely wrong data lineage, as the changes from Table 3 will be completely ignored and an
+		entire new Table 2 will be created with "changes from the future".
+
+		The below function will fill the holes, by also selecting the tables in between for compaction - so the lineage is always preserved.
+	*/
+	numRecords := uint64(0)
+	selectedForCompaction = floodFill(selectedForCompaction)
+	var selectedPaths []string
+	for i := 0; i < len(s.allSSTableReaders); i++ {
+		if selectedForCompaction[i] {
+			selectedPaths = append(selectedPaths, s.allSSTableReaders[i].BasePath())
+			numRecords += s.allSSTableReaders[i].MetaData().NumRecords
 		}
 	}
 
-	sort.Strings(paths)
-
 	return compactionAction{
-		pathsToCompact:     paths,
-		totalRecords:       numRecords,
-		canRemoveTombstone: canRemoveTombstone,
+		pathsToCompact: selectedPaths,
+		totalRecords:   numRecords,
 	}
+}
+
+// floodFill sets the values enclosed by true values to true as well.
+func floodFill(a []bool) []bool {
+outer:
+	for i := 0; i < len(a); i++ {
+		if a[i] {
+			// we seek to the next true, when we find it we're filling the gap in between
+			j := i + 1
+			for ; j < len(a); j++ {
+				if a[j] {
+					// fill the gap
+					for x := i; x <= j; x++ {
+						a[x] = true
+					}
+
+					// going back by one, as the outer loop will increment it again, so we start from j again
+					i = j - 1
+					continue outer
+				}
+			}
+
+			// when we hit the end, we're done, because we leave the false values in place
+			if j == len(a) {
+				return a
+			}
+		}
+	}
+	return a
 }
 
 func NewSSTableManager(cmp skiplist.Comparator[[]byte], dbLock *sync.RWMutex, basePath string) *SSTableManager {
