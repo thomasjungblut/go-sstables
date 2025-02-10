@@ -286,6 +286,9 @@ func TestMemStoreTombstoneBehavior(t *testing.T) {
 	val, err = reader.Get([]byte("bkey"))
 	require.Nil(t, err)
 	require.Nil(t, val)
+
+	require.Equal(t, uint64(2), reader.MetaData().NumRecords)
+	require.Equal(t, uint64(2), reader.MetaData().NullValues)
 }
 
 func TestMemStoreSStableIteratorUpsertOnly(t *testing.T) {
