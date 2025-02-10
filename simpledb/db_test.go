@@ -187,7 +187,7 @@ func TestCompactionsFileThreshold(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	assert.Equal(t, 1337, db.compactionThreshold)
+	assert.Equal(t, 1337, db.compactionFileThreshold)
 }
 
 func assertGet(t *testing.T, db *DB, key string) {

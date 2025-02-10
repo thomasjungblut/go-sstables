@@ -1,7 +1,6 @@
 package simpledb
 
 import (
-	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +12,8 @@ import (
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
+
+	sdbProto "github.com/thomasjungblut/go-sstables/simpledb/proto"
 )
 
 func TestSSTableManagerAdditionHappyPath(t *testing.T) {

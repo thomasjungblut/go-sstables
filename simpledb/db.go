@@ -67,18 +67,18 @@ type DB struct {
 	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
 	currentGeneration uint64
 
-	cmp                   skiplist.Comparator[[]byte]
-	basePath              string
-	currentSSTablePath    string
-	memstoreMaxSize       uint64
-	compactionThreshold   int
-	compactionInterval    time.Duration
-	compactedMaxSizeBytes uint64
-	enableCompactions     bool
-	enableAsyncWAL        bool
-	enableDirectIOWAL     bool
-	open                  bool
-	closed                bool
+	cmp                     skiplist.Comparator[[]byte]
+	basePath                string
+	currentSSTablePath      string
+	memstoreMaxSize         uint64
+	compactionFileThreshold int
+	compactionInterval      time.Duration
+	compactedMaxSizeBytes   uint64
+	enableCompactions       bool
+	enableAsyncWAL          bool
+	enableDirectIOWAL       bool
+	open                    bool
+	closed                  bool
 
 	rwLock         *sync.RWMutex
 	wal            wal.WriteAheadLogI
@@ -355,7 +355,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		basePath:                    basePath,
 		currentSSTablePath:          "",
 		memstoreMaxSize:             extraOpts.memstoreSizeBytes,
-		compactionThreshold:         extraOpts.compactionFileThreshold,
+		compactionFileThreshold:     extraOpts.compactionFileThreshold,
 		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
 		enableCompactions:           extraOpts.enableCompactions,
 		enableAsyncWAL:              extraOpts.enableAsyncWAL,
