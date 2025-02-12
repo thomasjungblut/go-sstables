@@ -117,7 +117,14 @@ func ScanReduceLatestWins(key []byte, values [][]byte, context []int) ([]byte, [
 			maxCtxIndex = i
 		}
 	}
-	val := values[maxCtxIndex]
+
+	return key, values[maxCtxIndex]
+}
+
+// ScanReduceLatestWinsSkipTombstones is ScanReduceLatestWins but with additional checks on whether the value is tombstoned.
+// A value is tombstoned when the latest value is being empty, in which case this returns nil, nil.
+func ScanReduceLatestWinsSkipTombstones(key []byte, values [][]byte, context []int) ([]byte, []byte) {
+	key, val := ScanReduceLatestWins(key, values, context)
 	if len(val) == 0 {
 		return nil, nil
 	}

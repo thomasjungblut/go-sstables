@@ -100,7 +100,7 @@ You can get the full example from [examples/sstables.go](/_examples/sstables.go)
 
 One of the great features of SSTables is that you can merge them in linear time and in a sequential fashion, which needs only constant amount of space.  
 
-In this library, this can be easily composed here via full-table scanners and and a writer to output the resulting merged table: 
+In this library, this can be easily composed here via full-table scanners and a writer to output the resulting merged table: 
 
 ```go
 var iterators []sstables.SSTableMergeIteratorContext
