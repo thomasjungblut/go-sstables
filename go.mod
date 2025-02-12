@@ -20,4 +20,4 @@ require (
 
 replace github.com/anishathalye/porcupine v0.1.2 => github.com/tjungblu/porcupine v0.0.0-20221116095144-377185aa0569
 
-go 1.22
+go 1.23

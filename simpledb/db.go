@@ -53,9 +53,8 @@ type DatabaseI interface {
 }
 
 type compactionAction struct {
-	pathsToCompact     []string
-	totalRecords       uint64
-	canRemoveTombstone bool // if the compaction don't start from the first sstable we cannot remove tombstone
+	pathsToCompact []string
+	totalRecords   uint64
 }
 
 type memStoreFlushAction struct {
@@ -68,18 +67,18 @@ type DB struct {
 	// read more here: https://pkg.go.dev/sync/atomic#pkg-note-BUG
 	currentGeneration uint64
 
-	cmp                   skiplist.Comparator[[]byte]
-	basePath              string
-	currentSSTablePath    string
-	memstoreMaxSize       uint64
-	compactionThreshold   int
-	compactionInterval    time.Duration
-	compactedMaxSizeBytes uint64
-	enableCompactions     bool
-	enableAsyncWAL        bool
-	enableDirectIOWAL     bool
-	open                  bool
-	closed                bool
+	cmp                     skiplist.Comparator[[]byte]
+	basePath                string
+	currentSSTablePath      string
+	memstoreMaxSize         uint64
+	compactionFileThreshold int
+	compactionInterval      time.Duration
+	compactedMaxSizeBytes   uint64
+	enableCompactions       bool
+	enableAsyncWAL          bool
+	enableDirectIOWAL       bool
+	open                    bool
+	closed                  bool
 
 	rwLock         *sync.RWMutex
 	wal            wal.WriteAheadLogI
@@ -356,7 +355,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		basePath:                    basePath,
 		currentSSTablePath:          "",
 		memstoreMaxSize:             extraOpts.memstoreSizeBytes,
-		compactionThreshold:         extraOpts.compactionFileThreshold,
+		compactionFileThreshold:     extraOpts.compactionFileThreshold,
 		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
 		enableCompactions:           extraOpts.enableCompactions,
 		enableAsyncWAL:              extraOpts.enableAsyncWAL,
@@ -438,7 +437,8 @@ func CompactionFileThreshold(n int) ExtraOption {
 }
 
 // CompactionMaxSizeBytes tells whether an SSTable is considered for compaction.
-// SSTables over the given threshold will not be compacted any further. Default is 5GB in DefaultCompactionMaxSizeBytes
+// This is a best-effort implementation, depending on the write/delete pattern you may need to compact bigger tables.
+// Default is 5GB in DefaultCompactionMaxSizeBytes
 func CompactionMaxSizeBytes(n uint64) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionMaxSizeBytes = n
