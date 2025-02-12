@@ -28,6 +28,7 @@ func TestSkipListSimpleWriteHappyPath(t *testing.T) {
 	require.Nil(t, err)
 	defer closeReader(t, reader)
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
+	assert.Equal(t, 0, int(reader.MetaData().NullValues))
 	assertContentMatchesSkipList(t, reader, list)
 }
 

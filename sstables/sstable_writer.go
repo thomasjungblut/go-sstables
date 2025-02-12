@@ -137,6 +137,9 @@ func (writer *SSTableStreamWriter) WriteNext(key []byte, value []byte) error {
 	}
 
 	writer.metaData.NumRecords += 1
+	if value == nil {
+		writer.metaData.NullValues += 1
+	}
 
 	return nil
 }
