@@ -112,13 +112,18 @@ func (s *SSTableManager) currentSSTable() sstables.SSTableReaderI {
 	return s.currentReader
 }
 
-func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uint64) compactionAction {
+func (s *SSTableManager) candidateTablesForCompaction(compactionMaxSizeBytes uint64, compactionRatio float32) compactionAction {
 	s.managerLock.RLock()
 	defer s.managerLock.RUnlock()
 
 	var selectedForCompaction []bool
 	for i := 0; i < len(s.allSSTableReaders); i++ {
-		selectedForCompaction = append(selectedForCompaction, s.allSSTableReaders[i].MetaData().TotalBytes < compactionMaxSizeBytes)
+		selected := s.allSSTableReaders[i].MetaData().TotalBytes < compactionMaxSizeBytes
+		if s.allSSTableReaders[i].MetaData().NumRecords > 0 {
+			tombstoneRatio := float32(s.allSSTableReaders[i].MetaData().NullValues) / float32(s.allSSTableReaders[i].MetaData().NumRecords)
+			selected = selected || tombstoneRatio >= compactionRatio
+		}
+		selectedForCompaction = append(selectedForCompaction, selected)
 	}
 
 	/*
