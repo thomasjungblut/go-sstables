@@ -164,9 +164,8 @@ func TestCompactionWithTombstonesBeyondMaxSize(t *testing.T) {
 
 	compactionMeta, err := executeCompaction(db)
 	assert.Nil(t, err)
-	// TODO(thomas): this should also compact the 42 table, as it wastes a ton of space in tombstones
-	assert.Equal(t, "sstable_000000000000043", compactionMeta.ReplacementPath)
-	assert.Equal(t, []string{"sstable_000000000000043"}, compactionMeta.SstablePaths)
+	assert.Equal(t, "sstable_000000000000042", compactionMeta.ReplacementPath)
+	assert.Equal(t, []string{"sstable_000000000000042", "sstable_000000000000043"}, compactionMeta.SstablePaths)
 
 	err = db.sstableManager.reflectCompactionResult(compactionMeta)
 	assert.NoError(t, err)
@@ -175,8 +174,7 @@ func TestCompactionWithTombstonesBeyondMaxSize(t *testing.T) {
 	assert.Equal(t, "512", v)
 	// for cleanups
 	assert.Nil(t, db.sstableManager.currentReader.Close())
-	// TODO(thomas): ideally that table should only be 10
-	assert.Equal(t, 310, int(db.sstableManager.currentSSTable().MetaData().NumRecords))
+	assert.Equal(t, 10, int(db.sstableManager.currentSSTable().MetaData().NumRecords))
 }
 
 func writeSSTableWithDataInDatabaseFolder(t *testing.T, db *DB, p string) {
