@@ -55,7 +55,7 @@ func backgroundCompaction(db *DB) {
 }
 
 func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, err error) {
-	compactionAction := db.sstableManager.candidateTablesForCompaction(db.compactedMaxSizeBytes)
+	compactionAction := db.sstableManager.candidateTablesForCompaction(db.compactedMaxSizeBytes, db.compactionRatio)
 	paths := compactionAction.pathsToCompact
 	numRecords := compactionAction.totalRecords
 	if len(paths) <= db.compactionFileThreshold {

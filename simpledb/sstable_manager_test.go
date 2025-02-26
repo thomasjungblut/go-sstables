@@ -95,10 +95,40 @@ func TestSSTableManagerSelectCompactionCandidates(t *testing.T) {
 		path:     "4",
 	})
 
-	assertCompactionAction(t, 0, []string{"4"}, manager.candidateTablesForCompaction(25))
-	assertCompactionAction(t, 105, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(51))
-	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(101))
-	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(1500))
+	assertCompactionAction(t, 0, []string{"4"}, manager.candidateTablesForCompaction(25, 1))
+	assertCompactionAction(t, 105, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(51, 1))
+	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(101, 1))
+	assertCompactionAction(t, 115, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(1500, 1))
+}
+
+func TestSSTableManagerSelectCompactionCandidatesTombstoneRatios(t *testing.T) {
+	manager := NewSSTableManager(skiplist.BytesComparator{}, &sync.RWMutex{}, "")
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 10, NullValues: 8, TotalBytes: 1000},
+		path:     "1",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 5, NullValues: 0, TotalBytes: 1000},
+		path:     "2",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 100, NullValues: 10, TotalBytes: 1000},
+		path:     "3",
+	})
+
+	manager.addReader(&MockSSTableReader{
+		metadata: &proto.MetaData{NumRecords: 0, NullValues: 0, TotalBytes: 1000},
+		path:     "4",
+	})
+
+	assertCompactionAction(t, 10, []string{"1"}, manager.candidateTablesForCompaction(999, 0.2))
+	// 1 and 3 should be selected by ratio, 2 is here for the ride because of flood filling
+	assertCompactionAction(t, 115, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(999, 0.1))
+	assertCompactionAction(t, 115, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(999, 0))
+	assertCompactionAction(t, 0, nil, manager.candidateTablesForCompaction(999, 1))
 }
 
 func TestSSTableManagerSelectCompactionCandidatesEmptyStart(t *testing.T) {
@@ -124,8 +154,8 @@ func TestSSTableManagerSelectCompactionCandidatesEmptyStart(t *testing.T) {
 		path:     "4",
 	})
 
-	assertCompactionAction(t, 5, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(100))
-	assertCompactionAction(t, 30, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(200))
+	assertCompactionAction(t, 5, []string{"1", "2", "3"}, manager.candidateTablesForCompaction(100, 1))
+	assertCompactionAction(t, 30, []string{"1", "2", "3", "4"}, manager.candidateTablesForCompaction(200, 1))
 }
 
 func TestSSTableManagerSelectCompactionCandidatesTombstonedHoles(t *testing.T) {
@@ -151,7 +181,7 @@ func TestSSTableManagerSelectCompactionCandidatesTombstonedHoles(t *testing.T) {
 		path:     "4",
 	})
 
-	assertCompactionAction(t, 3010, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(2000))
+	assertCompactionAction(t, 3010, []string{"2", "3", "4"}, manager.candidateTablesForCompaction(2000, 1))
 }
 
 func assertCompactionAction(t *testing.T, numRecords int, paths []string, actualAction compactionAction) {

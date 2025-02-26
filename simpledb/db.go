@@ -2,6 +2,7 @@ package simpledb
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ const MemStoreMaxSizeBytes uint64 = 1024 * 1024 * 1024 // 1gb
 const NumSSTablesToTriggerCompaction int = 10
 const DefaultCompactionMaxSizeBytes uint64 = 5 * 1024 * 1024 * 1024 // 5gb
 const DefaultCompactionInterval = 5 * time.Second
+const DefaultCompactionRatio = float32(0.2)
 const DefaultWriteBufferSizeBytes uint64 = 4 * 1024 * 1024 // 4Mb
 const DefaultReadBufferSizeBytes uint64 = 4 * 1024 * 1024  // 4Mb
 
@@ -73,6 +75,7 @@ type DB struct {
 	memstoreMaxSize         uint64
 	compactionFileThreshold int
 	compactionInterval      time.Duration
+	compactionRatio         float32
 	compactedMaxSizeBytes   uint64
 	enableCompactions       bool
 	enableAsyncWAL          bool
@@ -331,6 +334,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		NumSSTablesToTriggerCompaction,
 		DefaultCompactionMaxSizeBytes,
 		DefaultCompactionInterval,
+		DefaultCompactionRatio,
 		DefaultWriteBufferSizeBytes,
 		DefaultReadBufferSizeBytes,
 	}
@@ -361,6 +365,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		enableAsyncWAL:              extraOpts.enableAsyncWAL,
 		enableDirectIOWAL:           extraOpts.enableDirectIOWAL,
 		compactionInterval:          extraOpts.compactionRunInterval,
+		compactionRatio:             extraOpts.compactionRatio,
 		closed:                      false,
 		rwLock:                      rwLock,
 		wal:                         nil,
@@ -385,6 +390,7 @@ type ExtraOptions struct {
 	compactionFileThreshold int
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
+	compactionRatio         float32
 	writeBufferSizeBytes    uint64
 	readBufferSizeBytes     uint64
 }
@@ -425,6 +431,21 @@ func EnableDirectIOWAL() ExtraOption {
 func CompactionRunInterval(interval time.Duration) ExtraOption {
 	return func(args *ExtraOptions) {
 		args.compactionRunInterval = interval
+	}
+}
+
+// CompactionRatio configures when a sstable is eligible for compaction through a ratio threshold, which can be used to save disk space.
+// The ratio is measured as the amount of tombstoned keys divided by the overall record number in the sstable.
+// This threshold must be between 0.0 and 1.0 as float32 and by default is DefaultCompactionRatio.
+// So when a sstable has more than 20% of records flagged as tombstones, it will be automatically compacted.
+// A value of 1.0 turns this feature off and resorts to the max size calculation, a value of 0.0 will always compact
+// all files regardless of how many tombstones are in there.
+func CompactionRatio(ratio float32) ExtraOption {
+	if ratio < 0.0 || ratio > 1.0 {
+		panic(fmt.Sprintf("invalid compaction ratio: %f, must be between 0 and 1", ratio))
+	}
+	return func(args *ExtraOptions) {
+		args.compactionRatio = ratio
 	}
 }
 
