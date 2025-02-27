@@ -19,9 +19,7 @@ func main() {
 }
 
 func mainSimpleRead(path string) {
-	reader, err := sstables.NewSSTableReader(
-		sstables.ReadBasePath("/tmp/sstable_example/"),
-		sstables.ReadWithKeyComparator(skiplist.BytesComparator{}))
+	reader, err := sstables.NewSSTableReader(sstables.ReadBasePath("/tmp/sstable_example/"))
 	if err != nil {
 		log.Fatalf("error: %v", err)
 	}

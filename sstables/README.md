@@ -62,13 +62,11 @@ if err != nil { log.Fatalf("error: %v", err) }
  
 ### Reading an SSTable
 
-Reading can be done by using having a path and the respective comparator. 
+Reading can be done by only passing a path to the sstable reader. 
 Below example will show what metadata is available, how to get values and check if they exist and how to do a range scan.
 
 ```go
-reader, err := sstables.NewSSTableReader(
-    sstables.ReadBasePath("/tmp/sstable_example/"),
-    sstables.ReadWithKeyComparator(skiplist.BytesComparator{}))
+reader, err := sstables.NewSSTableReader(sstables.ReadBasePath("/tmp/sstable_example/"))
 if err != nil { log.Fatalf("error: %v", err) }
 defer reader.Close()
 

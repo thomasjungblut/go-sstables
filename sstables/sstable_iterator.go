@@ -10,7 +10,7 @@ import (
 
 type SSTableIterator struct {
 	reader      *SSTableReader
-	keyIterator skiplist.IteratorI[[]byte, indexVal]
+	keyIterator skiplist.IteratorI[[]byte, IndexVal]
 }
 
 func (it *SSTableIterator) Next() ([]byte, []byte, error) {
@@ -35,7 +35,7 @@ func (it *SSTableIterator) Next() ([]byte, []byte, error) {
 // this is an optimized iterator that does a sequential read over the index+data files instead of a
 // sequential read on the index with a random access lookup on the data file via mmap
 type V0SSTableFullScanIterator struct {
-	keyIterator skiplist.IteratorI[[]byte, indexVal]
+	keyIterator skiplist.IteratorI[[]byte, IndexVal]
 	dataReader  rProto.ReaderI
 }
 
@@ -58,7 +58,7 @@ func (it *V0SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 	return key, value.Value, nil
 }
 
-func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVal], dataReader rProto.ReaderI) (SSTableIteratorI, error) {
+func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, IndexVal], dataReader rProto.ReaderI) (SSTableIteratorI, error) {
 	return &V0SSTableFullScanIterator{
 		keyIterator: keyIterator,
 		dataReader:  dataReader,
@@ -68,7 +68,7 @@ func newV0SStableFullScanIterator(keyIterator skiplist.IteratorI[[]byte, indexVa
 // SSTableFullScanIterator this is an optimized iterator that does a sequential read over the index+data files instead of a
 // sequential read on the index with a random access lookup on the data file via mmap
 type SSTableFullScanIterator struct {
-	keyIterator skiplist.IteratorI[[]byte, indexVal]
+	keyIterator skiplist.IteratorI[[]byte, IndexVal]
 	dataReader  recordio.ReaderI
 
 	skipHashCheck bool
@@ -98,20 +98,20 @@ func (it *SSTableFullScanIterator) Next() ([]byte, []byte, error) {
 		return nil, nil, err
 	}
 
-	if checksum != iVal.checksum {
+	if checksum != iVal.Checksum {
 		// this mismatch could come from default values, reading older formats
-		if iVal.checksum == 0 {
+		if iVal.Checksum == 0 {
 			return key, next, nil
 		}
 
-		return key, next, ChecksumError{checksum, iVal.checksum}
+		return key, next, ChecksumError{checksum, iVal.Checksum}
 	}
 
 	return key, next, err
 }
 
 func newSStableFullScanIterator(
-	keyIterator skiplist.IteratorI[[]byte, indexVal],
+	keyIterator skiplist.IteratorI[[]byte, IndexVal],
 	dataReader recordio.ReaderI,
 	skipHashCheck bool) (SSTableIteratorI, error) {
 	return &SSTableFullScanIterator{
