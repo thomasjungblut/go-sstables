@@ -3,10 +3,12 @@ package sstables
 import (
 	"errors"
 	"fmt"
-	"hash/crc64"
-	"hash/fnv"
 	"io"
 	"os"
+
+	"hash/crc64"
+	"hash/fnv"
+
 	"path/filepath"
 
 	"github.com/steakknife/bloomfilter"
@@ -16,8 +18,6 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	pb "google.golang.org/protobuf/proto"
 )
-
-var ChecksumErr = ChecksumError{}
 
 type ChecksumError struct {
 	checksum         uint64
@@ -206,10 +206,6 @@ func (reader *SSTableReader) validateDataFile() error {
 		return err
 	}
 
-	skippedRecords := uint64(0)
-	// TODO(thomas): how do we deal with different implementations of the interface here?
-	// we could instead create a dedicated map for keys that are known to be corrupt and create a filtering on top
-	indexReplacement := skiplist.NewSkipListMap[[]byte, IndexVal](reader.opts.keyComparator)
 	for {
 		k, iv, err := iterator.Next()
 		if err != nil {
@@ -221,22 +217,9 @@ func (reader *SSTableReader) validateDataFile() error {
 		}
 
 		if _, err := reader.getValueAtOffset(iv, false); err != nil {
-			if errors.Is(err, ChecksumErr) && reader.opts.skipInvalidHashesOnLoad {
-				skippedRecords++
-				continue
-			}
 			return fmt.Errorf("error loading sstable '%s' at key [%v]: %w",
 				reader.opts.basePath, k, err)
 		}
-
-		if reader.opts.skipInvalidHashesOnLoad {
-			indexReplacement.Insert(k, iv)
-		}
-	}
-
-	if reader.opts.skipInvalidHashesOnLoad {
-		reader.metaData.SkippedRecords = skippedRecords
-		reader.index = indexReplacement
 	}
 
 	return nil
@@ -260,10 +243,9 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		basePath: "",
 		// by default, we validate the integrity on loading and never checking when reading.
 		// Other use cases might want to rather check the integrity at runtime while reading key / value pairs.
-		skipInvalidHashesOnLoad: false,
-		skipHashCheckOnLoad:     false,
-		skipHashCheckOnRead:     true,
-		readBufferSizeBytes:     4 * 1024 * 1024,
+		skipHashCheckOnLoad: false,
+		skipHashCheckOnRead: true,
+		readBufferSizeBytes: 4 * 1024 * 1024,
 	}
 
 	for _, readOption := range readerOptions {
@@ -395,9 +377,8 @@ type SSTableReaderOptions struct {
 	// TODO(thomas): this is a special case of the skiplist index, which should go into the loader implementation
 	keyComparator skiplist.Comparator[[]byte]
 
-	skipInvalidHashesOnLoad bool
-	skipHashCheckOnLoad     bool
-	skipHashCheckOnRead     bool
+	skipHashCheckOnLoad bool
+	skipHashCheckOnRead bool
 }
 
 type ReadOption func(*SSTableReaderOptions)
@@ -412,14 +393,6 @@ func ReadBasePath(p string) ReadOption {
 func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.keyComparator = cmp
-	}
-}
-
-// SkipInvalidHashesOnLoad will not index key/value pairs that have a hash mismatch in them.
-// The database will pretend it does not know those records.
-func SkipInvalidHashesOnLoad() ReadOption {
-	return func(args *SSTableReaderOptions) {
-		args.skipInvalidHashesOnLoad = true
 	}
 }
 
