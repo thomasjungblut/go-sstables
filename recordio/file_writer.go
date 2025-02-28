@@ -24,8 +24,12 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file          *os.File
-	bufWriter     WriteSeekerCloserFlusher
+	file      *os.File
+	bufWriter WriteSeekerCloserFlusher
+	// largestOffset tracks the largest currentOffset that was returned so far
+	// this is important in scenarios when we seek back in the file, but are not writing past largestOffset
+	// which causes some lingering bytes that are not full records
+	largestOffset uint64
 	currentOffset uint64
 	headerOffset  uint64
 
@@ -58,6 +62,7 @@ func (w *FileWriter) Open() error {
 	}
 
 	w.currentOffset = uint64(offset)
+	w.largestOffset = w.currentOffset
 	w.headerOffset = w.currentOffset
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
@@ -194,6 +199,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	}
 
 	w.currentOffset = prevOffset + uint64(headerBytesWritten) + uint64(recordBytesWritten)
+	w.largestOffset = max(w.largestOffset, w.currentOffset)
 	return prevOffset, nil
 }
 
@@ -229,6 +235,16 @@ func (w *FileWriter) Close() error {
 	if err != nil {
 		return fmt.Errorf("failed to flush close in file at '%s' failed with %w", w.file.Name(), err)
 	}
+
+	// when we have previously written past the currentOffset because of seeks, we need to truncate the file again to
+	// avoid reading partial records
+	if w.largestOffset > w.currentOffset {
+		err = w.file.Truncate(int64(w.currentOffset))
+		if err != nil {
+			return fmt.Errorf("failed to truncate file at '%s' failed with %w", w.file.Name(), err)
+		}
+	}
+
 	err = w.file.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close file at '%s' failed with %w", w.file.Name(), err)
@@ -252,6 +268,7 @@ func (w *FileWriter) Seek(offset uint64) error {
 	if err != nil {
 		return err
 	}
+	w.largestOffset = max(w.largestOffset, w.currentOffset)
 	w.currentOffset = uint64(newOffset)
 	return nil
 }

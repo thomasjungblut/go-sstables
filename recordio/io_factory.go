@@ -6,5 +6,5 @@ import (
 
 type IOFactory interface {
 	CreateNewReader(filePath string, bufSize int) (*os.File, ByteReaderResetCount, error)
-	CreateNewWriter(filePath string, bufSize int) (*os.File, WriteCloserFlusher, error)
+	CreateNewWriter(filePath string, bufSize int) (*os.File, WriteSeekerCloserFlusher, error)
 }
