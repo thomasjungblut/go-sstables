@@ -34,7 +34,7 @@ type SortedKeyIndex interface {
 
 type IndexLoader interface {
 	// Load is creating a SortedKeyIndex from the given path.
-	Load(path string) (SortedKeyIndex, error)
+	Load(path string, metadata *proto.MetaData) (SortedKeyIndex, error)
 }
 
 type SkipListIndexLoader struct {
@@ -42,7 +42,7 @@ type SkipListIndexLoader struct {
 	ReadBufferSize int
 }
 
-func (l *SkipListIndexLoader) Load(indexPath string) (_ SortedKeyIndex, err error) {
+func (l *SkipListIndexLoader) Load(indexPath string, _ *proto.MetaData) (_ SortedKeyIndex, err error) {
 	reader, err := rProto.NewReader(
 		rProto.ReaderPath(indexPath),
 		rProto.ReadBufferSizeBytes(l.ReadBufferSize),
@@ -61,9 +61,9 @@ func (l *SkipListIndexLoader) Load(indexPath string) (_ SortedKeyIndex, err erro
 	}()
 
 	indexMap := skiplist.NewSkipListMap[[]byte, IndexVal](l.KeyComparator)
+	record := &proto.IndexEntry{}
 
 	for {
-		record := &proto.IndexEntry{}
 		_, err := reader.ReadNext(record)
 		// io.EOF signals that no records are left to be read
 		if errors.Is(err, io.EOF) {

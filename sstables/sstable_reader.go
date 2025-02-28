@@ -285,7 +285,12 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 		}
 	}
 
-	index, err := opts.indexLoader.Load(filepath.Join(opts.basePath, IndexFileName))
+	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
+	if err != nil {
+		return nil, fmt.Errorf("error while reading metadata of sstable in '%s': %w", opts.basePath, err)
+	}
+
+	index, err := opts.indexLoader.Load(filepath.Join(opts.basePath, IndexFileName), metaData)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading index of sstable in '%s': %w", opts.basePath, err)
 	}
@@ -293,11 +298,6 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	filter, err := readFilterIfExists(filepath.Join(opts.basePath, BloomFileName))
 	if err != nil {
 		return nil, fmt.Errorf("error while reading filter of sstable in '%s': %w", opts.basePath, err)
-	}
-
-	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
-	if err != nil {
-		return nil, fmt.Errorf("error while reading metadata of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	reader := &SSTableReader{opts: opts, bloomFilter: filter, index: index, metaData: metaData}
