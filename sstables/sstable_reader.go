@@ -374,7 +374,7 @@ type SSTableReaderOptions struct {
 	readBufferSizeBytes int
 	indexLoader         IndexLoader
 
-	// TODO(thomas): this is a special case of the skiplist index, which should go into the loader implementation
+	// TODO(thomas): this is a special case of the skiplist index, which could go into the loader implementation
 	keyComparator skiplist.Comparator[[]byte]
 
 	skipHashCheckOnLoad bool
@@ -389,7 +389,7 @@ func ReadBasePath(p string) ReadOption {
 	}
 }
 
-// Deprecated: use a custom ReadIndexLoader and supply it to the SkipListIndexLoader
+// ReadWithKeyComparator sets a custom comparator for the index, defaults to skiplist.BytesComparator
 func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.keyComparator = cmp
