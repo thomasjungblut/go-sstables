@@ -1,18 +1,19 @@
 package benchmark
 
 import (
-	"encoding/binary"
 	"errors"
+	"os"
+	"testing"
+	"time"
+
+	"crypto/sha1"
+	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"os"
-	"testing"
-	"time"
 )
 
-// we're writing a gig worth of data and test how long it takes to read the index + all data
 func BenchmarkSSTableRead(b *testing.B) {
 	benchmarks := []struct {
 		name         string
@@ -41,8 +42,12 @@ func BenchmarkSSTableRead(b *testing.B) {
 
 			i := 0
 			for mStore.EstimatedSizeInBytes() < uint64(bm.memstoreSize) {
-				k := make([]byte, 4)
-				binary.BigEndian.PutUint32(k, uint32(i))
+				kx := make([]byte, 4)
+				binary.BigEndian.PutUint32(kx, uint32(i))
+				hash := sha1.New()
+				hash.Write(kx)
+
+				k := hash.Sum([]byte{})
 				assert.Nil(b, mStore.Add(k, bytes))
 				i++
 			}
@@ -62,9 +67,12 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte])
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		loadStart := time.Now()
-		reader, err := sstables.NewSSTableReader(sstables.ReadBasePath(tmpDir), sstables.ReadWithKeyComparator(cmp))
-		b.ReportMetric(float64(time.Now().Sub(loadStart).Milliseconds()), "load_time_ms")
-		b.ReportMetric(float64(time.Now().Sub(loadStart).Nanoseconds())/float64(reader.MetaData().NumRecords), "load_time_ns/record")
+		reader, err := sstables.NewSSTableReader(sstables.ReadBasePath(tmpDir), sstables.ReadWithKeyComparator(cmp), sstables.SkipHashCheckOnLoad())
+		loadEnd := time.Now().Sub(loadStart)
+		b.ReportMetric(float64(loadEnd.Milliseconds()), "load_time_ms")
+		b.ReportMetric(float64(loadEnd.Nanoseconds())/float64(reader.MetaData().NumRecords), "load_time_ns/record")
+		b.ReportMetric(float64(reader.MetaData().IndexBytes), "index_bytes")
+		b.ReportMetric(float64(reader.MetaData().IndexBytes)/1024/1024/loadEnd.Seconds(), "load_bandwidth_mb/s")
 
 		defer func() {
 			assert.Nil(b, reader.Close())
@@ -85,9 +93,11 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte])
 		if reader.MetaData().NumRecords != i {
 			b.Fail()
 		}
+		scanEnd := time.Now().Sub(scanStart)
 		b.SetBytes(int64(reader.MetaData().TotalBytes))
-		b.ReportMetric(float64(time.Now().Sub(scanStart).Milliseconds()), "scan_time_ms")
-		b.ReportMetric(float64(time.Now().Sub(scanStart).Nanoseconds())/float64(i), "scan_time_ns/record")
+		b.ReportMetric(float64(scanEnd.Milliseconds()), "scan_time_ms")
+		b.ReportMetric(float64(scanEnd.Nanoseconds())/float64(i), "scan_time_ns/record")
 		b.ReportMetric(float64(i), "num_records")
+		b.ReportMetric(float64(reader.MetaData().DataBytes)/1024/1024/scanEnd.Seconds(), "scan_bandwidth_mb/s")
 	}
 }
