@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	pool "github.com/libp2p/go-buffer-pool"
@@ -23,9 +24,15 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file               *os.File
-	bufWriter          WriteCloserFlusher
-	currentOffset      uint64
+	file      *os.File
+	bufWriter WriteSeekerCloserFlusher
+	// largestOffset tracks the largest currentOffset that was returned so far
+	// this is important in scenarios when we seek back in the file, but are not writing past largestOffset
+	// which causes some lingering bytes that are not full records
+	largestOffset uint64
+	currentOffset uint64
+	headerOffset  uint64
+
 	compressionType    int
 	compressor         compressor.CompressionI
 	recordHeaderCache  []byte
@@ -55,6 +62,8 @@ func (w *FileWriter) Open() error {
 	}
 
 	w.currentOffset = uint64(offset)
+	w.largestOffset = w.currentOffset
+	w.headerOffset = w.currentOffset
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
 	w.bufferPool = new(pool.BufferPool)
@@ -190,6 +199,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	}
 
 	w.currentOffset = prevOffset + uint64(headerBytesWritten) + uint64(recordBytesWritten)
+	w.largestOffset = max(w.largestOffset, w.currentOffset)
 	return prevOffset, nil
 }
 
@@ -225,6 +235,16 @@ func (w *FileWriter) Close() error {
 	if err != nil {
 		return fmt.Errorf("failed to flush close in file at '%s' failed with %w", w.file.Name(), err)
 	}
+
+	// when we have previously written past the currentOffset because of seeks, we need to truncate the file again to
+	// avoid reading partial records
+	if w.largestOffset > w.currentOffset {
+		err = w.file.Truncate(int64(w.currentOffset))
+		if err != nil {
+			return fmt.Errorf("failed to truncate file at '%s' failed with %w", w.file.Name(), err)
+		}
+	}
+
 	err = w.file.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close file at '%s' failed with %w", w.file.Name(), err)
@@ -234,6 +254,23 @@ func (w *FileWriter) Close() error {
 
 func (w *FileWriter) Size() uint64 {
 	return w.currentOffset
+}
+
+func (w *FileWriter) Seek(offset uint64) error {
+	if offset < w.headerOffset {
+		return fmt.Errorf("can't seek into the header range, supplied: %d header: %d", offset, w.headerOffset)
+	}
+	if offset > w.Size() {
+		return fmt.Errorf("can't seek past file size, supplied: %d header: %d", offset, w.Size())
+	}
+
+	newOffset, err := w.bufWriter.Seek(int64(offset), io.SeekStart)
+	if err != nil {
+		return err
+	}
+	w.largestOffset = max(w.largestOffset, w.currentOffset)
+	w.currentOffset = uint64(newOffset)
+	return nil
 }
 
 // options
@@ -333,7 +370,7 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 }
 
 // creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
+func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteSeekerCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
 	return &FileWriter{
 		file:               file,
 		bufWriter:          bufWriter,
