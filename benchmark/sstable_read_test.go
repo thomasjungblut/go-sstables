@@ -37,37 +37,74 @@ func BenchmarkSSTableRead(b *testing.B) {
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
-			mStore := memstore.NewMemStore()
-			bytes := randomRecordOfSize(1024)
-
-			i := 0
-			for mStore.EstimatedSizeInBytes() < uint64(bm.memstoreSize) {
-				kx := make([]byte, 4)
-				binary.BigEndian.PutUint32(kx, uint32(i))
-				hash := sha1.New()
-				hash.Write(kx)
-
-				k := hash.Sum([]byte{})
-				assert.Nil(b, mStore.Add(k, bytes))
-				i++
-			}
-
-			assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
-			defer func() {
-				assert.Nil(b, os.RemoveAll(tmpDir))
-			}()
+			writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
 
 			b.ResetTimer()
-			fullScanTable(b, tmpDir, cmp)
+			fullScanTable(b, tmpDir, cmp, nil)
 		})
 	}
 }
 
-func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte]) {
+func BenchmarkSSTableReadIndexTypes(b *testing.B) {
+	sizeTwoGigs := 1024 * 1024 * 1024 * 2
+	cmp := skiplist.BytesComparator{}
+	benchmarks := []struct {
+		name   string
+		loader sstables.IndexLoader
+	}{
+		{"skiplist", &sstables.SkipListIndexLoader{
+			KeyComparator:  cmp,
+			ReadBufferSize: 4096,
+		}},
+		{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+
+			writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
+			b.ResetTimer()
+			fullScanTable(b, tmpDir, cmp, bm.loader)
+		})
+	}
+}
+
+func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) {
+	mStore := memstore.NewMemStore()
+	bytes := randomRecordOfSize(1024)
+
+	i := 0
+	for mStore.EstimatedSizeInBytes() < uint64(sizeBytes) {
+		kx := make([]byte, 4)
+		binary.BigEndian.PutUint32(kx, uint32(i))
+		hash := sha1.New()
+		hash.Write(kx)
+
+		k := hash.Sum([]byte{})
+		assert.Nil(b, mStore.Add(k, bytes))
+		i++
+	}
+
+	assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+}
+
+func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte], loader sstables.IndexLoader) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		loadStart := time.Now()
-		reader, err := sstables.NewSSTableReader(sstables.ReadBasePath(tmpDir), sstables.ReadWithKeyComparator(cmp), sstables.SkipHashCheckOnLoad())
+		opts := []sstables.ReadOption{
+			sstables.ReadBasePath(tmpDir),
+			sstables.ReadWithKeyComparator(cmp),
+			sstables.SkipHashCheckOnLoad(),
+		}
+		if loader != nil {
+			opts = append(opts, sstables.ReadIndexLoader(loader))
+		}
+
+		reader, err := sstables.NewSSTableReader(opts...)
 		loadEnd := time.Now().Sub(loadStart)
 		b.ReportMetric(float64(loadEnd.Milliseconds()), "load_time_ms")
 		b.ReportMetric(float64(loadEnd.Nanoseconds())/float64(reader.MetaData().NumRecords), "load_time_ns/record")
