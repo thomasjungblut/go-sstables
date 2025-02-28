@@ -3,10 +3,12 @@ package sstables
 import (
 	"errors"
 	"fmt"
-	"hash/crc64"
-	"hash/fnv"
 	"io"
 	"os"
+
+	"hash/crc64"
+	"hash/fnv"
+
 	"path/filepath"
 
 	"github.com/steakknife/bloomfilter"
@@ -16,8 +18,6 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	pb "google.golang.org/protobuf/proto"
 )
-
-var ChecksumErr = ChecksumError{}
 
 type ChecksumError struct {
 	checksum         uint64
@@ -34,18 +34,12 @@ func (e ChecksumError) Error() string {
 	return fmt.Sprintf("Checksum mismatch: expected %x, got %x", e.expectedChecksum, e.checksum)
 }
 
-type indexVal struct {
-	offset   uint64
-	checksum uint64
-}
-
 type SSTableReader struct {
-	opts          *SSTableReaderOptions
-	bloomFilter   *bloomfilter.Filter
-	keyComparator skiplist.Comparator[[]byte]
-	// TODO(thomas): use a btree index on disk as an alternative?
-	// TODO(thomas): binary-search on disk could also work as an alternative, albeit much slower
-	index        skiplist.MapI[[]byte, indexVal] // key (as []byte) to a struct containing the uint64 value file offset
+	opts        *SSTableReaderOptions
+	bloomFilter *bloomfilter.Filter
+
+	// key (as []byte) to a struct containing the uint64 value file offset
+	index        SortedKeyIndex
 	v0DataReader rProto.ReadAtI
 	dataReader   recordio.ReadAtI
 	metaData     *proto.MetaData
@@ -54,7 +48,6 @@ type SSTableReader struct {
 
 func (reader *SSTableReader) Contains(key []byte) bool {
 	// short-cut for the bloom filter to tell whether it's not in the set (if available)
-	// TODO(thomas): this is unnecessary overhead, given the index is already a map lookup in memory
 	if reader.bloomFilter != nil {
 		fnvHash := fnv.New64()
 		_, _ = fnvHash.Write(key)
@@ -76,21 +69,21 @@ func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 	return reader.getValueAtOffset(iVal, reader.opts.skipHashCheckOnRead)
 }
 
-func (reader *SSTableReader) getValueAtOffset(iVal indexVal, skipHashCheck bool) (v []byte, err error) {
+func (reader *SSTableReader) getValueAtOffset(iVal IndexVal, skipHashCheck bool) (v []byte, err error) {
 	if reader.v0DataReader != nil {
 		value := &proto.DataEntry{}
-		_, err := reader.v0DataReader.ReadNextAt(value, iVal.offset)
+		_, err := reader.v0DataReader.ReadNextAt(value, iVal.Offset)
 		if err != nil && err != io.EOF {
 			return nil, fmt.Errorf("error in sstable '%s' while getting value at offset %d: %w",
-				reader.opts.basePath, iVal.offset, err)
+				reader.opts.basePath, iVal.Offset, err)
 		}
 
 		v = value.Value
 	} else {
-		v, err = reader.dataReader.ReadNextAt(iVal.offset)
+		v, err = reader.dataReader.ReadNextAt(iVal.Offset)
 		if err != nil && err != io.EOF {
 			return nil, fmt.Errorf("error in sstable '%s' while getting value at offset %d: %w",
-				reader.opts.basePath, iVal.offset, err)
+				reader.opts.basePath, iVal.Offset, err)
 		}
 	}
 
@@ -103,14 +96,14 @@ func (reader *SSTableReader) getValueAtOffset(iVal indexVal, skipHashCheck bool)
 		return nil, err
 	}
 
-	if valChecksum != iVal.checksum {
+	if valChecksum != iVal.Checksum {
 		// this mismatch could come from default values, reading older formats
-		if iVal.checksum == 0 {
+		if iVal.Checksum == 0 {
 			return v, nil
 		}
 
 		return v, fmt.Errorf("error in sstable '%s' while hashing value at offset [%d]: %w",
-			reader.opts.basePath, iVal.offset, ChecksumError{valChecksum, iVal.checksum})
+			reader.opts.basePath, iVal.Offset, ChecksumError{valChecksum, iVal.Checksum})
 	}
 
 	return v, nil
@@ -213,7 +206,6 @@ func (reader *SSTableReader) validateDataFile() error {
 		return err
 	}
 
-	indexReplacement := skiplist.NewSkipListMap[[]byte, indexVal](reader.opts.keyComparator)
 	for {
 		k, iv, err := iterator.Next()
 		if err != nil {
@@ -225,21 +217,9 @@ func (reader *SSTableReader) validateDataFile() error {
 		}
 
 		if _, err := reader.getValueAtOffset(iv, false); err != nil {
-			if errors.Is(err, ChecksumErr) && reader.opts.skipInvalidHashesOnLoad {
-				continue
-			}
 			return fmt.Errorf("error loading sstable '%s' at key [%v]: %w",
 				reader.opts.basePath, k, err)
 		}
-
-		if reader.opts.skipInvalidHashesOnLoad {
-			indexReplacement.Insert(k, iv)
-		}
-	}
-
-	if reader.opts.skipInvalidHashesOnLoad {
-		reader.metaData.SkippedRecords = uint64(reader.index.Size() - indexReplacement.Size())
-		reader.index = indexReplacement
 	}
 
 	return nil
@@ -255,19 +235,17 @@ func checksumValue(value []byte) (uint64, error) {
 	return crc.Sum64(), nil
 }
 
-// NewSSTableReader creates a new reader. The sstable base path and comparator are mandatory:
-// > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"), sstables.ReadWithKeyComparator(some_comp))
+// NewSSTableReader creates a new reader. The sstable base path is mandatory:
+// > sstables.NewSSTableReader(sstables.ReadBasePath("some_path"))
 // This function will check hashes and validity of the datafile matching the index file.
 func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
-
 	opts := &SSTableReaderOptions{
 		basePath: "",
 		// by default, we validate the integrity on loading and never checking when reading.
 		// Other use cases might want to rather check the integrity at runtime while reading key / value pairs.
-		skipInvalidHashesOnLoad: false,
-		skipHashCheckOnLoad:     false,
-		skipHashCheckOnRead:     true,
-		readBufferSizeBytes:     4 * 1024 * 1024,
+		skipHashCheckOnLoad: false,
+		skipHashCheckOnRead: true,
+		readBufferSizeBytes: 4 * 1024 * 1024,
 	}
 
 	for _, readOption := range readerOptions {
@@ -279,10 +257,22 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	}
 
 	if opts.keyComparator == nil {
-		return nil, errors.New("SSTableReader: no key comparator supplied")
+		opts.keyComparator = skiplist.BytesComparator{}
 	}
 
-	index, err := readIndex(filepath.Join(opts.basePath, IndexFileName), opts.keyComparator, opts.readBufferSizeBytes)
+	if opts.indexLoader == nil {
+		opts.indexLoader = &SkipListIndexLoader{
+			KeyComparator:  opts.keyComparator,
+			ReadBufferSize: opts.readBufferSizeBytes,
+		}
+	}
+
+	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
+	if err != nil {
+		return nil, fmt.Errorf("error while reading metadata of sstable in '%s': %w", opts.basePath, err)
+	}
+
+	index, err := opts.indexLoader.Load(filepath.Join(opts.basePath, IndexFileName), metaData)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading index of sstable in '%s': %w", opts.basePath, err)
 	}
@@ -290,11 +280,6 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	filter, err := readFilterIfExists(filepath.Join(opts.basePath, BloomFileName))
 	if err != nil {
 		return nil, fmt.Errorf("error while reading filter of sstable in '%s': %w", opts.basePath, err)
-	}
-
-	metaData, err := readMetaDataIfExists(filepath.Join(opts.basePath, MetaFileName))
-	if err != nil {
-		return nil, fmt.Errorf("error while reading metadata of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	reader := &SSTableReader{opts: opts, bloomFilter: filter, index: index, metaData: metaData}
@@ -337,47 +322,6 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	}
 
 	return reader, nil
-}
-
-func readIndex(indexPath string, keyComparator skiplist.Comparator[[]byte], readBufferSize int) (indexMap skiplist.MapI[[]byte, indexVal], err error) {
-	reader, err := rProto.NewReader(
-		rProto.ReaderPath(indexPath),
-		rProto.ReadBufferSizeBytes(readBufferSize),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("error while creating index reader of sstable in '%s': %w", indexPath, err)
-	}
-
-	err = reader.Open()
-	if err != nil {
-		return nil, fmt.Errorf("error while opening index reader of sstable in '%s': %w", indexPath, err)
-	}
-
-	defer func() {
-		err = errors.Join(err, reader.Close())
-	}()
-
-	indexMap = skiplist.NewSkipListMap[[]byte, indexVal](keyComparator)
-
-	for {
-		record := &proto.IndexEntry{}
-		_, err := reader.ReadNext(record)
-		// io.EOF signals that no records are left to be read
-		if errors.Is(err, io.EOF) {
-			break
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
-		}
-
-		indexMap.Insert(record.Key, indexVal{
-			offset:   record.ValueOffset,
-			checksum: record.Checksum,
-		})
-	}
-
-	return indexMap, nil
 }
 
 func readFilterIfExists(filterPath string) (*bloomfilter.Filter, error) {
@@ -426,12 +370,15 @@ func readMetaDataIfExists(metaPath string) (md *proto.MetaData, err error) {
 
 // SSTableReaderOptions contains both read/write options
 type SSTableReaderOptions struct {
-	basePath                string
-	keyComparator           skiplist.Comparator[[]byte]
-	skipInvalidHashesOnLoad bool
-	skipHashCheckOnLoad     bool
-	skipHashCheckOnRead     bool
-	readBufferSizeBytes     int
+	basePath            string
+	readBufferSizeBytes int
+	indexLoader         IndexLoader
+
+	// TODO(thomas): this is a special case of the skiplist index, which could go into the loader implementation
+	keyComparator skiplist.Comparator[[]byte]
+
+	skipHashCheckOnLoad bool
+	skipHashCheckOnRead bool
 }
 
 type ReadOption func(*SSTableReaderOptions)
@@ -442,17 +389,10 @@ func ReadBasePath(p string) ReadOption {
 	}
 }
 
+// ReadWithKeyComparator sets a custom comparator for the index, defaults to skiplist.BytesComparator
 func ReadWithKeyComparator(cmp skiplist.Comparator[[]byte]) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.keyComparator = cmp
-	}
-}
-
-// SkipInvalidHashesOnLoad will not index key/value pairs that have a hash mismatch in them.
-// The database will pretend it does not know those records.
-func SkipInvalidHashesOnLoad() ReadOption {
-	return func(args *SSTableReaderOptions) {
-		args.skipInvalidHashesOnLoad = true
 	}
 }
 
@@ -474,5 +414,12 @@ func EnableHashCheckOnReads() ReadOption {
 func ReadBufferSizeBytes(size int) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.readBufferSizeBytes = size
+	}
+}
+
+// ReadIndexLoader allows to create a customized index from an index file.
+func ReadIndexLoader(il IndexLoader) ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.indexLoader = il
 	}
 }

@@ -95,24 +95,6 @@ func TestCRCHashMismatchError(t *testing.T) {
 	require.Nil(t, reader)
 }
 
-func TestCRCHashMismatchErrorSkipRecord(t *testing.T) {
-	reader, err := NewSSTableReader(
-		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
-		ReadWithKeyComparator(skiplist.BytesComparator{}),
-		SkipInvalidHashesOnLoad())
-	require.Nil(t, err)
-	defer closeReader(t, reader)
-
-	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
-	assert.Equal(t, 1, int(reader.MetaData().SkippedRecords))
-	assert.Equal(t, 0, int(reader.MetaData().NullValues))
-	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
-	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
-	// key 4 should be missing, as it has an invalid checksum
-	skipListMap := TEST_ONLY_NewSkipListMapWithElements([]int{1, 2, 3, 5, 6, 7})
-	assertContentMatchesSkipList(t, reader, skipListMap)
-}
-
 func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 	reader, err := NewSSTableReader(
 		ReadBasePath("test_files/SimpleWriteHappyPathSSTableWithCRCHashesMismatch"),
@@ -125,8 +107,6 @@ func TestCRCHashMismatchErrorSkipEntirelyReadChecks(t *testing.T) {
 
 	assert.Equal(t, 7, int(reader.MetaData().NumRecords))
 	assert.Equal(t, 0, int(reader.MetaData().NullValues))
-	// zero, as we're skipping the load-time validation
-	assert.Equal(t, 0, int(reader.MetaData().SkippedRecords))
 	assert.Equal(t, []byte{0, 0, 0, 1}, reader.MetaData().MinKey)
 	assert.Equal(t, []byte{0, 0, 0, 7}, reader.MetaData().MaxKey)
 
