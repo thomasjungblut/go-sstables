@@ -24,6 +24,7 @@ compile-proto:
 	protoc --go_out=. --go_opt=paths=source_relative wal/test_files/seq_number.proto
 	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/hello_world.proto
 	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/mutation.proto
+	protoc --go_out=. --go_opt=paths=source_relative benchmark/proto/bench.proto
 	protoc --go_out=. --go_opt=paths=source_relative sstables/proto/sstable.proto
 
 .PHONY: release
