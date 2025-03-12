@@ -18,8 +18,11 @@ type SortedMapIndex struct {
 	index *orderedmap.OrderedMap[string, IndexVal]
 }
 
+func KeyToString(key []byte) string {
+	return hex.EncodeToString(key)
+}
 func (s *SortedMapIndex) Get(key []byte) (IndexVal, error) {
-	val, found := s.index.Get(hex.EncodeToString(key))
+	val, found := s.index.Get(KeyToString(key))
 	if found {
 		return val, nil
 	}
@@ -28,7 +31,7 @@ func (s *SortedMapIndex) Get(key []byte) (IndexVal, error) {
 }
 
 func (s *SortedMapIndex) Contains(key []byte) bool {
-	_, found := s.index.Get(hex.EncodeToString(key))
+	_, found := s.index.Get(KeyToString(key))
 	return found
 }
 
@@ -49,30 +52,38 @@ func (s *SortedMapIndex) IteratorBetween(keyLower []byte, keyHigher []byte) (ski
 		return nil, errors.New("keyHigher is lower than keyLower")
 	}
 
-	start := s.index.GetPair(hex.EncodeToString(keyLower))
+	start := s.index.GetPair(KeyToString(keyLower))
 	if start == nil {
 		return nil, errors.New("keyLower is not found")
 	}
-	end := s.index.GetPair(hex.EncodeToString(keyHigher))
+	end := s.index.GetPair(KeyToString(keyHigher))
 	if end == nil {
-		return nil, errors.New("keyLower is not found")
+		return nil, errors.New("keyHigher is not found")
 	}
-	return &SortedMapIndexIterator{index: s.index, currentIndex: start, endIndexExcl: end}, nil
+	return &SortedMapIndexIterator{index: s.index, currentIndex: nil, startIndex: start, endIndex: end}, nil
 }
 
 type SortedMapIndexIterator struct {
 	index        *orderedmap.OrderedMap[string, IndexVal]
-	endIndexExcl *orderedmap.Pair[string, IndexVal]
+	endIndex     *orderedmap.Pair[string, IndexVal]
+	startIndex   *orderedmap.Pair[string, IndexVal]
 	currentIndex *orderedmap.Pair[string, IndexVal]
 }
 
 func (s *SortedMapIndexIterator) Next() ([]byte, IndexVal, error) {
-	if s.currentIndex.Key >= s.endIndexExcl.Key {
+	if s.currentIndex != nil && s.currentIndex.Key >= s.endIndex.Key {
 		return nil, IndexVal{}, skiplist.Done
 	}
-	s.currentIndex = s.currentIndex.Next()
-	var key []byte
-	_, err := hex.Decode(key, []byte(s.currentIndex.Key))
+	if s.currentIndex == nil {
+		if s.startIndex == nil {
+			s.startIndex = s.index.Oldest()
+		}
+		s.currentIndex = s.startIndex
+
+	} else {
+		s.currentIndex = s.currentIndex.Next()
+	}
+	key, err := hex.DecodeString(s.currentIndex.Key)
 	if err != nil {
 		return nil, IndexVal{}, err
 	}
@@ -120,7 +131,7 @@ func (s *SortedMapIndexLoader) Load(indexPath string, metadata *proto.MetaData) 
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
 
-		sx.Set(hex.EncodeToString(record.Key), IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum})
+		sx.Set(KeyToString(record.Key), IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum})
 	}
 
 	return &SortedMapIndex{sx}, nil
