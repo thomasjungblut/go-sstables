@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	pool "github.com/libp2p/go-buffer-pool"
+	pool "capnproto.org/go/capnp/v3/exp/bufferpool"
 
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
@@ -36,7 +36,7 @@ type FileWriter struct {
 	compressionType    int
 	compressor         compressor.CompressionI
 	recordHeaderCache  []byte
-	bufferPool         *pool.BufferPool
+	bufferPool         *pool.Pool
 	alignedBlockWrites bool
 }
 
@@ -66,7 +66,7 @@ func (w *FileWriter) Open() error {
 	w.headerOffset = w.currentOffset
 	w.open = true
 	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
-	w.bufferPool = new(pool.BufferPool)
+	w.bufferPool = pool.NewPool(1024, 20)
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
 	// when directIO is enabled however, we can't write misaligned blocks - thus this is not executed

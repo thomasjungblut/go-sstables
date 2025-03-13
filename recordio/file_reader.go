@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	pool "github.com/libp2p/go-buffer-pool"
+	pool "capnproto.org/go/capnp/v3/exp/bufferpool"
 )
 
 type FileReader struct {
@@ -17,7 +17,7 @@ type FileReader struct {
 	file          *os.File
 	header        *Header
 	reader        ByteReaderResetCount
-	bufferPool    *pool.BufferPool
+	bufferPool    *pool.Pool
 }
 
 func (r *FileReader) Open() error {
@@ -47,7 +47,7 @@ func (r *FileReader) Open() error {
 
 	r.currentOffset = uint64(len(bytes))
 
-	r.bufferPool = new(pool.BufferPool)
+	r.bufferPool = pool.NewPool(1024, 20)
 	r.open = true
 
 	return nil
