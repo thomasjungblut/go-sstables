@@ -2,27 +2,30 @@ package sstables
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 
+	"golang.org/x/exp/slices"
+
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"github.com/wk8/go-ordered-map/v2"
 )
 
-// SortedMapIndex is keeping the entire index as a slice in memory and uses binary search to find the given keys.
+// SortedMapIndex is keeping the entire index as a map and the ordered keys as a slice in memory
+// Use binary search to iter over the index.
 type SortedMapIndex struct {
-	index *orderedmap.OrderedMap[string, IndexVal]
+	index map[[20]byte]IndexVal
+	keys  [][20]byte
 }
 
-func KeyToString(key []byte) string {
-	return hex.EncodeToString(key)
+func (s *SortedMapIndex) Contains(key []byte) bool {
+	_, found := s.index[[20]byte(key)]
+	return found
 }
 func (s *SortedMapIndex) Get(key []byte) (IndexVal, error) {
-	val, found := s.index.Get(KeyToString(key))
+	val, found := s.index[[20]byte(key)]
 	if found {
 		return val, nil
 	}
@@ -30,64 +33,48 @@ func (s *SortedMapIndex) Get(key []byte) (IndexVal, error) {
 	return IndexVal{}, skiplist.NotFound
 }
 
-func (s *SortedMapIndex) Contains(key []byte) bool {
-	_, found := s.index.Get(KeyToString(key))
-	return found
-}
-
 func (s *SortedMapIndex) Iterator() (skiplist.IteratorI[[]byte, IndexVal], error) {
-	start := s.index.Newest()
-	end := s.index.Oldest()
-
-	return s.IteratorBetween([]byte(start.Key), []byte(end.Key))
+	return &SortedMapIndexIterator{index: s.index, keys: s.keys, endIndexExcl: len(s.index)}, nil
 }
 
 func (s *SortedMapIndex) IteratorStartingAt(key []byte) (skiplist.IteratorI[[]byte, IndexVal], error) {
-	end := s.index.Oldest()
-	return s.IteratorBetween(key, []byte(end.Key))
+	idx, _ := s.search([20]byte(key))
+	return &SortedMapIndexIterator{index: s.index, keys: s.keys, currentIndex: idx, endIndexExcl: len(s.index)}, nil
 }
 
 func (s *SortedMapIndex) IteratorBetween(keyLower []byte, keyHigher []byte) (skiplist.IteratorI[[]byte, IndexVal], error) {
-	if bytes.Compare(keyLower, keyHigher) > 0 {
+	if bytes.Compare(keyLower[:], keyHigher[:]) > 0 {
 		return nil, errors.New("keyHigher is lower than keyLower")
 	}
 
-	start := s.index.GetPair(KeyToString(keyLower))
-	if start == nil {
-		return nil, errors.New("keyLower is not found")
-	}
-	end := s.index.GetPair(KeyToString(keyHigher))
-	if end == nil {
-		return nil, errors.New("keyHigher is not found")
-	}
-	return &SortedMapIndexIterator{index: s.index, currentIndex: nil, startIndex: start, endIndex: end}, nil
+	startIdx, _ := s.search([20]byte(keyLower))
+	fx, _ := s.search([20]byte(keyHigher))
+	// we have slightly different opinions on the inclusivity of the end of the range scans here
+	endIdx := min(fx+1, len(s.index))
+	return &SortedMapIndexIterator{index: s.index, currentIndex: startIdx, endIndexExcl: endIdx}, nil
+}
+
+func (s *SortedMapIndex) search(key [20]byte) (int, bool) {
+	return slices.BinarySearchFunc(s.keys, key, func(entry [20]byte, k [20]byte) int {
+		return bytes.Compare(entry[:], k[:])
+	})
 }
 
 type SortedMapIndexIterator struct {
-	index        *orderedmap.OrderedMap[string, IndexVal]
-	endIndex     *orderedmap.Pair[string, IndexVal]
-	startIndex   *orderedmap.Pair[string, IndexVal]
-	currentIndex *orderedmap.Pair[string, IndexVal]
+	index        map[[20]byte]IndexVal
+	keys         [][20]byte
+	endIndexExcl int
+	currentIndex int
 }
 
 func (s *SortedMapIndexIterator) Next() ([]byte, IndexVal, error) {
-	if s.currentIndex != nil && s.currentIndex.Key >= s.endIndex.Key {
+	if s.currentIndex >= s.endIndexExcl {
 		return nil, IndexVal{}, skiplist.Done
 	}
-	if s.currentIndex == nil {
-		if s.startIndex == nil {
-			s.startIndex = s.index.Oldest()
-		}
-		s.currentIndex = s.startIndex
-
-	} else {
-		s.currentIndex = s.currentIndex.Next()
-	}
-	key, err := hex.DecodeString(s.currentIndex.Key)
-	if err != nil {
-		return nil, IndexVal{}, err
-	}
-	return key, s.currentIndex.Value, nil
+	cx := s.keys[s.currentIndex]
+	s.currentIndex += 1
+	v := s.index[cx]
+	return cx[:], v, nil
 }
 
 type SortedMapIndexLoader struct {
@@ -117,9 +104,11 @@ func (s *SortedMapIndexLoader) Load(indexPath string, metadata *proto.MetaData) 
 		capacity = metadata.NumRecords
 	}
 
-	sx := orderedmap.New[string, IndexVal](orderedmap.WithCapacity[string, IndexVal](int(capacity)))
+	smap := make(map[[20]byte]IndexVal, capacity)
+	skeys := make([][20]byte, capacity)
 
 	record := &proto.IndexEntry{}
+	var i = 0
 	for {
 		_, err := reader.ReadNext(record)
 		// io.EOF signals that no records are left to be read
@@ -130,9 +119,10 @@ func (s *SortedMapIndexLoader) Load(indexPath string, metadata *proto.MetaData) 
 		if err != nil {
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
-
-		sx.Set(KeyToString(record.Key), IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum})
+		smap[[20]byte(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
+		skeys[i] = [20]byte(record.Key)
+		i++
 	}
 
-	return &SortedMapIndex{sx}, nil
+	return &SortedMapIndex{index: smap, keys: skeys}, nil
 }

@@ -1,13 +1,13 @@
 package benchmark
 
 import (
+	"crypto/sha1"
+	"encoding/binary"
 	"errors"
 	"os"
 	"testing"
 	"time"
 
-	"crypto/sha1"
-	"encoding/binary"
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -52,6 +52,7 @@ func BenchmarkSSTableReadIndexTypes(b *testing.B) {
 		name   string
 		loader sstables.IndexLoader
 	}{
+		{"map", &sstables.SortedMapIndexLoader{ReadBufferSize: 4096}},
 		{"skiplist", &sstables.SkipListIndexLoader{
 			KeyComparator:  cmp,
 			ReadBufferSize: 4096,
