@@ -137,5 +137,23 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		b.ReportMetric(float64(scanEnd.Nanoseconds())/float64(i), "scan_time_ns/record")
 		b.ReportMetric(float64(i), "num_records")
 		b.ReportMetric(float64(reader.MetaData().DataBytes)/1024/1024/scanEnd.Seconds(), "scan_bandwidth_mb/s")
+
+		// call get for all keys
+		kx := make([]byte, 4)
+		hash := sha1.New()
+		getStart := time.Now()
+		for i := range reader.MetaData().NumRecords {
+			binary.BigEndian.PutUint32(kx, uint32(i))
+			hash.Reset()
+			hash.Write(kx)
+			k := hash.Sum(nil)
+
+			reader.Contains(k)
+
+		}
+		getEnd := time.Now().Sub(getStart)
+		b.ReportMetric(float64(getEnd.Milliseconds()), "get_time_ms")
+		b.ReportMetric(float64(getEnd.Nanoseconds())/float64(i), "get_time_ns/record")
+
 	}
 }
