@@ -148,8 +148,10 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 			hash.Write(kx)
 			k := hash.Sum(nil)
 
-			reader.Contains(k)
-
+			_, err := reader.Get(k)
+			if err != nil {
+				b.Fail()
+			}
 		}
 		getEnd := time.Now().Sub(getStart)
 		b.ReportMetric(float64(getEnd.Milliseconds()), "get_time_ms")
