@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	pool "github.com/libp2p/go-buffer-pool"
-	"golang.org/x/exp/mmap"
 	"io"
+
+	"golang.org/x/exp/mmap"
+
+	pool "capnproto.org/go/capnp/v3/exp/bufferpool"
 )
 
 type MMapReader struct {
@@ -14,7 +16,7 @@ type MMapReader struct {
 	header     *Header
 	open       bool
 	closed     bool
-	bufferPool *pool.BufferPool
+	bufferPool *pool.Pool
 	path       string
 }
 
@@ -42,7 +44,7 @@ func (r *MMapReader) Open() error {
 	}
 
 	r.header = header
-	r.bufferPool = new(pool.BufferPool)
+	r.bufferPool = pool.NewPool(1024, 20)
 	r.open = true
 	return nil
 }
