@@ -3,9 +3,11 @@ package recordio
 import (
 	"encoding/binary"
 	"fmt"
-	pool "github.com/libp2p/go-buffer-pool"
-	"github.com/thomasjungblut/go-sstables/recordio/compressor"
+
 	"io"
+
+	pool "capnproto.org/go/capnp/v3/exp/bufferpool"
+	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
 
 type Header struct {
@@ -113,7 +115,7 @@ func allocateRecordBuffer(header *Header, payloadSizeUncompressed uint64, payloa
 	return expectedBytesRead, make([]byte, expectedBytesRead)
 }
 
-func allocateRecordBufferPooled(bufferPool *pool.BufferPool, header *Header, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (uint64, []byte) {
+func allocateRecordBufferPooled(bufferPool *pool.Pool, header *Header, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) (uint64, []byte) {
 	expectedBytesRead := payloadSizeUncompressed
 	if header.compressor != nil {
 		expectedBytesRead = payloadSizeCompressed
