@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"golang.org/x/exp/slices"
 
@@ -79,9 +80,18 @@ func (s *SortedMapIndexIterator) Next() ([]byte, IndexVal, error) {
 
 type SortedMapIndexLoader struct {
 	ReadBufferSize int
+	Binary         bool
 }
 
 func (s *SortedMapIndexLoader) Load(indexPath string, metadata *proto.MetaData) (SortedKeyIndex, error) {
+	if s.Binary {
+		return s.loadBinary(indexPath, metadata)
+	}
+	return s.loadProtoBuf(indexPath, metadata)
+}
+
+func (s *SortedMapIndexLoader) loadProtoBuf(indexPath string, metadata *proto.MetaData) (SortedKeyIndex, error) {
+
 	reader, err := rProto.NewReader(
 		rProto.ReaderPath(indexPath),
 		rProto.ReadBufferSizeBytes(s.ReadBufferSize),
@@ -111,6 +121,42 @@ func (s *SortedMapIndexLoader) Load(indexPath string, metadata *proto.MetaData) 
 	var i = 0
 	for {
 		_, err := reader.ReadNext(record)
+		// io.EOF signals that no records are left to be read
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
+		}
+		smap[[20]byte(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
+		skeys[i] = [20]byte(record.Key)
+		i++
+	}
+
+	return &SortedMapIndex{index: smap, keys: skeys}, nil
+}
+
+func (s *SortedMapIndexLoader) loadBinary(indexPath string, metadata *proto.MetaData) (SortedKeyIndex, error) {
+	binaryFile, err := os.Open(indexPath)
+	if err != nil {
+		return nil, fmt.Errorf("error while opening binary index reader of sstable in '%s': %w", indexPath, err)
+	}
+
+	defer binaryFile.Close()
+
+	capacity := uint64(0)
+	if metadata != nil {
+		capacity = metadata.NumRecords
+	}
+
+	smap := make(map[[20]byte]IndexVal, capacity)
+	skeys := make([][20]byte, capacity)
+
+	record := &FastIndexEntry{}
+	var i = 0
+	for {
+		err := record.unmarshal(binaryFile)
 		// io.EOF signals that no records are left to be read
 		if errors.Is(err, io.EOF) {
 			break

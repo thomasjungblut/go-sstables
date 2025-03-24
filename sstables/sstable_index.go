@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
@@ -35,6 +36,11 @@ type SortedKeyIndex interface {
 type IndexLoader interface {
 	// Load is creating a SortedKeyIndex from the given path.
 	Load(path string, metadata *proto.MetaData) (SortedKeyIndex, error)
+}
+
+type DataLoader interface {
+	// Load is creating a SortedKeyIndex from the given path.
+	Load(path string) (recordio.ReadAtI, error)
 }
 
 type SkipListIndexLoader struct {

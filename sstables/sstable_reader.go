@@ -3,12 +3,10 @@ package sstables
 import (
 	"errors"
 	"fmt"
-	"io"
-	"os"
-
 	"hash/crc64"
 	"hash/fnv"
-
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/steakknife/bloomfilter"
@@ -297,9 +295,17 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 
 		reader.v0DataReader = v0DataReader
 	} else {
-		dataReader, err := recordio.NewMemoryMappedReaderWithPath(filepath.Join(opts.basePath, DataFileName))
-		if err != nil {
-			return nil, fmt.Errorf("error while creating data reader of sstable in '%s': %w", opts.basePath, err)
+		var dataReader recordio.ReadAtI
+		if opts.dataLoader != nil {
+			dataReader, err = opts.dataLoader.Load(filepath.Join(opts.basePath, DataFileName))
+			if err != nil {
+				return nil, fmt.Errorf("error while creating data reader of sstable in '%s': %w", opts.basePath, err)
+			}
+		} else {
+			dataReader, err = recordio.NewMemoryMappedReaderWithPath(filepath.Join(opts.basePath, DataFileName))
+			if err != nil {
+				return nil, fmt.Errorf("error while creating data reader of sstable in '%s': %w", opts.basePath, err)
+			}
 		}
 
 		err = dataReader.Open()
@@ -373,7 +379,7 @@ type SSTableReaderOptions struct {
 	basePath            string
 	readBufferSizeBytes int
 	indexLoader         IndexLoader
-
+	dataLoader          DataLoader
 	// TODO(thomas): this is a special case of the skiplist index, which could go into the loader implementation
 	keyComparator skiplist.Comparator[[]byte]
 
@@ -386,6 +392,12 @@ type ReadOption func(*SSTableReaderOptions)
 func ReadBasePath(p string) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.basePath = p
+	}
+}
+
+func WithDataLoader(dataloader DataLoader) ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.dataLoader = dataloader
 	}
 }
 
@@ -421,5 +433,12 @@ func ReadBufferSizeBytes(size int) ReadOption {
 func ReadIndexLoader(il IndexLoader) ReadOption {
 	return func(args *SSTableReaderOptions) {
 		args.indexLoader = il
+	}
+}
+
+// ReadDataLoader allows to create a customized index from an index file.
+func ReadDataLoader(dl DataLoader) ReadOption {
+	return func(args *SSTableReaderOptions) {
+		args.dataLoader = dl
 	}
 }

@@ -3,14 +3,15 @@ package sstables
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/thomasjungblut/go-sstables/recordio"
-	"github.com/thomasjungblut/go-sstables/skiplist"
 	"math/rand"
 	"os"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/recordio"
+	"github.com/thomasjungblut/go-sstables/skiplist"
 )
 
 func TestReadSkipListWriteEndToEnd(t *testing.T) {
@@ -383,7 +384,7 @@ func cleanWriterDirs(t *testing.T, writers *[]*SSTableStreamWriter) {
 }
 
 func intToByteSlice(e int) []byte {
-	key := make([]byte, 4)
+	key := make([]byte, 20)
 	binary.BigEndian.PutUint32(key, uint32(e))
 	return key
 }
