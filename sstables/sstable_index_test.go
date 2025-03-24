@@ -21,7 +21,7 @@ var indexLoaders = []func() IndexLoader{
 	func() IndexLoader {
 		return &SliceKeyIndexLoader{ReadBufferSize: 4096}
 	},
-	func() IndexLoader { return &SortedMapIndexLoader{ReadBufferSize: 4096} },
+	func() IndexLoader { return &SortedMapIndexLoader{ReadBufferSize: 4096, false} },
 }
 
 func TestIndexContains(t *testing.T) {

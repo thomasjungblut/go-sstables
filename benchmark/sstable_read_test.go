@@ -52,7 +52,7 @@ func BenchmarkSSTableReadIndexTypes(b *testing.B) {
 		name   string
 		loader sstables.IndexLoader
 	}{
-		{"map", &sstables.SortedMapIndexLoader{ReadBufferSize: 4096}},
+		{"map", &sstables.SortedMapIndexLoader[[20]byte]{ReadBufferSize: 4096}},
 		{"skiplist", &sstables.SkipListIndexLoader{
 			KeyComparator:  cmp,
 			ReadBufferSize: 4096,
@@ -106,6 +106,7 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		}
 
 		reader, err := sstables.NewSSTableReader(opts...)
+		assert.NoError(b, err)
 		loadEnd := time.Now().Sub(loadStart)
 		b.ReportMetric(float64(loadEnd.Milliseconds()), "load_time_ms")
 		b.ReportMetric(float64(loadEnd.Nanoseconds())/float64(reader.MetaData().NumRecords), "load_time_ns/record")
