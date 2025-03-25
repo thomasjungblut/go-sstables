@@ -26,6 +26,10 @@ func (d *DatabaseClientRecorder) Operations() []porcupine.Operation[Input, Outpu
 	return d.operations
 }
 
+func (d *DatabaseClientRecorder) GetBytes(key []byte) ([]byte, error) {
+	return nil, nil
+}
+
 func (d *DatabaseClientRecorder) Get(key string) (string, error) {
 	start := time.Now()
 	val, err := d.db.Get(key)
@@ -71,6 +75,10 @@ func (d *DatabaseClientRecorder) Put(key, value string) error {
 	return err
 }
 
+func (d *DatabaseClientRecorder) PutBytes(key, value []byte) error {
+	return nil
+}
+
 func (d *DatabaseClientRecorder) Delete(key string) error {
 	start := time.Now()
 	err := d.db.Delete(key)
@@ -92,4 +100,8 @@ func (d *DatabaseClientRecorder) Delete(key string) error {
 	})
 
 	return err
+}
+
+func (d *DatabaseClientRecorder) DeleteBytes(key []byte) error {
+	return nil
 }
