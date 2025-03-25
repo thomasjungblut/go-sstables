@@ -18,6 +18,9 @@ with the given one (basically an upsert).
 `Delete` will remove the value for the given key. It will ignore when a key does not exist in the database. Underneath
 it will be tombstoned, which still store it and make it not retrievable through this interface.
 
+All of the above functions now also exists with their byte equivalents, in case some of the byte sequences can't be 
+converted to a string due to encoding issues.
+
 As with any embedded database, they are based on an empty directory you supply. All the state is contained in that
 database and opening an existing database in a folder will allow you to continue where you've left off.
 

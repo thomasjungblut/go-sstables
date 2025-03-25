@@ -278,6 +278,10 @@ func (c *requestClient) Get(key string) (string, error) {
 	return string(all), nil
 }
 
+func (c *requestClient) GetBytes(key []byte) ([]byte, error) {
+	return nil, nil
+}
+
 func (c *requestClient) Put(key, val string) error {
 	request, err := http.NewRequest(http.MethodPut, formatUrl(key), strings.NewReader(val))
 	if err != nil {
@@ -295,6 +299,10 @@ func (c *requestClient) Put(key, val string) error {
 	return nil
 }
 
+func (c *requestClient) PutBytes(key, val []byte) error {
+	return nil
+}
+
 func (c *requestClient) Delete(key string) error {
 	request, err := http.NewRequest(http.MethodDelete, formatUrl(key), strings.NewReader(""))
 	if err != nil {
@@ -309,6 +317,10 @@ func (c *requestClient) Delete(key string) error {
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected response code: %d for DELETE key '%s'", response.StatusCode, key)
 	}
+	return nil
+}
+
+func (c *requestClient) DeleteBytes(key []byte) error {
 	return nil
 }
 

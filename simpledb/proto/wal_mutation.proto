@@ -5,10 +5,13 @@ option go_package = "github.com/thomasjungblut/simpledb/proto";
 message UpsertMutation {
     string key = 1;
     string value = 2;
+    bytes keyBytes = 3;
+    bytes valueBytes = 4;
 }
 
 message DeleteTombstoneMutation {
     string key = 1;
+    bytes keyBytes = 2;
 }
 
 message WalMutation {

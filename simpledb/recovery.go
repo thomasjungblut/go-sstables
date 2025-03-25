@@ -223,9 +223,17 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 
 		switch u := mutation.Mutation.(type) {
 		case *dbproto.WalMutation_Addition:
-			err = db.memStore.Upsert([]byte(u.Addition.Key), []byte(u.Addition.Value))
+			if len(u.Addition.KeyBytes) > 0 {
+				err = db.memStore.Upsert(u.Addition.KeyBytes, u.Addition.ValueBytes)
+			} else {
+				err = db.memStore.Upsert([]byte(u.Addition.Key), []byte(u.Addition.Value))
+			}
 		case *dbproto.WalMutation_DeleteTombStone:
-			err = db.memStore.Tombstone([]byte(u.DeleteTombStone.Key))
+			if len(u.DeleteTombStone.KeyBytes) > 0 {
+				err = db.memStore.Tombstone(u.DeleteTombStone.KeyBytes)
+			} else {
+				err = db.memStore.Tombstone([]byte(u.DeleteTombStone.Key))
+			}
 		}
 
 		return err
