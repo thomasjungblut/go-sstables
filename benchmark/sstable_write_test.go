@@ -2,26 +2,31 @@ package benchmark
 
 import (
 	"encoding/binary"
+	"os"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
-	"os"
-	"testing"
 )
 
 func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 	benchmarks := []struct {
 		name         string
 		memstoreSize int
+		binaryWriter bool
 	}{
-		{"32mb", 1024 * 1024 * 32},
-		{"64mb", 1024 * 1024 * 64},
-		{"128mb", 1024 * 1024 * 128},
-		{"256mb", 1024 * 1024 * 256},
-		{"512mb", 1024 * 1024 * 512},
-		{"1024mb", 1024 * 1024 * 1024},
-		{"2048mb", 1024 * 1024 * 1024 * 2},
+		{"32mb", 1024 * 1024 * 32, false},
+		{"32mb binary", 1024 * 1024 * 32, true},
+		{"64mb", 1024 * 1024 * 64, false},
+		{"64mb binary", 1024 * 1024 * 64, true},
+		{"128mb", 1024 * 1024 * 128, false},
+		{"256mb", 1024 * 1024 * 256, false},
+		{"512mb", 1024 * 1024 * 512, false},
+		{"1024mb", 1024 * 1024 * 1024, false},
+		{"2048mb", 1024 * 1024 * 1024 * 2, false},
+		{"2048mb binary", 1024 * 1024 * 1024 * 2, true},
 	}
 
 	cmp := skiplist.BytesComparator{}
@@ -53,9 +58,15 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				err := mStore.Flush(sstables.WriteBasePath(tmpDirs[n]),
-					sstables.WithKeyComparator(cmp), sstables.WriteBufferSizeBytes(1024*1024*4))
-				assert.Nil(b, err)
+				if bm.binaryWriter {
+					err := flushMemstoreBinary(mStore, sstables.WriteBasePath(tmpDirs[n]),
+						sstables.WithKeyComparator(cmp), sstables.WriteBufferSizeBytes(1024*1024*4))
+					assert.Nil(b, err)
+				} else {
+					err := mStore.Flush(sstables.WriteBasePath(tmpDirs[n]),
+						sstables.WithKeyComparator(cmp), sstables.WriteBufferSizeBytes(1024*1024*4))
+					assert.Nil(b, err)
+				}
 				b.SetBytes(int64(mStore.EstimatedSizeInBytes()))
 			}
 		})

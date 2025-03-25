@@ -1,6 +1,7 @@
 package sstables
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -53,7 +54,9 @@ func (f *FastIndexEntry) unmarshal(reader io.Reader) error {
 	if err != nil {
 		return err
 	}
-	f.Key = make([]byte, f.keylen)
+	if len(f.Key) != int(f.keylen) {
+		f.Key = make([]byte, f.keylen)
+	}
 	err = binary.Read(reader, binary.LittleEndian, &f.Key)
 	if err != nil {
 		return err
@@ -76,9 +79,11 @@ type SSTableStreamWriterBinary struct {
 	dataFilePath  string
 	metaFilePath  string
 
-	indexWriter  *os.File
-	dataWriter   *os.File
-	metaDataFile *os.File
+	indexWriter    *os.File
+	indexBufWriter *bufio.Writer
+	dataWriter     *os.File
+	dataBufWriter  *bufio.Writer
+	metaDataFile   *os.File
 
 	bloomFilter *bloomfilter.Filter
 	metaData    *sProto.MetaData
@@ -96,6 +101,8 @@ func (writer *SSTableStreamWriterBinary) Open() error {
 		return fmt.Errorf("error while creating index writer in '%s': %w", writer.opts.basePath, err)
 	}
 	writer.indexWriter = iWriter
+	writer.indexBufWriter = bufio.NewWriterSize(iWriter, writer.opts.writeBufferSizeBytes)
+
 	writer.buf = bytes.NewBuffer(nil)
 	writer.dataFilePath = filepath.Join(writer.opts.basePath, DataFileName)
 	dWriter, err := os.OpenFile(writer.dataFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
@@ -103,8 +110,8 @@ func (writer *SSTableStreamWriterBinary) Open() error {
 		return fmt.Errorf("error while creating data writer in '%s': %w", writer.opts.basePath, err)
 	}
 
-	// TODO(thomas): if any of these open fails, we should try to at least close the ones we already have opened
 	writer.dataWriter = dWriter
+	writer.dataBufWriter = bufio.NewWriterSize(dWriter, writer.opts.writeBufferSizeBytes)
 
 	writer.metaFilePath = filepath.Join(writer.opts.basePath, MetaFileName)
 	metaFile, err := os.OpenFile(writer.metaFilePath, os.O_WRONLY|os.O_CREATE, 0666)
@@ -115,7 +122,7 @@ func (writer *SSTableStreamWriterBinary) Open() error {
 	writer.metaData = &sProto.MetaData{
 		Version: Version,
 	}
-
+	writer.offset = 0
 	if writer.opts.enableBloomFilter {
 		bf, err := bloomfilter.NewOptimal(writer.opts.bloomExpectedNumberOfElements, writer.opts.bloomFpProbability)
 		if err != nil {
@@ -218,27 +225,31 @@ func (writer *SSTableStreamWriterBinary) WriteNext(key []byte, value []byte) err
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
 	}
-
+	writer.buf.Reset()
 	writer.size = uint64(len(value))
-	err = binary.Write(writer.dataWriter, binary.LittleEndian, writer.size)
+	err = binary.Write(writer.buf, binary.LittleEndian, writer.size)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
 	}
 
-	err = binary.Write(writer.dataWriter, binary.LittleEndian, value)
+	err = binary.Write(writer.buf, binary.LittleEndian, value)
 	if err != nil {
 		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
 	}
-
+	nn, err := writer.dataBufWriter.Write(writer.buf.Bytes())
+	if err != nil {
+		return fmt.Errorf("error writeNext data writer error in '%s': %w", writer.opts.basePath, err)
+	}
+	writer.offset += uint64(nn)
 	writer.indexRecord.Key = key
-	writer.indexRecord.ValueOffset = uint64(recordOffset)
+	writer.indexRecord.ValueOffset = writer.offset
 	writer.indexRecord.Checksum = crc.Sum64()
 	err = writer.indexRecord.marshal(writer.buf)
 	if err != nil {
 		return err
 	}
 
-	_, err = writer.indexWriter.Write(writer.buf.Bytes())
+	_, err = writer.indexBufWriter.Write(writer.buf.Bytes())
 	if err != nil {
 		// in case of failures we need to try to rewind the data writer's offset to preWriteOffset
 		_, seekErr := writer.dataWriter.Seek(recordOffset, 0)
@@ -254,6 +265,8 @@ func (writer *SSTableStreamWriterBinary) WriteNext(key []byte, value []byte) err
 }
 
 func (writer *SSTableStreamWriterBinary) Close() (err error) {
+	writer.indexBufWriter.Flush()
+	writer.dataBufWriter.Flush()
 	err = errors.Join(writer.indexWriter.Close(), writer.dataWriter.Close())
 
 	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {

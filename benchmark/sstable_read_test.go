@@ -37,10 +37,10 @@ func BenchmarkSSTableRead(b *testing.B) {
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
-			writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
+			writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp, false)
 
 			b.ResetTimer()
-			fullScanTable(b, tmpDir, cmp, nil)
+			fullScanTable(b, tmpDir, cmp, nil, nil)
 		})
 	}
 }
@@ -48,16 +48,31 @@ func BenchmarkSSTableRead(b *testing.B) {
 func BenchmarkSSTableReadIndexTypes(b *testing.B) {
 	sizeTwoGigs := 1024 * 1024 * 1024 * 2
 	cmp := skiplist.BytesComparator{}
+	sha1keymapper := sstables.Byte20KeyMapper[[20]byte]{}
 	benchmarks := []struct {
-		name   string
-		loader sstables.IndexLoader
+		name       string
+		loader     sstables.IndexLoader
+		dataloader sstables.DataLoader
 	}{
-		{"map", &sstables.SortedMapIndexLoader[[20]byte]{ReadBufferSize: 4096}},
+		{"map",
+			&sstables.SortedMapIndexLoader[[20]byte]{
+				ReadBufferSize: 4096,
+				Binary:         false,
+				Mapper:         sha1keymapper,
+			},
+			nil},
+		{"mapBinary",
+			&sstables.SortedMapIndexLoader[[20]byte]{
+				ReadBufferSize: 4096,
+				Binary:         true,
+				Mapper:         sha1keymapper,
+			},
+			sstables.NewBinaryDataLoader()},
 		{"skiplist", &sstables.SkipListIndexLoader{
 			KeyComparator:  cmp,
 			ReadBufferSize: 4096,
-		}},
-		{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}},
+		}, nil},
+		{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}, nil},
 	}
 
 	for _, bm := range benchmarks {
@@ -66,14 +81,14 @@ func BenchmarkSSTableReadIndexTypes(b *testing.B) {
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
-			writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
+			writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp, bm.dataloader != nil)
 			b.ResetTimer()
-			fullScanTable(b, tmpDir, cmp, bm.loader)
+			fullScanTable(b, tmpDir, cmp, bm.loader, bm.dataloader)
 		})
 	}
 }
 
-func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) {
+func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator, binaryWriter bool) {
 	mStore := memstore.NewMemStore()
 	bytes := randomRecordOfSize(1024)
 
@@ -88,11 +103,46 @@ func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skipli
 		assert.Nil(b, mStore.Add(k, bytes))
 		i++
 	}
-
-	assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+	if binaryWriter {
+		assert.Nil(b, flushMemstoreBinary(mStore, sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+	} else {
+		assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+	}
 }
 
-func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte], loader sstables.IndexLoader) {
+func flushMemstoreBinary(m memstore.MemStoreI, writerOptions ...sstables.WriterOption) (err error) {
+	writer, err := sstables.NewSSTableStreamWriterBinary(writerOptions...)
+	if err != nil {
+		return err
+	}
+
+	err = writer.Open()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err = errors.Join(err, writer.Close())
+	}()
+
+	it := m.SStableIterator()
+	for {
+		k, v, err := it.Next()
+		if errors.Is(err, sstables.Done) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if err := writer.WriteNext(k, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte], loader sstables.IndexLoader, dataloader sstables.DataLoader) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		loadStart := time.Now()
@@ -104,7 +154,9 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		if loader != nil {
 			opts = append(opts, sstables.ReadIndexLoader(loader))
 		}
-
+		if dataloader != nil {
+			opts = append(opts, sstables.WithDataLoader(dataloader))
+		}
 		reader, err := sstables.NewSSTableReader(opts...)
 		assert.NoError(b, err)
 		loadEnd := time.Now().Sub(loadStart)

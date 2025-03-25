@@ -14,7 +14,25 @@ import (
 // SortedMapIndex is keeping the entire index as a map and the ordered keys as a slice in memory
 // Use binary search to iter over the index.
 type ByteKeyMapper[T comparable] interface {
-	MapBytes([]byte) T
+	MapBytes(data []byte) T
+}
+
+// use this key Mapper for sha1 keys
+type Byte20KeyMapper[T comparable] struct{}
+
+func (m Byte20KeyMapper[T]) MapBytes(data []byte) T {
+	var result [20]byte
+
+	// Gestion de la longueur
+	if len(data) > 20 {
+		data = data[:20]
+	}
+
+	// Copie des données
+	copy(result[:], data)
+
+	// Conversion générique - nécessite que T soit [20]byte
+	return any(result).(T)
 }
 
 type SortedMapIndex[T comparable] struct {
@@ -53,14 +71,14 @@ func (s *SortedMapIndex[T]) IteratorBetween(keyLower []byte, keyHigher []byte) (
 type SortedMapIndexLoader[T comparable] struct {
 	ReadBufferSize int
 	Binary         bool
-	mapper         ByteKeyMapper[T]
+	Mapper         ByteKeyMapper[T]
 }
 
 func (s *SortedMapIndexLoader[T]) Load(indexPath string, metadata *proto.MetaData) (SortedKeyIndex, error) {
-	if s.mapper == nil {
-		return nil, fmt.Errorf("error loader need a mapper '%s': %w", indexPath)
+	if s.Mapper == nil {
+		return nil, fmt.Errorf("error loader need a Mapper '%s': %w", indexPath)
 	}
-	
+
 	if s.Binary {
 		return s.loadBinary(indexPath, metadata)
 	}
@@ -106,14 +124,14 @@ func (s *SortedMapIndexLoader[T]) loadProtoBuf(indexPath string, metadata *proto
 		if err != nil {
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
-		smap[s.mapper.MapBytes(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
+		smap[s.Mapper.MapBytes(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
 		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}, record.Key})
 
 		i++
 	}
 
 	ski := SliceKeyIndex{index: sx}
-	return &SortedMapIndex[T]{index: smap, sliceKeyIndex: ski}, nil
+	return &SortedMapIndex[T]{index: smap, sliceKeyIndex: ski, mapper: s.Mapper}, nil
 }
 
 func (s *SortedMapIndexLoader[T]) loadBinary(indexPath string, metadata *proto.MetaData) (SortedKeyIndex, error) {
@@ -144,11 +162,12 @@ func (s *SortedMapIndexLoader[T]) loadBinary(indexPath string, metadata *proto.M
 		if err != nil {
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
-		smap[s.mapper.MapBytes(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
+		smap[s.Mapper.MapBytes(record.Key)] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
 		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}, record.Key})
 
 		i++
 	}
 	ski := SliceKeyIndex{index: sx}
-	return &SortedMapIndex[T]{index: smap, sliceKeyIndex: ski}, nil
+	keymapper := Byte20KeyMapper[T]{}
+	return &SortedMapIndex[T]{index: smap, sliceKeyIndex: ski, mapper: keymapper}, nil
 }

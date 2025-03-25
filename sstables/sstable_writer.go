@@ -222,6 +222,7 @@ func NewSSTableStreamWriter(writerOptions ...WriterOption) (*SSTableStreamWriter
 		bloomExpectedNumberOfElements: 1000,
 		writeBufferSizeBytes:          1024 * 1024 * 4,
 		keyComparator:                 nil,
+		useBinaryWriter:               false,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -264,6 +265,7 @@ type SSTableWriterOptions struct {
 	bloomFpProbability            float64
 	writeBufferSizeBytes          int
 	keyComparator                 skiplist.Comparator[[]byte]
+	useBinaryWriter               bool
 }
 
 type WriterOption func(*SSTableWriterOptions)
@@ -313,5 +315,11 @@ func WriteBufferSizeBytes(bufSizeBytes int) WriterOption {
 func WithKeyComparator(cmp skiplist.Comparator[[]byte]) WriterOption {
 	return func(args *SSTableWriterOptions) {
 		args.keyComparator = cmp
+	}
+}
+
+func WithBinaryWriter(val bool) WriterOption {
+	return func(args *SSTableWriterOptions) {
+		args.useBinaryWriter = val
 	}
 }
