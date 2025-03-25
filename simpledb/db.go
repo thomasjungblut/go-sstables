@@ -44,14 +44,28 @@ type DatabaseI interface {
 	// the error will contain any other usual io error that can be expected.
 	Get(key string) (string, error)
 
+	// GetBytes returns the value for the given key. If there is no value for the given
+	// key it will return ErrNotFound as the error. Otherwise, error will contain any other usual io error
+	// that can be expected.
+	GetBytes(key []byte) ([]byte, error)
+
 	// Put adds the given value for the given key. If this key already exists, it will
 	// overwrite the already existing value with the given one.
 	// Unfortunately this method does not support empty keys and values, that will immediately return an error.
 	Put(key, value string) error
 
+	// PutBytes adds the given value for the given key. If this key already exists, it will
+	// overwrite the already existing value with the given one.
+	// Unfortunately this method does not support empty keys and values, that will immediately return an error.
+	PutBytes(key, value []byte) error
+
 	// Delete will delete the value for the given key. It will ignore when a key does not exist in the database.
 	// Underneath it will be tombstoned, which still stores it and makes it not retrievable through this interface.
 	Delete(key string) error
+
+	// DeleteBytes will delete the value for the given key. It will ignore when a key does not exist in the database.
+	// Underneath it will be tombstoned, which still stores it and makes it not retrievable through this interface.
+	DeleteBytes(key []byte) error
 }
 
 type compactionAction struct {
@@ -173,17 +187,23 @@ func (db *DB) Close() error {
 }
 
 func (db *DB) Get(key string) (string, error) {
-	keyBytes := []byte(key)
+	bytes, err := db.GetBytes([]byte(key))
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
 
+func (db *DB) GetBytes(keyBytes []byte) ([]byte, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
 	if !db.open {
-		return "", ErrNotOpenedYet
+		return nil, ErrNotOpenedYet
 	}
 
 	if db.closed {
-		return "", ErrAlreadyClosed
+		return nil, ErrAlreadyClosed
 	}
 
 	// we have to read the sstable first and then augment it with
@@ -194,7 +214,7 @@ func (db *DB) Get(key string) (string, error) {
 		if errors.Is(err, sstables.NotFound) {
 			sstableNotFound = true
 		} else {
-			return "", err
+			return nil, err
 		}
 	} else if ssTableVal == nil || len(ssTableVal) == 0 {
 		sstableNotFound = true
@@ -204,21 +224,21 @@ func (db *DB) Get(key string) (string, error) {
 	if err != nil {
 		if errors.Is(err, memstore.KeyNotFound) {
 			if sstableNotFound {
-				return "", ErrNotFound
+				return nil, ErrNotFound
 			} else {
-				return string(ssTableVal), nil
+				return ssTableVal, nil
 			}
 		} else if errors.Is(err, memstore.KeyTombstoned) {
 			// regardless of what we found on the sstable:
 			// if the memstore says it's tombstoned it's considered deleted
-			return "", ErrNotFound
+			return nil, ErrNotFound
 		} else {
-			return "", err
+			return nil, err
 		}
 	}
 
 	// memstore always wins if there is a value available
-	return string(memStoreVal), nil
+	return memStoreVal, nil
 }
 
 func (db *DB) Put(key, value string) error {
@@ -229,12 +249,17 @@ func (db *DB) Put(key, value string) error {
 	// string to byte conversion takes 7% of the method execution time
 	keyBytes := []byte(key)
 	valBytes := []byte(value)
+
+	return db.PutBytes(keyBytes, valBytes)
+}
+
+func (db *DB) PutBytes(keyBytes, valBytes []byte) error {
 	// proto marshal takes 60%(!) of this method execution time
 	walBytes, err := proto.Marshal(&dbproto.WalMutation{
 		Mutation: &dbproto.WalMutation_Addition{
 			Addition: &dbproto.UpsertMutation{
-				Key:   key,
-				Value: value,
+				KeyBytes:   keyBytes,
+				ValueBytes: valBytes,
 			},
 		},
 	})
@@ -280,10 +305,14 @@ func (db *DB) Put(key, value string) error {
 
 func (db *DB) Delete(key string) error {
 	byteKey := []byte(key)
+	return db.DeleteBytes(byteKey)
+}
+
+func (db *DB) DeleteBytes(byteKey []byte) error {
 	bytes, err := proto.Marshal(&dbproto.WalMutation{
 		Mutation: &dbproto.WalMutation_DeleteTombStone{
 			DeleteTombStone: &dbproto.DeleteTombstoneMutation{
-				Key: key,
+				KeyBytes: byteKey,
 			},
 		},
 	})
