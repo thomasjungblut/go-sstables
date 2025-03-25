@@ -123,3 +123,9 @@ func allocateRecordBufferPooled(bufferPool *pool.Pool, header *Header, payloadSi
 
 	return expectedBytesRead, bufferPool.Get(int(expectedBytesRead))
 }
+
+func copyBuf(b []byte) []byte {
+	bx := make([]byte, len(b))
+	copy(bx, b)
+	return bx
+}

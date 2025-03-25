@@ -2,40 +2,30 @@ package proto
 
 import (
 	"errors"
+	"google.golang.org/protobuf/encoding/protowire"
 	"os"
 
 	"github.com/thomasjungblut/go-sstables/recordio"
-	"google.golang.org/protobuf/proto"
+	gproto "google.golang.org/protobuf/proto"
 )
 
 type Reader struct {
-	reader recordio.ReaderI
+	recordio.ReaderI
+	opts *gproto.UnmarshalOptions
 }
 
-func (r *Reader) Open() error {
-	return r.reader.Open()
-}
-
-func (r *Reader) ReadNext(record proto.Message) (proto.Message, error) {
-	bytes, err := r.reader.ReadNext()
+func (r *Reader) ReadNext(record gproto.Message) (gproto.Message, error) {
+	bytes, err := r.ReaderI.ReadNext()
 	if err != nil {
 		return nil, err
 	}
 
-	err = proto.Unmarshal(bytes, record)
+	err = r.opts.Unmarshal(bytes, record)
 	if err != nil {
 		return nil, err
 	}
 
 	return record, nil
-}
-
-func (r *Reader) SkipNext() error {
-	return r.reader.SkipNext()
-}
-
-func (r *Reader) Close() error {
-	return r.reader.Close()
 }
 
 // options
@@ -96,7 +86,10 @@ func NewReader(readerOptions ...ReaderOption) (ReaderI, error) {
 	}
 
 	return &Reader{
-		reader: reader,
+		ReaderI: reader,
+		opts: &gproto.UnmarshalOptions{
+			RecursionLimit: protowire.DefaultRecursionLimit,
+		},
 	}, nil
 
 }

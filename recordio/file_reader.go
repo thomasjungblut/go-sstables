@@ -103,27 +103,23 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			return nil, fmt.Errorf("not enough bytes in the record of '%s' found, expected %d but were %d", r.file.Name(), expectedBytesRead, numRead)
 		}
 
-		var returnSlice []byte
+		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
+		r.currentOffset = r.currentOffset + (r.reader.Count() - start)
 		if r.header.compressor != nil {
 			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
 			defer r.bufferPool.Put(pooledDecompressionBuffer)
 
-			decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
+			buf, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
 			}
-			// we do a defensive copy here not to leak the pooled slice
-			returnSlice = make([]byte, len(decompressedRecord))
-			copy(returnSlice, decompressedRecord)
-		} else {
-			// we do a defensive copy here not to leak the pooled slice
-			returnSlice = make([]byte, len(pooledRecordBuffer))
-			copy(returnSlice, pooledRecordBuffer)
+
+			return copyBuf(buf), nil
 		}
 
-		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
-		r.currentOffset = r.currentOffset + (r.reader.Count() - start)
-		return returnSlice, nil
+		// TODO(thomas): copyBuf is a huge performance bottleneck, just returning the pooled buffer will
+		// immediately unlock 1.5x-2x more throughput
+		return copyBuf(pooledRecordBuffer), nil
 	}
 }
 

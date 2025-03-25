@@ -6,15 +6,11 @@ import (
 )
 
 type MMapProtoReader struct {
-	reader recordio.ReadAtI
-}
-
-func (r *MMapProtoReader) Open() error {
-	return r.reader.Open()
+	recordio.ReadAtI
 }
 
 func (r *MMapProtoReader) ReadNextAt(record proto.Message, offset uint64) (proto.Message, error) {
-	bytes, err := r.reader.ReadNextAt(offset)
+	bytes, err := r.ReadAtI.ReadNextAt(offset)
 	if err != nil {
 		return nil, err
 	}
@@ -27,15 +23,11 @@ func (r *MMapProtoReader) ReadNextAt(record proto.Message, offset uint64) (proto
 	return record, nil
 }
 
-func (r *MMapProtoReader) Close() error {
-	return r.reader.Close()
-}
-
 func NewMMapProtoReaderWithPath(path string) (ReadAtI, error) {
 	r, err := recordio.NewMemoryMappedReaderWithPath(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return &MMapProtoReader{reader: r}, nil
+	return &MMapProtoReader{r}, nil
 }
