@@ -23,22 +23,17 @@ type Byte20KeyMapper[T comparable] struct{}
 func (m Byte20KeyMapper[T]) MapBytes(data []byte) T {
 	var result [20]byte
 
-	// Gestion de la longueur
 	if len(data) > 20 {
 		data = data[:20]
 	}
-
-	// Copie des données
 	copy(result[:], data)
-
-	// Conversion générique - nécessite que T soit [20]byte
 	return any(result).(T)
 }
 
 type SortedMapIndex[T comparable] struct {
-	sliceKeyIndex SliceKeyIndex
-	index         map[T]IndexVal
-	mapper        ByteKeyMapper[T]
+	SliceKeyIndex
+	index  map[T]IndexVal
+	mapper ByteKeyMapper[T]
 }
 
 func (s *SortedMapIndex[T]) Contains(key []byte) bool {
@@ -52,20 +47,6 @@ func (s *SortedMapIndex[T]) Get(key []byte) (IndexVal, error) {
 	}
 
 	return IndexVal{}, skiplist.NotFound
-}
-
-/* iterators inherit from the slicekeyindex */
-
-func (s *SortedMapIndex[T]) Iterator() (skiplist.IteratorI[[]byte, IndexVal], error) {
-	return s.sliceKeyIndex.Iterator()
-}
-
-func (s *SortedMapIndex[T]) IteratorStartingAt(key []byte) (skiplist.IteratorI[[]byte, IndexVal], error) {
-	return s.sliceKeyIndex.IteratorStartingAt(key)
-}
-
-func (s *SortedMapIndex[T]) IteratorBetween(keyLower []byte, keyHigher []byte) (skiplist.IteratorI[[]byte, IndexVal], error) {
-	return s.sliceKeyIndex.IteratorBetween(keyLower, keyHigher)
 }
 
 type SortedMapIndexLoader[T comparable] struct {
