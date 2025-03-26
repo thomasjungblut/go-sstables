@@ -5,6 +5,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
+	"math"
+	"math/rand"
 	"testing"
 )
 
@@ -117,6 +119,125 @@ func TestMMapReaderReadsNilAndEmpties(t *testing.T) {
 	bytes, err = reader.ReadNextAt(uint64(14))
 	require.Nil(t, err)
 	require.Equal(t, []byte{}, bytes)
+}
+
+func TestMMApReaderReadSequencedWrites(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	var offsets []uint64
+	for i := 0; i < math.MaxInt8; i++ {
+		offset, err := writer.Write([]byte{byte(i)})
+		require.NoError(t, err)
+		offsets = append(offsets, offset)
+	}
+
+	require.NoError(t, writer.Close())
+	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(0x381), reader.Size())
+	for i, offset := range offsets {
+		at, err := reader.ReadNextAt(offset)
+		require.NoError(t, err)
+		require.Equal(t, []byte{byte(i)}, at)
+
+		// SeekNext on the exact offset should yield the same record
+		at, err = reader.SeekNext(offset)
+		require.NoError(t, err)
+		require.Equal(t, []byte{byte(i)}, at)
+	}
+
+	// reads that seek each individual byte up until length
+	j := 0
+	for i := uint64(0); i < reader.Size(); i++ {
+		next, err := reader.SeekNext(i)
+		if j == len(offsets) {
+			require.ErrorIs(t, err, io.EOF)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, []byte{byte(j)}, next)
+			if i >= offsets[j] {
+				j++
+			}
+		}
+	}
+}
+
+func TestMMApReaderReadShuffled(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	var values []byte
+	var offsets []uint64
+	for i := 0; i < math.MaxInt8; i++ {
+		offset, err := writer.Write([]byte{byte(i)})
+		require.NoError(t, err)
+		offsets = append(offsets, offset)
+		values = append(values, byte(i))
+	}
+
+	require.NoError(t, writer.Close())
+
+	rand.Shuffle(len(offsets), func(i, j int) {
+		values[i], values[j] = values[j], values[i]
+		offsets[i], offsets[j] = offsets[j], offsets[i]
+	})
+
+	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(0x381), reader.Size())
+	for i, offset := range offsets {
+		at, err := reader.ReadNextAt(offset)
+		require.NoError(t, err)
+		require.Equal(t, []byte{values[i]}, at)
+
+		// SeekNext on the exact offset should yield the same record
+		at, err = reader.SeekNext(offset)
+		require.NoError(t, err)
+		require.Equal(t, []byte{values[i]}, at)
+	}
+}
+
+func TestMMApReaderReadSequencedWritesSeeksSmallBuf(t *testing.T) {
+	writer := newOpenedWriter(t)
+	defer removeFileWriterFile(t, writer)
+
+	var offsets []uint64
+	for i := 0; i < math.MaxInt8; i++ {
+		offset, err := writer.Write([]byte{byte(i)})
+		require.NoError(t, err)
+		offsets = append(offsets, offset)
+	}
+
+	require.NoError(t, writer.Close())
+	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
+	// this test reduces the seek buffer to be very small, so we can test the boundaries better
+	reader.seekLen = 10
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(0x381), reader.Size())
+	for i, offset := range offsets {
+		at, err := reader.SeekNext(offset)
+		require.NoError(t, err)
+		require.Equal(t, []byte{byte(i)}, at)
+	}
+
+	// reads that seek each individual byte up until length
+	j := 0
+	for i := uint64(0); i < reader.Size(); i++ {
+		next, err := reader.SeekNext(i)
+		if j == len(offsets) {
+			require.ErrorIs(t, err, io.EOF)
+		} else {
+			require.NoError(t, err)
+			require.Equal(t, []byte{byte(j)}, next)
+			if i >= offsets[j] {
+				j++
+			}
+		}
+	}
 }
 
 func newOpenedTestMMapReader(t *testing.T, file string) (*MMapReader, error) {

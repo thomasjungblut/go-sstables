@@ -2,6 +2,7 @@ package recordio
 
 import (
 	"bufio"
+	"encoding/binary"
 	"io"
 	"os"
 	"testing"
@@ -74,6 +75,12 @@ func TestReadWriteEndToEndDirectIO(t *testing.T) {
 	}
 
 	endToEndReadWrite(writer, reader, t)
+}
+
+func TestMagicNumberMatchesConstant(t *testing.T) {
+	actual := make([]byte, 8)
+	n := binary.PutUvarint(actual, MagicNumberSeparatorLong)
+	require.Equal(t, MagicNumberSeparatorLongBytes, actual[:n])
 }
 
 func endToEndReadWrite(writer WriterI, readerFunc func() ReaderI, t *testing.T) {

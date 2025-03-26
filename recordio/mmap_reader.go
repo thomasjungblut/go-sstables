@@ -3,6 +3,7 @@ package recordio
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
@@ -18,6 +19,8 @@ type MMapReader struct {
 	closed     bool
 	bufferPool *pool.Pool
 	path       string
+
+	seekLen int
 }
 
 func (r *MMapReader) Open() error {
@@ -29,7 +32,7 @@ func (r *MMapReader) Open() error {
 		return fmt.Errorf("mmap reader for '%s' is already closed", r.path)
 	}
 
-	buf := make([]byte, 8)
+	buf := make([]byte, FileHeaderSizeBytes)
 	numRead, err := r.mmapReader.ReadAt(buf, 0)
 	if err != nil {
 		return fmt.Errorf("failed reading at offset 0 in mmap reader for '%s': %w", r.path, err)
@@ -49,6 +52,75 @@ func (r *MMapReader) Open() error {
 	return nil
 }
 
+func (r *MMapReader) Size() uint64 {
+	return uint64(r.mmapReader.Len())
+}
+
+func (r *MMapReader) SeekNext(offset uint64) ([]byte, error) {
+	if !r.open || r.closed {
+		return nil, fmt.Errorf("reader at '%s' was either not opened yet or is closed already", r.path)
+	}
+	if r.header.fileVersion < Version3 {
+		return nil, fmt.Errorf("unsupported on files with version lower than v3")
+	}
+
+	headerBufPooled := r.bufferPool.Get(r.seekLen)
+	defer r.bufferPool.Put(headerBufPooled)
+
+	next := int64(offset)
+	for {
+		numRead, err := r.mmapReader.ReadAt(headerBufPooled, next)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
+				// which will return EOF when you have read less than the buffers actual size due to the EOF.
+				// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
+				if numRead == 0 {
+					return nil, io.EOF
+				}
+			} else {
+				return nil, err
+			}
+		}
+
+		i := 0
+	outer:
+		for i < numRead {
+			ix := i
+			for j := 0; j < len(MagicNumberSeparatorLongBytes); j++ {
+				if headerBufPooled[ix] != MagicNumberSeparatorLongBytes[j] {
+					break
+				}
+				ix++
+				// we may have a marker at the boundary of our mmap reader, we will rewind next and read again from there
+				if ix >= numRead {
+					break outer
+				}
+			}
+			if ix-i < len(MagicNumberSeparatorLongBytes) {
+				i = ix + 1
+				continue
+			}
+
+			// we found the marker starting at i, we try to read it
+			trialOffset := uint64(next) + uint64(i)
+			record, err := r.ReadNextAt(trialOffset)
+
+			if err == nil {
+				return record, nil
+			} else {
+				if !errors.Is(err, MagicNumberMismatchErr) {
+					return nil, err
+				}
+			}
+
+			// try to seek again, the record couldn't be read fully
+			i = ix + 1
+		}
+		next += int64(i)
+	}
+}
+
 func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 	if !r.open || r.closed {
 		return nil, fmt.Errorf("reader at '%s' was either not opened yet or is closed already", r.path)
@@ -64,7 +136,7 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 
 		numRead, err := r.mmapReader.ReadAt(headerBufPooled, int64(offset))
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
 				// which will return EOF when you have read less than the buffers actual size due to the EOF.
 				// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
@@ -72,7 +144,7 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 					return nil, io.EOF
 				}
 			} else {
-				return nil, fmt.Errorf("failed reading at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+				return nil, fmt.Errorf("ReadNextAt failed reading at offset %d in mmap reader for '%s': %w", offset, r.path, err)
 			}
 		}
 
@@ -224,5 +296,5 @@ func NewMemoryMappedReaderWithPath(path string) (ReadAtI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error while opening mmap at '%s': %w", path, err)
 	}
-	return &MMapReader{mmapReader: mmapReaderAt, path: path}, nil
+	return &MMapReader{mmapReader: mmapReaderAt, path: path, seekLen: 4 * 1024}, nil
 }
