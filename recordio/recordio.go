@@ -15,6 +15,8 @@ const CurrentVersion = Version3
 const MagicNumberSeparator uint32 = 0x130691
 const MagicNumberSeparatorLong uint64 = 0x130691
 
+var MagicNumberSeparatorLongBytes = []byte{0x91, 0x8d, 0x4c}
+
 // FileHeaderSizeBytes has a 4 byte version number, 4 byte compression code = 8 bytes
 const FileHeaderSizeBytes = 8
 const RecordHeaderSizeBytesV1V2 = 20
@@ -83,9 +85,16 @@ type ReaderI interface {
 // ReadAtI implementors must make their implementation thread-safe
 type ReadAtI interface {
 	OpenClosableI
+	SizeI
+
 	// ReadNextAt reads the next record at the given offset, EOF error when it reaches the end signalled by (nil, io.EOF).
 	// It can be wrapped however, so always check using errors.Is(err, io.EOF). Implementation must be thread-safe.
 	ReadNextAt(offset uint64) ([]byte, error)
+
+	// SeekNext reads the next full record that comes after the provided offset. The main difference to ReadNextAt is
+	// that this function seeks to the next record marker, whereas ReadNextAt always needs to be pointed to the start of
+	// the record. This function returns any io related error, for example io.EOF, or a wrapped equivalent, when the end is reached.
+	SeekNext(offset uint64) ([]byte, error)
 }
 
 type ReaderWriterCloserFactory interface {

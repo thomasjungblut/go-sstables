@@ -2,6 +2,7 @@ package proto
 
 import (
 	"bufio"
+	"io"
 	"math/rand"
 	"os"
 	"testing"
@@ -124,6 +125,7 @@ func endToEndRandomReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.F
 	require.NoError(t, writer.Open())
 
 	var lines []string
+	var offsets []uint64
 	offsetMap := make(map[string]uint64)
 	numRead := 0
 	scanner := bufio.NewScanner(inFile)
@@ -133,6 +135,7 @@ func endToEndRandomReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.F
 		msg := test_files.TextLine{LineNumber: int32(numRead), Line: line}
 		offset, err := writer.Write(&msg)
 		offsetMap[line] = offset
+		offsets = append(offsets, offset)
 		lines = append(lines, line)
 		require.NoError(t, err)
 		numRead++
@@ -145,6 +148,22 @@ func endToEndRandomReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.F
 	reader, err := NewMMapProtoReaderWithPath(tmpFile.Name())
 	require.NoError(t, err)
 	require.NoError(t, reader.Open())
+
+	j := 0
+	for i := uint64(0); i < reader.Size(); i++ {
+		textLine := &test_files.TextLine{}
+		_, err := reader.SeekNext(textLine, i)
+		if j == len(offsets) {
+			require.ErrorIs(t, err, io.EOF)
+		} else {
+			require.NoError(t, err)
+			expectedLine := lines[j]
+			require.Equal(t, expectedLine, textLine.Line)
+			if i >= offsets[j] {
+				j++
+			}
+		}
+	}
 
 	// we shuffle the lines, so we can test the actual random read behaviour
 	rand.Shuffle(len(lines), func(i, j int) {
