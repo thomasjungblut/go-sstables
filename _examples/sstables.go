@@ -28,7 +28,10 @@ func mainSimpleRead(path string) {
 	metadata := reader.MetaData()
 	log.Printf("reading table with %d records, minKey %d and maxKey %d", metadata.NumRecords, metadata.MinKey, metadata.MaxKey)
 
-	contains := reader.Contains([]byte{1})
+	contains, err := reader.Contains([]byte{1})
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
 	val, err := reader.Get([]byte{1})
 	if err != nil {
 		log.Fatalf("error: %v", err)
