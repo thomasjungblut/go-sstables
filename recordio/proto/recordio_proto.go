@@ -22,7 +22,7 @@ type ReadAtI interface {
 	// SeekNext reads the next full record that comes after the provided offset. The main difference to ReadNextAt is
 	// that this function seeks to the next record marker, whereas ReadNextAt always needs to be pointed to the start of
 	// the record. This function returns any io related error, for example io.EOF, or a wrapped equivalent, when the end is reached.
-	SeekNext(record proto.Message, offset uint64) (proto.Message, error)
+	SeekNext(record proto.Message, offset uint64) (uint64, proto.Message, error)
 }
 
 type WriterI interface {

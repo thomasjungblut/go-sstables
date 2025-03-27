@@ -56,12 +56,12 @@ func (r *MMapReader) Size() uint64 {
 	return uint64(r.mmapReader.Len())
 }
 
-func (r *MMapReader) SeekNext(offset uint64) ([]byte, error) {
+func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 	if !r.open || r.closed {
-		return nil, fmt.Errorf("reader at '%s' was either not opened yet or is closed already", r.path)
+		return 0, nil, fmt.Errorf("reader at '%s' was either not opened yet or is closed already", r.path)
 	}
 	if r.header.fileVersion < Version3 {
-		return nil, fmt.Errorf("unsupported on files with version lower than v3")
+		return 0, nil, fmt.Errorf("unsupported on files with version lower than v3")
 	}
 
 	headerBufPooled := r.bufferPool.Get(r.seekLen)
@@ -76,10 +76,10 @@ func (r *MMapReader) SeekNext(offset uint64) ([]byte, error) {
 				// which will return EOF when you have read less than the buffers actual size due to the EOF.
 				// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
 				if numRead == 0 {
-					return nil, io.EOF
+					return 0, nil, io.EOF
 				}
 			} else {
-				return nil, err
+				return 0, nil, err
 			}
 		}
 
@@ -107,10 +107,10 @@ func (r *MMapReader) SeekNext(offset uint64) ([]byte, error) {
 			record, err := r.ReadNextAt(trialOffset)
 
 			if err == nil {
-				return record, nil
+				return trialOffset, record, nil
 			} else {
 				if !errors.Is(err, MagicNumberMismatchErr) {
-					return nil, err
+					return 0, nil, err
 				}
 			}
 

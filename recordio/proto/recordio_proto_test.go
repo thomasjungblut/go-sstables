@@ -152,13 +152,14 @@ func endToEndRandomReadWriteProtobuf(writer WriterI, t *testing.T, tmpFile *os.F
 	j := 0
 	for i := uint64(0); i < reader.Size(); i++ {
 		textLine := &test_files.TextLine{}
-		_, err := reader.SeekNext(textLine, i)
+		offset, _, err := reader.SeekNext(textLine, i)
 		if j == len(offsets) {
 			require.ErrorIs(t, err, io.EOF)
 		} else {
 			require.NoError(t, err)
 			expectedLine := lines[j]
 			require.Equal(t, expectedLine, textLine.Line)
+			require.Equal(t, offsets[j], offset)
 			if i >= offsets[j] {
 				j++
 			}

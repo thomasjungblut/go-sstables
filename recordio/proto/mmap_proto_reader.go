@@ -23,18 +23,18 @@ func (r *MMapProtoReader) ReadNextAt(record proto.Message, offset uint64) (proto
 	return record, nil
 }
 
-func (r *MMapProtoReader) SeekNext(record proto.Message, offset uint64) (proto.Message, error) {
-	bytes, err := r.ReadAtI.SeekNext(offset)
+func (r *MMapProtoReader) SeekNext(record proto.Message, offset uint64) (uint64, proto.Message, error) {
+	off, bytes, err := r.ReadAtI.SeekNext(offset)
 	if err != nil {
-		return nil, err
+		return off, nil, err
 	}
 
 	err = proto.Unmarshal(bytes, record)
 	if err != nil {
-		return nil, err
+		return off, nil, err
 	}
 
-	return record, nil
+	return off, record, nil
 }
 
 func NewMMapProtoReaderWithPath(path string) (ReadAtI, error) {
