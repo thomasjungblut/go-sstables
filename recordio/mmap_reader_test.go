@@ -143,20 +143,27 @@ func TestMMApReaderReadSequencedWrites(t *testing.T) {
 		require.Equal(t, []byte{byte(i)}, at)
 
 		// SeekNext on the exact offset should yield the same record
-		at, err = reader.SeekNext(offset)
+		ofx, at, err := reader.SeekNext(offset)
 		require.NoError(t, err)
 		require.Equal(t, []byte{byte(i)}, at)
+		require.Equal(t, offset, ofx)
 	}
 
 	// reads that seek each individual byte up until length
 	j := 0
 	for i := uint64(0); i < reader.Size(); i++ {
-		next, err := reader.SeekNext(i)
+		offset, next, err := reader.SeekNext(i)
 		if j == len(offsets) {
 			require.ErrorIs(t, err, io.EOF)
 		} else {
 			require.NoError(t, err)
 			require.Equal(t, []byte{byte(j)}, next)
+
+			// reading from the above offset should yield the same record
+			at, err := reader.ReadNextAt(offset)
+			require.NoError(t, err)
+			require.Equal(t, []byte{byte(j)}, at)
+
 			if i >= offsets[j] {
 				j++
 			}
@@ -194,9 +201,11 @@ func TestMMApReaderReadShuffled(t *testing.T) {
 		require.Equal(t, []byte{values[i]}, at)
 
 		// SeekNext on the exact offset should yield the same record
-		at, err = reader.SeekNext(offset)
+		ofx, at, err := reader.SeekNext(offset)
 		require.NoError(t, err)
 		require.Equal(t, []byte{values[i]}, at)
+		require.Equal(t, offset, ofx)
+
 	}
 }
 
@@ -219,7 +228,7 @@ func TestMMApReaderReadSequencedWritesSeeksSmallBuf(t *testing.T) {
 
 	require.Equal(t, uint64(0x381), reader.Size())
 	for i, offset := range offsets {
-		at, err := reader.SeekNext(offset)
+		_, at, err := reader.SeekNext(offset)
 		require.NoError(t, err)
 		require.Equal(t, []byte{byte(i)}, at)
 	}
@@ -227,10 +236,11 @@ func TestMMApReaderReadSequencedWritesSeeksSmallBuf(t *testing.T) {
 	// reads that seek each individual byte up until length
 	j := 0
 	for i := uint64(0); i < reader.Size(); i++ {
-		next, err := reader.SeekNext(i)
+		ofx, next, err := reader.SeekNext(i)
 		if j == len(offsets) {
 			require.ErrorIs(t, err, io.EOF)
 		} else {
+			require.Equal(t, offsets[j], ofx)
 			require.NoError(t, err)
 			require.Equal(t, []byte{byte(j)}, next)
 			if i >= offsets[j] {
