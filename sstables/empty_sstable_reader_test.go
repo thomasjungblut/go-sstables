@@ -8,7 +8,9 @@ import (
 
 func TestContains(t *testing.T) {
 	reader := EmptySStableReader{}
-	assert.False(t, reader.Contains([]byte{}), "contains returned true")
+	contains, err := reader.Contains([]byte{})
+	require.NoError(t, err)
+	assert.False(t, contains, "contains returned true")
 }
 
 func TestGet(t *testing.T) {

@@ -3,12 +3,14 @@ package sstables
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"math/rand"
 	"os"
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -260,7 +262,10 @@ func assertContentMatchesSlice(t *testing.T, reader SSTableReaderI, expectedSlic
 	for _, e := range expectedSlice {
 		key := intToByteSlice(e)
 
-		assert.True(t, reader.Contains(key))
+		contains, err := reader.Contains(key)
+		require.NoError(t, err)
+		assert.True(t, contains)
+
 		actualValue, err := reader.Get(key)
 		require.Nil(t, err)
 		assert.Equal(t, e+1, int(binary.BigEndian.Uint32(actualValue)))
@@ -296,11 +301,13 @@ func assertContentMatchesSkipList(t *testing.T, reader SSTableReaderI, expectedS
 		if errors.Is(err, skiplist.Done) {
 			break
 		}
-		require.Nil(t, err)
+		require.NoError(t, err)
 
-		assert.True(t, reader.Contains(expectedKey))
+		contains, err := reader.Contains(expectedKey)
+		require.NoError(t, err)
+		assert.True(t, contains)
 		actualValue, err := reader.Get(expectedKey)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expectedValue, actualValue)
 		numRead++
 	}
@@ -320,48 +327,60 @@ func getFullScanIterator(t *testing.T, sstablePath string) (SSTableReaderI, SSTa
 }
 
 func assertRandomAndSequentialRead(t *testing.T, sstablePath string, expectedNumbers []int) {
-	reader, err := NewSSTableReader(
-		ReadBasePath(sstablePath),
-		ReadWithKeyComparator(skiplist.BytesComparator{}))
-	require.Nil(t, err)
-	defer closeReader(t, reader)
+	for _, loaderFunc := range indexLoaders {
+		loader := loaderFunc()
+		t.Run(fmt.Sprintf("seqreader_%s", reflect.TypeOf(loader).String()), func(t *testing.T) {
+			reader, err := NewSSTableReader(
+				ReadBasePath(sstablePath),
+				ReadWithKeyComparator(skiplist.BytesComparator{}),
+				ReadIndexLoader(loaderFunc()))
 
-	// check the metadata is accurate
-	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
+			require.NoError(t, err)
+			defer closeReader(t, reader)
 
-	// test random reads
-	rand.Shuffle(len(expectedNumbers), func(i, j int) {
-		expectedNumbers[i], expectedNumbers[j] = expectedNumbers[j], expectedNumbers[i]
-	})
-	assertContentMatchesSlice(t, reader, expectedNumbers)
+			// check the metadata is accurate
+			assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
 
-	// test ordered reads
-	sort.Ints(expectedNumbers)
-	assertContentMatchesSlice(t, reader, expectedNumbers)
+			// test random reads
+			rand.Shuffle(len(expectedNumbers), func(i, j int) {
+				expectedNumbers[i], expectedNumbers[j] = expectedNumbers[j], expectedNumbers[i]
+			})
+			assertContentMatchesSlice(t, reader, expectedNumbers)
+
+			// test ordered reads
+			sort.Ints(expectedNumbers)
+			assertContentMatchesSlice(t, reader, expectedNumbers)
+		})
+	}
 }
 
 func assertExhaustiveRangeReads(t *testing.T, sstablePath string, expectedNumbers []int) {
-	reader, err := NewSSTableReader(
-		ReadBasePath(sstablePath),
-		ReadWithKeyComparator(skiplist.BytesComparator{}))
-	require.Nil(t, err)
-	defer closeReader(t, reader)
+	for _, loaderFunc := range indexLoaders {
+		loader := loaderFunc()
+		t.Run(fmt.Sprintf("rangereader_%s", reflect.TypeOf(loader).String()), func(t *testing.T) {
+			reader, err := NewSSTableReader(
+				ReadBasePath(sstablePath),
+				ReadWithKeyComparator(skiplist.BytesComparator{}),
+				ReadIndexLoader(loader))
+			require.NoError(t, err)
+			defer closeReader(t, reader)
 
-	// check the metadata is accurate
-	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
-	sort.Ints(expectedNumbers)
+			// check the metadata is accurate
+			assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
+			sort.Ints(expectedNumbers)
 
-	// this is a bit exhaustive at O(n!) but the runtime is fine for up to 100 elements
-	for i := 0; i < len(expectedNumbers); i++ {
-		lowKey := intToByteSlice(expectedNumbers[i])
-		for j := i; j < len(expectedNumbers); j++ {
-			highKey := intToByteSlice(expectedNumbers[j])
-			it, err := reader.ScanRange(lowKey, highKey)
-			require.Nil(t, err)
-			assertIteratorMatchesSlice(t, it, expectedNumbers[i:j+1])
-		}
+			// this is a bit exhaustive at O(n!) but the runtime is fine for up to 100 elements
+			for i := 0; i < len(expectedNumbers); i++ {
+				lowKey := intToByteSlice(expectedNumbers[i])
+				for j := i; j < len(expectedNumbers); j++ {
+					highKey := intToByteSlice(expectedNumbers[j])
+					it, err := reader.ScanRange(lowKey, highKey)
+					require.Nil(t, err)
+					assertIteratorMatchesSlice(t, it, expectedNumbers[i:j+1])
+				}
+			}
+		})
 	}
-
 }
 
 func closeWriter(t *testing.T, writer *SSTableStreamWriter) {

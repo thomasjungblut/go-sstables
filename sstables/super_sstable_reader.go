@@ -15,21 +15,24 @@ type SuperSSTableReader struct {
 	comp    skiplist.Comparator[[]byte]
 }
 
-func (s SuperSSTableReader) Contains(key []byte) bool {
+func (s SuperSSTableReader) Contains(key []byte) (bool, error) {
 	// scanning from back to front to get the latest definitive answer
 	for i := len(s.readers) - 1; i >= 0; i-- {
 		// first check if key exist to return fast
-		keyExist := s.readers[i].Contains(key)
+		keyExist, err := s.readers[i].Contains(key)
+		if err != nil {
+			return false, err
+		}
 		if !keyExist {
 			continue
 		}
 		// we have to check if the value is not tombstoned
 		// maybe had to be implemented in an IsTombstoned in sstableReader
-		res, _ := s.readers[i].Get(key)
-		return res != nil
+		res, err := s.readers[i].Get(key)
+		return res != nil, err
 	}
 
-	return false
+	return false, nil
 }
 
 func (s SuperSSTableReader) Get(key []byte) ([]byte, error) {

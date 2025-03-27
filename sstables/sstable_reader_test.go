@@ -303,10 +303,19 @@ func TestScanRange(t *testing.T) {
 }
 
 func assertNegativeContains(t *testing.T, reader SSTableReaderI) {
-	assert.False(t, reader.Contains([]byte{}))
-	assert.False(t, reader.Contains([]byte{1}))
-	assert.False(t, reader.Contains([]byte{1, 2, 3}))
-	_, err := reader.Get([]byte{})
+	contains, err := reader.Contains([]byte{})
+	require.NoError(t, err)
+	assert.False(t, contains)
+
+	contains, err = reader.Contains([]byte{1})
+	require.NoError(t, err)
+	assert.False(t, contains)
+
+	contains, err = reader.Contains([]byte{1, 2, 3})
+	require.NoError(t, err)
+	assert.False(t, contains)
+
+	_, err = reader.Get([]byte{})
 	assert.Equal(t, errors.New("key was not found"), err)
 	_, err = reader.Get([]byte{1})
 	assert.Equal(t, errors.New("key was not found"), err)

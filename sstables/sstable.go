@@ -26,7 +26,7 @@ type SSTableIteratorI interface {
 
 type SSTableReaderI interface {
 	// Contains returns true when the given key exists, false otherwise
-	Contains(key []byte) bool
+	Contains(key []byte) (bool, error)
 	// Get returns the value associated with the given key, NotFound as the error otherwise
 	Get(key []byte) ([]byte, error)
 	// Scan returns an iterator over the whole sorted sequence. Scan uses a more optimized version that iterates the
