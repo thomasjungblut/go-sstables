@@ -223,8 +223,8 @@ func (m *MockSSTableReader) MetaData() *proto.MetaData {
 	return m.metadata
 }
 
-func (m *MockSSTableReader) Contains(key []byte) bool {
-	return false
+func (m *MockSSTableReader) Contains(key []byte) (bool, error) {
+	return false, nil
 }
 
 func (m *MockSSTableReader) Get(key []byte) ([]byte, error) {

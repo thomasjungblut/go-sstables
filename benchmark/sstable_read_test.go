@@ -10,7 +10,6 @@ import (
 
 	"crypto/sha1"
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
@@ -43,14 +42,15 @@ var loadTypeBenchmarks = []struct {
 		ReadBufferSize: 4096,
 	}},
 	{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}},
+	{"disk", &sstables.DiskIndexLoader{}},
 }
 
 func BenchmarkSSTableScanDefault(b *testing.B) {
 	for _, bm := range sizeBasedBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.NoError(b, err)
+			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
 
@@ -64,8 +64,8 @@ func BenchmarkSSTableRandomReadDefault(b *testing.B) {
 	for _, bm := range sizeBasedBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.NoError(b, err)
+			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			keys := writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
 
@@ -78,7 +78,7 @@ func BenchmarkSSTableRandomReadDefault(b *testing.B) {
 			reader, err := sstables.NewSSTableReader(opts...)
 
 			defer func() {
-				assert.Nil(b, reader.Close())
+				require.NoError(b, reader.Close())
 			}()
 
 			randomRead(b, reader, keys)
@@ -90,8 +90,8 @@ func BenchmarkSSTableScanByReadIndexTypes(b *testing.B) {
 	for _, bm := range loadTypeBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.NoError(b, err)
+			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
 
@@ -105,8 +105,8 @@ func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
 	for _, bm := range loadTypeBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
-			assert.Nil(b, err)
-			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+			require.NoError(b, err)
+			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			keys := writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
 
@@ -121,7 +121,7 @@ func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
 
 			reader, err := sstables.NewSSTableReader(opts...)
 			defer func() {
-				assert.Nil(b, reader.Close())
+				require.NoError(b, reader.Close())
 			}()
 
 			randomRead(b, reader, keys)
@@ -142,7 +142,7 @@ func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skipli
 		hash.Write(kx)
 
 		k := hash.Sum([]byte{})
-		assert.Nil(b, mStore.Add(k, bytes))
+		require.NoError(b, mStore.Add(k, bytes))
 
 		// to keep the memory bound, we only store the first two million keys
 		if len(keys) < 2000000 {
@@ -152,7 +152,7 @@ func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skipli
 		i++
 	}
 
-	assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+	require.NoError(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
 	return keys
 }
 
@@ -169,6 +169,8 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		}
 
 		reader, err := sstables.NewSSTableReader(opts...)
+		require.NoError(b, err)
+
 		loadEnd := time.Now().Sub(loadStart)
 		b.ReportMetric(float64(loadEnd.Milliseconds()), "load_time_ms")
 		b.ReportMetric(float64(loadEnd.Nanoseconds())/float64(reader.MetaData().NumRecords), "load_time_ns/record")
@@ -176,18 +178,19 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		b.ReportMetric(float64(reader.MetaData().IndexBytes)/1024/1024/loadEnd.Seconds(), "load_bandwidth_mb/s")
 
 		defer func() {
-			assert.Nil(b, reader.Close())
+			require.NoError(b, reader.Close())
 		}()
 
-		assert.Nil(b, err)
 		scanStart := time.Now()
 		scanner, err := reader.Scan()
-		assert.Nil(b, err)
+		require.NoError(b, err)
 		i := uint64(0)
 		for {
 			_, _, err := scanner.Next()
 			if errors.Is(err, sstables.Done) {
 				break
+			} else {
+				require.NoError(b, err)
 			}
 			i++
 		}

@@ -20,6 +20,9 @@ var indexLoaders = []func() IndexLoader{
 	func() IndexLoader {
 		return &SliceKeyIndexLoader{ReadBufferSize: 4096}
 	},
+	func() IndexLoader {
+		return &DiskIndexLoader{}
+	},
 }
 
 func TestIndexContains(t *testing.T) {
@@ -29,14 +32,29 @@ func TestIndexContains(t *testing.T) {
 			idx, err := loader.Load("test_files/SimpleWriteHappyPathSSTableWithMetaData/index.rio", &proto.MetaData{})
 			require.NoError(t, err)
 
-			assert.False(t, idx.Contains([]byte{}))
-			assert.False(t, idx.Contains([]byte{1}))
-			assert.False(t, idx.Contains([]byte{1, 2, 3}))
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
+
+			contains, err := idx.Contains([]byte{})
+			require.NoError(t, err)
+			assert.False(t, contains)
+
+			contains, err = idx.Contains([]byte{1})
+			require.NoError(t, err)
+			assert.False(t, contains)
+
+			contains, err = idx.Contains([]byte{1, 2, 3})
+			require.NoError(t, err)
+			assert.False(t, contains)
 
 			expected := []int{1, 2, 3, 4, 5, 6, 7}
 			for _, i := range expected {
 				k, _ := getKeyValueAsBytes(i)
-				assert.True(t, idx.Contains(k))
+				contains, err = idx.Contains(k)
+				assert.True(t, contains)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -48,6 +66,11 @@ func TestIndexGet(t *testing.T) {
 		t.Run(reflect.TypeOf(loader).String(), func(t *testing.T) {
 			idx, err := loader.Load("test_files/SimpleWriteHappyPathSSTableWithMetaData/index.rio", &proto.MetaData{})
 			require.NoError(t, err)
+
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
 
 			v, err := idx.Get([]byte{})
 			require.Equal(t, skiplist.NotFound, err)
@@ -79,6 +102,11 @@ func TestIndexIterator(t *testing.T) {
 			idx, err := loader.Load("test_files/SimpleWriteHappyPathSSTableWithMetaData/index.rio", &proto.MetaData{})
 			require.NoError(t, err)
 
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
+
 			it, err := idx.Iterator()
 			require.NoError(t, err)
 			expected := []int{1, 2, 3, 4, 5, 6, 7}
@@ -93,6 +121,12 @@ func TestIndexIteratorStartingAt(t *testing.T) {
 		t.Run(reflect.TypeOf(loader).String(), func(t *testing.T) {
 			idx, err := loader.Load("test_files/SimpleWriteHappyPathSSTableWithMetaData/index.rio", &proto.MetaData{})
 			require.NoError(t, err)
+
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
+
 			expected := []int{1, 2, 3, 4, 5, 6, 7}
 			// whole sequence when out of bounds to the left
 			it, err := idx.IteratorStartingAt(intToByteSlice(0))
@@ -124,6 +158,12 @@ func TestIndexIteratorBetween(t *testing.T) {
 		t.Run(reflect.TypeOf(loader).String(), func(t *testing.T) {
 			idx, err := loader.Load("test_files/SimpleWriteHappyPathSSTableWithMetaData/index.rio", &proto.MetaData{})
 			require.NoError(t, err)
+
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
+
 			expected := []int{1, 2, 3, 4, 5, 6, 7}
 			// whole sequence when out of bounds to the left and right
 			it, err := idx.IteratorBetween(intToByteSlice(0), intToByteSlice(10))

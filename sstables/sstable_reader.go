@@ -46,13 +46,17 @@ type SSTableReader struct {
 	miscClosers  []recordio.CloseableI
 }
 
-func (reader *SSTableReader) Contains(key []byte) bool {
+func (reader *SSTableReader) Contains(key []byte) (bool, error) {
 	// short-cut for the bloom filter to tell whether it's not in the set (if available)
 	if reader.bloomFilter != nil {
 		fnvHash := fnv.New64()
-		_, _ = fnvHash.Write(key)
+		_, err := fnvHash.Write(key)
+		if err != nil {
+			return false, err
+		}
+
 		if !reader.bloomFilter.Contains(fnvHash) {
-			return false
+			return false, nil
 		}
 	}
 
@@ -62,8 +66,11 @@ func (reader *SSTableReader) Contains(key []byte) bool {
 
 func (reader *SSTableReader) Get(key []byte) ([]byte, error) {
 	iVal, err := reader.index.Get(key)
-	if errors.Is(err, skiplist.NotFound) {
-		return nil, NotFound
+	if err != nil {
+		if errors.Is(err, skiplist.NotFound) {
+			return nil, NotFound
+		}
+		return nil, fmt.Errorf("error in sstable '%s' on getting key from index: %w", reader.opts.basePath, err)
 	}
 
 	return reader.getValueAtOffset(iVal, reader.opts.skipHashCheckOnRead)
@@ -180,6 +187,10 @@ func (reader *SSTableReader) Close() (err error) {
 		err = errors.Join(err, reader.dataReader.Close())
 	}
 
+	if reader.index != nil {
+		err = errors.Join(err, reader.index.Close())
+	}
+
 	return err
 }
 
@@ -213,11 +224,12 @@ func (reader *SSTableReader) validateDataFile() error {
 				break
 			}
 
-			return err
+			return fmt.Errorf("validateDataFile error iterating sstable '%s' at key [%v]: %w",
+				reader.opts.basePath, k, err)
 		}
 
 		if _, err := reader.getValueAtOffset(iv, false); err != nil {
-			return fmt.Errorf("error loading sstable '%s' at key [%v]: %w",
+			return fmt.Errorf("validateDataFile error loading value '%s' at key [%v]: %w",
 				reader.opts.basePath, k, err)
 		}
 	}
@@ -275,6 +287,11 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	index, err := opts.indexLoader.Load(filepath.Join(opts.basePath, IndexFileName), metaData)
 	if err != nil {
 		return nil, fmt.Errorf("error while reading index of sstable in '%s': %w", opts.basePath, err)
+	}
+
+	err = index.Open()
+	if err != nil {
+		return nil, fmt.Errorf("error while opening index of sstable in '%s': %w", opts.basePath, err)
 	}
 
 	filter, err := readFilterIfExists(filepath.Join(opts.basePath, BloomFileName))
