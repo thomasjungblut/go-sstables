@@ -2,6 +2,8 @@ package benchmark
 
 import (
 	"errors"
+	"github.com/stretchr/testify/require"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -14,24 +16,37 @@ import (
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
 
-func BenchmarkSSTableRead(b *testing.B) {
-	benchmarks := []struct {
-		name         string
-		memstoreSize int
-	}{
-		{"32mb", 1024 * 1024 * 32},
-		{"64mb", 1024 * 1024 * 64},
-		{"128mb", 1024 * 1024 * 128},
-		{"256mb", 1024 * 1024 * 256},
-		{"512mb", 1024 * 1024 * 512},
-		{"1024mb", 1024 * 1024 * 1024},
-		{"2048mb", 1024 * 1024 * 1024 * 2},
-		{"4096mb", 1024 * 1024 * 1024 * 4},
-		{"8192mb", 1024 * 1024 * 1024 * 8},
-	}
+const sizeTwoGigs = 1024 * 1024 * 1024 * 2
 
-	cmp := skiplist.BytesComparator{}
-	for _, bm := range benchmarks {
+var cmp = skiplist.BytesComparator{}
+var sizeBasedBenchmarks = []struct {
+	name         string
+	memstoreSize int
+}{
+	{"32mb", 1024 * 1024 * 32},
+	{"64mb", 1024 * 1024 * 64},
+	{"128mb", 1024 * 1024 * 128},
+	{"256mb", 1024 * 1024 * 256},
+	{"512mb", 1024 * 1024 * 512},
+	{"1024mb", 1024 * 1024 * 1024},
+	{"2048mb", 1024 * 1024 * 1024 * 2},
+	{"4096mb", 1024 * 1024 * 1024 * 4},
+	{"8192mb", 1024 * 1024 * 1024 * 8},
+}
+
+var loadTypeBenchmarks = []struct {
+	name   string
+	loader sstables.IndexLoader
+}{
+	{"skiplist", &sstables.SkipListIndexLoader{
+		KeyComparator:  cmp,
+		ReadBufferSize: 4096,
+	}},
+	{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}},
+}
+
+func BenchmarkSSTableScanDefault(b *testing.B) {
+	for _, bm := range sizeBasedBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
 			assert.Nil(b, err)
@@ -45,37 +60,80 @@ func BenchmarkSSTableRead(b *testing.B) {
 	}
 }
 
-func BenchmarkSSTableReadIndexTypes(b *testing.B) {
-	sizeTwoGigs := 1024 * 1024 * 1024 * 2
-	cmp := skiplist.BytesComparator{}
-	benchmarks := []struct {
-		name   string
-		loader sstables.IndexLoader
-	}{
-		{"skiplist", &sstables.SkipListIndexLoader{
-			KeyComparator:  cmp,
-			ReadBufferSize: 4096,
-		}},
-		{"slice", &sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}},
-	}
+func BenchmarkSSTableRandomReadDefault(b *testing.B) {
+	for _, bm := range sizeBasedBenchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
-	for _, bm := range benchmarks {
+			keys := writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
+
+			opts := []sstables.ReadOption{
+				sstables.ReadBasePath(tmpDir),
+				sstables.ReadWithKeyComparator(cmp),
+				sstables.SkipHashCheckOnLoad(),
+			}
+
+			reader, err := sstables.NewSSTableReader(opts...)
+
+			defer func() {
+				assert.Nil(b, reader.Close())
+			}()
+
+			randomRead(b, reader, keys)
+		})
+	}
+}
+
+func BenchmarkSSTableScanByReadIndexTypes(b *testing.B) {
+	for _, bm := range loadTypeBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
 			assert.Nil(b, err)
 			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
 
 			writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
+
 			b.ResetTimer()
 			fullScanTable(b, tmpDir, cmp, bm.loader)
 		})
 	}
 }
 
-func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) {
+func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
+	for _, bm := range loadTypeBenchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
+			assert.Nil(b, err)
+			defer func() { assert.Nil(b, os.RemoveAll(tmpDir)) }()
+
+			keys := writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
+
+			opts := []sstables.ReadOption{
+				sstables.ReadBasePath(tmpDir),
+				sstables.ReadWithKeyComparator(cmp),
+				sstables.SkipHashCheckOnLoad(),
+			}
+			if bm.loader != nil {
+				opts = append(opts, sstables.ReadIndexLoader(bm.loader))
+			}
+
+			reader, err := sstables.NewSSTableReader(opts...)
+			defer func() {
+				assert.Nil(b, reader.Close())
+			}()
+
+			randomRead(b, reader, keys)
+		})
+	}
+}
+
+func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) [][]byte {
 	mStore := memstore.NewMemStore()
 	bytes := randomRecordOfSize(1024)
 
+	var keys [][]byte
 	i := 0
 	for mStore.EstimatedSizeInBytes() < uint64(sizeBytes) {
 		kx := make([]byte, 4)
@@ -85,14 +143,20 @@ func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skipli
 
 		k := hash.Sum([]byte{})
 		assert.Nil(b, mStore.Add(k, bytes))
+
+		// to keep the memory bound, we only store the first two million keys
+		if len(keys) < 2000000 {
+			keys = append(keys, k)
+		}
+
 		i++
 	}
 
 	assert.Nil(b, mStore.Flush(sstables.WriteBasePath(tmpDir), sstables.WithKeyComparator(cmp)))
+	return keys
 }
 
 func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte], loader sstables.IndexLoader) {
-	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		loadStart := time.Now()
 		opts := []sstables.ReadOption{
@@ -136,5 +200,25 @@ func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte],
 		b.ReportMetric(float64(scanEnd.Nanoseconds())/float64(i), "scan_time_ns/record")
 		b.ReportMetric(float64(i), "num_records")
 		b.ReportMetric(float64(reader.MetaData().DataBytes)/1024/1024/scanEnd.Seconds(), "scan_bandwidth_mb/s")
+	}
+}
+
+func randomRead(b *testing.B, reader sstables.SSTableReaderI, keys [][]byte) {
+	rand.Shuffle(len(keys), func(i, j int) {
+		keys[i], keys[j] = keys[j], keys[i]
+	})
+
+	b.ResetTimer()
+
+	ix := 0
+	for i := 0; i < b.N; i++ {
+		get, err := reader.Get(keys[ix])
+		require.NoError(b, err)
+		require.Equal(b, 1024, len(get))
+
+		ix += 1
+		if ix >= len(keys) {
+			ix = 0
+		}
 	}
 }
