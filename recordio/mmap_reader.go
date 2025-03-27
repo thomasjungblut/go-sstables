@@ -105,18 +105,21 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 			// we found the marker starting at i, we try to read it
 			trialOffset := uint64(next) + uint64(i)
 			record, err := r.ReadNextAt(trialOffset)
-
 			if err == nil {
 				return trialOffset, record, nil
 			} else {
-				if !errors.Is(err, MagicNumberMismatchErr) {
-					return 0, nil, err
-				}
+				// TODO(thomas): this can be any error, but the mmap reader only ever returns io.EOF
 			}
 
 			// try to seek again, the record couldn't be read fully
-			i = ix + 1
+			i = ix
 		}
+
+		// avoid infinity looping when the marker is at the end of the file
+		if i == 0 {
+			return 0, nil, io.EOF
+		}
+
 		next += int64(i)
 	}
 }

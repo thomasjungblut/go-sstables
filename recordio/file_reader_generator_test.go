@@ -27,6 +27,7 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeCompressedSingleRecordAugmented(t, prefix+"recordio_UncompressedSingleRecord_comp300", 300) //unknown compression type
 	writeUncompressedSingleRecordAugmentedMagicNumber(t, prefix+"recordio_UncompressedSingleRecord_mnm")
 	writeUncompressedNilAndEmptyRecords(t, prefix+"recordio_UncompressedNilAndEmptyRecord")
+	writeMagicNumberIntoContent(t, prefix+"recordio_UncompressedMagicNumberContent")
 
 	writeDirectIOUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_directio")
 	writeDirectIOUncompressedSingleRecordRandomTrailer(t, prefix+"recordio_UncompressedSingleRecord_directio_trailer")
@@ -35,11 +36,24 @@ func TestGenerateTestFiles(t *testing.T) {
 func writeUncompressedNilAndEmptyRecords(t *testing.T, path string) {
 	writer, err := newUncompressedOpenedWriterAtPath(path)
 	defer closeFileWriter(t, writer)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	_, err = writer.Write(nil)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	_, err = writer.Write([]byte{})
-	assert.Nil(t, err)
+	require.NoError(t, err)
+}
+
+func writeMagicNumberIntoContent(t *testing.T, path string) {
+	writer, err := newUncompressedOpenedWriterAtPath(path)
+	defer closeFileWriter(t, writer)
+	_, err = writer.Write(MagicNumberSeparatorLongBytes)
+	require.NoError(t, err)
+
+	_, err = writer.Write([]byte{21, 8, 23})
+	require.NoError(t, err)
+
+	_, err = writer.Write(MagicNumberSeparatorLongBytes)
+	require.NoError(t, err)
 }
 
 func writeDirectIOUncompressedSingleRecord(t *testing.T, path string) {
@@ -68,9 +82,9 @@ func writeUncompressedSingleRecordAugmentedMagicNumber(t *testing.T, path string
 	writeUncompressedSingleRecord(t, path)
 	bytes, err := os.ReadFile(path)
 	binary.PutUvarint(bytes[8:12], MagicNumberSeparatorLong+1)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	err = os.WriteFile(path, bytes, 0666)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func writeCompressedSingleRecordAugmented(t *testing.T, path string, compType int) {
@@ -79,60 +93,60 @@ func writeCompressedSingleRecordAugmented(t *testing.T, path string, compType in
 
 	binary.LittleEndian.PutUint32(bytes[4:8], uint32(compType))
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	err = os.WriteFile(path, bytes, 0666)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func writeCompressedSingleRecord(t *testing.T, path string, compType int) {
 	writer, err := newCompressedOpenedWriterAtPath(path, compType)
 	defer closeFileWriter(t, writer)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	_, err = writer.Write(ascendingBytes(1337))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func writeVersionMismatchAugmented(t *testing.T, path string, augmentedVersion uint32) {
 	// we're writing an empty file, that should always go to CurrentVersion, but we'll change the version retrospectively
 	// to mock the error on reading side
 	writer, err := newUncompressedOpenedWriterAtPath(path)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, writer.Close())
 	bytes, err := os.ReadFile(path)
 
 	binary.LittleEndian.PutUint32(bytes[0:4], augmentedVersion)
 
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	err = os.WriteFile(path, bytes, 0666)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func writeCompressedMultiRecordAscending(t *testing.T, path string) {
 	writer, err := newCompressedOpenedWriterAtPath(path, CompressionTypeSnappy)
 	defer closeFileWriter(t, writer)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	for i := 0; i < 255; i++ {
 		_, err = writer.Write(ascendingBytes(i))
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	}
 }
 
 func writeUncompressedMultiRecordAscending(t *testing.T, path string) {
 	writer, err := newUncompressedOpenedWriterAtPath(path)
 	defer closeFileWriter(t, writer)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	for i := 0; i < 255; i++ {
 		_, err = writer.Write(ascendingBytes(i))
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	}
 }
 
 func writeUncompressedSingleRecord(t *testing.T, path string) {
 	writer, err := newUncompressedOpenedWriterAtPath(path)
 	defer closeFileWriter(t, writer)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	_, err = writer.Write(ascendingBytes(13))
-	assert.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func newUncompressedOpenedWriterAtPath(path string) (*FileWriter, error) {

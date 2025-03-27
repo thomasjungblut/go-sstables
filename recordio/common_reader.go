@@ -80,6 +80,10 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 }
 
 func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
+	// TODO(thomas): V4 will need some kind of CRC hash to ensure that this header is valid
+	// currently we can read a valid magic number inside some data chunk, and a totally invalid
+	// remainder of the header e.g. a nil record bit or an uncompressed run-length that's huge and going past EOF.
+
 	magicNumber, err := binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err

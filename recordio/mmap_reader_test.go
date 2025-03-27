@@ -11,8 +11,7 @@ import (
 )
 
 func TestMMapReaderHappyPathSingleRecord(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
 	// should contain an ascending 13 byte buffer
@@ -22,20 +21,18 @@ func TestMMapReaderHappyPathSingleRecord(t *testing.T) {
 }
 
 func TestMMapReaderSingleRecordMisalignedOffset(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(FileHeaderSizeBytes + 1)
+	_, err := reader.ReadNextAt(FileHeaderSizeBytes + 1)
 	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
 }
 
 func TestMMapReaderSingleRecordOffsetBiggerThanFile(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(42000)
+	_, err := reader.ReadNextAt(42000)
 	assert.Equal(t, errors.New("mmap: invalid ReadAt offset 42000"), errors.Unwrap(err))
 }
 
@@ -94,8 +91,7 @@ func TestMMapReaderForbidsDoubleOpens(t *testing.T) {
 // this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderV2MaxSizeBytes size (up until the EOF) AND return the io.EOF as an error.
 // that caused some failed tests in the sstable reader, so it makes sense to have an explicit test for it
 func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectly(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
 	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
 	require.Nil(t, err)
 	assertAscendingBytes(t, bytes, 13)
@@ -110,8 +106,7 @@ func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectly(t *testing.T) {
 }
 
 func TestMMapReaderReadsNilAndEmpties(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedNilAndEmptyRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedNilAndEmptyRecord")
 	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
 	require.Nil(t, err)
 	require.Nil(t, bytes)
@@ -133,8 +128,7 @@ func TestMMApReaderReadSequencedWrites(t *testing.T) {
 	}
 
 	require.NoError(t, writer.Close())
-	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
-	require.NoError(t, err)
+	reader := newOpenedTestMMapReader(t, writer.file.Name())
 
 	require.Equal(t, uint64(0x381), reader.Size())
 	for i, offset := range offsets {
@@ -191,8 +185,7 @@ func TestMMApReaderReadShuffled(t *testing.T) {
 		offsets[i], offsets[j] = offsets[j], offsets[i]
 	})
 
-	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
-	require.NoError(t, err)
+	reader := newOpenedTestMMapReader(t, writer.file.Name())
 
 	require.Equal(t, uint64(0x381), reader.Size())
 	for i, offset := range offsets {
@@ -205,7 +198,6 @@ func TestMMApReaderReadShuffled(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []byte{values[i]}, at)
 		require.Equal(t, offset, ofx)
-
 	}
 }
 
@@ -221,10 +213,9 @@ func TestMMApReaderReadSequencedWritesSeeksSmallBuf(t *testing.T) {
 	}
 
 	require.NoError(t, writer.Close())
-	reader, err := newOpenedTestMMapReader(t, writer.file.Name())
+	reader := newOpenedTestMMapReader(t, writer.file.Name())
 	// this test reduces the seek buffer to be very small, so we can test the boundaries better
 	reader.seekLen = 10
-	require.NoError(t, err)
 
 	require.Equal(t, uint64(0x381), reader.Size())
 	for i, offset := range offsets {
@@ -250,15 +241,32 @@ func TestMMApReaderReadSequencedWritesSeeksSmallBuf(t *testing.T) {
 	}
 }
 
-func newOpenedTestMMapReader(t *testing.T, file string) (*MMapReader, error) {
+func TestMMapReaderMagicNumberContents(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedMagicNumberContent")
+	next, record, err := reader.SeekNext(0)
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, record)
+
+	next, record, err = reader.SeekNext(next + 1)
+	require.NoError(t, err)
+	require.Equal(t, []byte{21, 8, 23}, record)
+
+	next, record, err = reader.SeekNext(next + 1)
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, record)
+
+	_, _, err = reader.SeekNext(next + 1)
+	require.Equal(t, io.EOF, err)
+}
+
+func newOpenedTestMMapReader(t *testing.T, file string) *MMapReader {
 	reader := newTestMMapReader(file, t)
-	err := reader.Open()
-	require.Nil(t, err)
-	return reader, err
+	require.NoError(t, reader.Open())
+	return reader
 }
 
 func newTestMMapReader(file string, t *testing.T) *MMapReader {
 	r, err := NewMemoryMappedReaderWithPath(file)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return r.(*MMapReader)
 }
