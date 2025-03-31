@@ -10,8 +10,7 @@ import (
 )
 
 func TestMMapReaderHappyPathSingleRecordV1(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
 	// should contain an ascending 13 byte buffer
@@ -21,20 +20,18 @@ func TestMMapReaderHappyPathSingleRecordV1(t *testing.T) {
 }
 
 func TestMMapReaderSingleRecordMisalignedOffsetV1(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(FileHeaderSizeBytes + 1)
+	_, err := reader.ReadNextAt(FileHeaderSizeBytes + 1)
 	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
 }
 
 func TestMMapReaderSingleRecordOffsetBiggerThanFileV1(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v1_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(42000)
+	_, err := reader.ReadNextAt(42000)
 	assert.Equal(t, errors.New("mmap: invalid ReadAt offset 42000"), errors.Unwrap(err))
 }
 

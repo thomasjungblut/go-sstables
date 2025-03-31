@@ -9,8 +9,7 @@ import (
 )
 
 func TestMMapReaderHappyPathSingleRecordV2(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
 	// should contain an ascending 13 byte buffer
@@ -20,20 +19,18 @@ func TestMMapReaderHappyPathSingleRecordV2(t *testing.T) {
 }
 
 func TestMMapReaderSingleRecordMisalignedOffsetV2(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(FileHeaderSizeBytes + 1)
+	_, err := reader.ReadNextAt(FileHeaderSizeBytes + 1)
 	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
 }
 
 func TestMMapReaderSingleRecordOffsetBiggerThanFileV2(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	defer closeMMapReader(t, reader)
 
-	_, err = reader.ReadNextAt(42000)
+	_, err := reader.ReadNextAt(42000)
 	assert.Equal(t, errors.New("mmap: invalid ReadAt offset 42000"), errors.Unwrap(err))
 }
 
@@ -92,8 +89,7 @@ func TestMMapReaderForbidsDoubleOpensV2(t *testing.T) {
 // this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderV2MaxSizeBytes size (up until the EOF) AND return the io.EOF as an error.
 // that caused some failed tests in the sstable reader, so it makes sense to have an explicit test for it
 func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectlyV2(t *testing.T) {
-	reader, err := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	reader := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
 	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
 	require.Nil(t, err)
 	assertAscendingBytes(t, bytes, 13)

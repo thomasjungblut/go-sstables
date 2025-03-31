@@ -12,12 +12,12 @@ import (
 
 func TestReaderHappyPathSingleRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	// should contain an ascending 13 byte buffer
 	buf, err := reader.ReadNext()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assertAscendingBytes(t, buf, 13)
 	// next read should yield EOF
 	readNextExpectEOF(t, reader)
@@ -25,12 +25,12 @@ func TestReaderHappyPathSingleRecord(t *testing.T) {
 
 func TestReaderHappyPathMultiRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		buf, err := reader.ReadNext()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assertAscendingBytes(t, buf, expectedLen)
 	}
 	// next read should yield EOF
@@ -39,12 +39,12 @@ func TestReaderHappyPathMultiRecord(t *testing.T) {
 
 func TestReaderHappyPathMultiRecordSnappyCompressed(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_SnappyWriterMultiRecord_asc")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		buf, err := reader.ReadNext()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		assertAscendingBytes(t, buf, expectedLen)
 	}
 	// next read should yield EOF
@@ -53,17 +53,17 @@ func TestReaderHappyPathMultiRecordSnappyCompressed(t *testing.T) {
 
 func TestReaderHappyPathSkipMultiRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		if expectedLen%2 == 0 {
 			buf, err := reader.ReadNext()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			assertAscendingBytes(t, buf, expectedLen)
 		} else {
 			err = reader.SkipNext()
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 	// next read should yield EOF
@@ -72,17 +72,17 @@ func TestReaderHappyPathSkipMultiRecord(t *testing.T) {
 
 func TestReaderHappyPathSkipMultiRecordCompressed(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_SnappyWriterMultiRecord_asc")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		if expectedLen%2 == 0 {
 			buf, err := reader.ReadNext()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			assertAscendingBytes(t, buf, expectedLen)
 		} else {
 			err = reader.SkipNext()
-			require.Nil(t, err)
+			require.NoError(t, err)
 		}
 	}
 	// next read should yield EOF
@@ -91,12 +91,12 @@ func TestReaderHappyPathSkipMultiRecordCompressed(t *testing.T) {
 
 func TestReaderHappyPathSkipAllMultiRecord(t *testing.T) {
 	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 
 	for expectedLen := 0; expectedLen < 255; expectedLen++ {
 		err = reader.SkipNext()
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 	// next read should yield EOF
 	readNextExpectEOF(t, reader)
@@ -115,7 +115,7 @@ func TestReaderVersionMismatchV256(t *testing.T) {
 func TestReaderCompressionGzipHeader(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp1", t)
 	err := reader.Open()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 	assert.Equal(t, 1, reader.header.compressionType)
 }
@@ -123,7 +123,7 @@ func TestReaderCompressionGzipHeader(t *testing.T) {
 func TestReaderCompressionSnappyHeader(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp2", t)
 	err := reader.Open()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer closeFileReader(t, reader)
 	assert.Equal(t, 2, reader.header.compressionType)
 }
@@ -137,7 +137,7 @@ func TestReaderMagicNumberMismatch(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_mnm", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, err = reader.ReadNext()
 	assert.ErrorIs(t, err, MagicNumberMismatchErr)
@@ -147,7 +147,7 @@ func TestReaderDirectIO(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_directio", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	record, err := reader.ReadNext()
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestReaderDirectIOTrailer(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_directio_trailer", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	record, err := reader.ReadNext()
 	require.NoError(t, err)
@@ -171,10 +171,29 @@ func TestReaderDirectIOTrailer(t *testing.T) {
 	assert.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
+func TestReaderHappyPathMagicNumberContent(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedMagicNumberContent")
+	require.NoError(t, err)
+	defer closeFileReader(t, reader)
+
+	buf, err := reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, buf)
+	buf, err = reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, []byte{21, 8, 23}, buf)
+	buf, err = reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, buf)
+
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
 func TestReaderForbidsClosedReader(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Close()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	_, err = reader.ReadNext()
 	assert.Contains(t, err.Error(), "was either not opened yet or is closed already")
 	err = reader.SkipNext()
@@ -186,7 +205,7 @@ func TestReaderForbidsClosedReader(t *testing.T) {
 func TestReaderForbidsDoubleOpens(t *testing.T) {
 	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Open()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	expectErrorStringOnOpen(t, reader, "already opened")
 }
 
@@ -215,12 +234,12 @@ func expectErrorStringOnOpen(t *testing.T, reader OpenClosableI, expectedError s
 func newOpenedTestReader(t *testing.T, file string) (*FileReader, error) {
 	reader := newTestReader(file, t)
 	err := reader.Open()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return reader, err
 }
 
 func newTestReader(file string, t *testing.T) *FileReader {
 	r, err := NewFileReaderWithPath(file)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	return r.(*FileReader)
 }
