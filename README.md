@@ -61,17 +61,13 @@ Currently, there is support for:
 
 You can find more information on how to generate Kaitai readers in [kaitai/README.md](kaitai/README.md).
 
+
 ## Development on go-sstables
 
-### Updating dependencies through Go Modules
+### Thank you
 
-[General overview of modules](https://github.com/golang/go/wiki/Modules)
+I want to deeply thank Sébastien Heitzmann (@sebheitzmann) for his continued support, reviews and usage of this library.
 
-One can update dependencies via:
-
-```
-go get -u <repo url>
-```
 
 ### Generating protobufs
 
