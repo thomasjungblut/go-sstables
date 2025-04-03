@@ -26,6 +26,11 @@ compile-proto:
 	protoc --go_out=. --go_opt=paths=source_relative _examples/proto/mutation.proto
 	protoc --go_out=. --go_opt=paths=source_relative benchmark/proto/bench.proto
 	protoc --go_out=. --go_opt=paths=source_relative sstables/proto/sstable.proto
+	@echo
+	@echo "==> Compiling capnproto files <=="
+	capnp compile -ogo -I ../go-capnp/std/ benchmark/capnproto/bench.capnp
+	capnp compile -ogo -I ../go-capnp/std/ recordio/test_files/text_line.capnp
+
 
 .PHONY: release
 release:
