@@ -60,8 +60,8 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 	if !r.open || r.closed {
 		return 0, nil, fmt.Errorf("reader at '%s' was either not opened yet or is closed already", r.path)
 	}
-	if r.header.fileVersion < Version3 {
-		return 0, nil, fmt.Errorf("unsupported on files with version lower than v3")
+	if r.header.fileVersion < Version2 {
+		return 0, nil, fmt.Errorf("unsupported on files with version lower than v2")
 	}
 
 	headerBufPooled := r.bufferPool.Get(r.seekLen)
@@ -105,6 +105,8 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 			// we found the marker starting at i, we try to read it
 			trialOffset := uint64(next) + uint64(i)
 			record, err := r.ReadNextAt(trialOffset)
+			// TODO(thomas): we also need to ensure that the value after that record is a valid header or EOF
+
 			if err == nil {
 				return trialOffset, record, nil
 			} else {

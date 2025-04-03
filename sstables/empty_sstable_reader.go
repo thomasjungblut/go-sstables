@@ -8,8 +8,8 @@ import (
 
 type EmptySStableReader struct{}
 
-func (EmptySStableReader) Contains(_ []byte) bool {
-	return false
+func (EmptySStableReader) Contains(_ []byte) (bool, error) {
+	return false, nil
 }
 
 func (EmptySStableReader) Get(_ []byte) ([]byte, error) {

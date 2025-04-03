@@ -18,6 +18,7 @@ type sliceKey struct {
 
 // SliceKeyIndex is keeping the entire index as a slice in memory and uses binary search to find the given keys.
 type SliceKeyIndex struct {
+	NoOpOpenClose
 	index []sliceKey
 }
 
@@ -36,9 +37,9 @@ func (s *SliceKeyIndex) Get(key []byte) (IndexVal, error) {
 	return IndexVal{}, skiplist.NotFound
 }
 
-func (s *SliceKeyIndex) Contains(key []byte) bool {
+func (s *SliceKeyIndex) Contains(key []byte) (bool, error) {
 	_, found := s.search(key)
-	return found
+	return found, nil
 }
 
 func (s *SliceKeyIndex) Iterator() (skiplist.IteratorI[[]byte, IndexVal], error) {
@@ -121,5 +122,5 @@ func (s *SliceKeyIndexLoader) Load(indexPath string, metadata *proto.MetaData) (
 		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}, record.Key})
 	}
 
-	return &SliceKeyIndex{sx}, nil
+	return &SliceKeyIndex{NoOpOpenClose{}, sx}, nil
 }
