@@ -80,10 +80,6 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 }
 
 func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
-	// TODO(thomas): V4 will need some kind of CRC hash to ensure that this header is valid
-	// currently we can read a valid magic number inside some data chunk, and a totally invalid
-	// remainder of the header e.g. a nil record bit or an uncompressed run-length that's huge and going past EOF.
-
 	magicNumber, err := binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err
@@ -103,6 +99,39 @@ func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
 	}
 
 	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	return payloadSizeUncompressed, payloadSizeCompressed, recordNil == 1, nil
+}
+
+func readRecordHeaderV4(r io.ByteReader) (uint64, uint64, bool, error) {
+	magicNumber, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if magicNumber != MagicNumberSeparatorLong {
+		return 0, 0, false, MagicNumberMismatchErr
+	}
+
+	recordNil, err := r.ReadByte()
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeUncompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	// TODO we also need to check this checksum
+	crc32Checksum, err := binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err
 	}
