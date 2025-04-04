@@ -95,6 +95,26 @@ for {
 
 You can get the full example from [examples/sstables.go](/_examples/sstables.go).
 
+### Index Types
+
+Recently, we have been introducing different types of indices to facilitate faster loading and lookup times. You can now supply a `loader` when creating a reader using:
+
+```go
+
+reader, err := sstables.NewSSTableReader(
+    sstables.ReadBasePath(sstablePath),
+    sstables.ReadWithKeyComparator(skiplist.BytesComparator{}),
+    sstables.ReadIndexLoader(&sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}))
+```
+
+This allows you to trade-off several factors, here's the current available set of index loaders:
+* SkipListIndexLoader - current default, loads slowly, high memory usage, quick range scans, O(log n) key lookups
+* SliceKeyIndexLoader - loads quickly, compact but high memory usage, quick range scans, O(log n) key lookups
+* MapKeyIndexLoader - loads quickly, very high memory usage, quick range scans, O(1) amortized key lookups
+* DiskIndexLoader (EXPERIMENTAL and under further development) - loads instantly, no additional memory usage, slow range scans, slow key lookups
+
+Implementing your own loader also allows you to create a new type of index yourself, that suits your requirements the best.
+
 ### Merging two (or more) SSTables
 
 One of the great features of SSTables is that you can merge them in linear time and in a sequential fashion, which needs only constant amount of space.  
