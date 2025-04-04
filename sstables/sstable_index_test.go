@@ -23,6 +23,12 @@ var indexLoaders = []func() IndexLoader{
 	func() IndexLoader {
 		return &DiskIndexLoader{}
 	},
+	func() IndexLoader {
+		return &MapKeyIndexLoader[[4]byte]{
+			ReadBufferSize: 4096,
+			Mapper:         &Byte4KeyMapper{},
+		}
+	},
 }
 
 func TestIndexContains(t *testing.T) {
