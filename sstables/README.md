@@ -101,9 +101,9 @@ Recently, we have been introducing different types of indices to facilitate fast
 ```go
 
 reader, err := sstables.NewSSTableReader(
-    ReadBasePath(sstablePath),
-    ReadWithKeyComparator(skiplist.BytesComparator{}),
-    ReadIndexLoader(&sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}))
+    sstables.ReadBasePath(sstablePath),
+    sstables.ReadWithKeyComparator(skiplist.BytesComparator{}),
+    sstables.ReadIndexLoader(&sstables.SliceKeyIndexLoader{ReadBufferSize: 4096}))
 ```
 
 This allows you to trade-off several factors, here's the current available set of index loaders:
