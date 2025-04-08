@@ -3,10 +3,11 @@ package sstables
 import (
 	"errors"
 	"fmt"
+	"io"
+
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
-	"io"
 )
 
 type ByteKeyMapper[T comparable] interface {
@@ -46,9 +47,10 @@ type MapKeyIndex[T comparable] struct {
 }
 
 func (s *MapKeyIndex[T]) Contains(key []byte) (bool, error) {
-	_, found := s.index[s.mapper.MapBytes(key)]
-	return found, nil
+	idxval, found := s.index[s.mapper.MapBytes(key)]
+	return found && !idxval.Tombstoned, nil
 }
+
 func (s *MapKeyIndex[T]) Get(key []byte) (IndexVal, error) {
 	val, found := s.index[s.mapper.MapBytes(key)]
 	if found {
@@ -107,8 +109,8 @@ func (s *MapKeyIndexLoader[T]) Load(indexPath string, metadata *proto.MetaData) 
 		}
 
 		kBytes := s.Mapper.MapBytes(record.Key)
-		smap[kBytes] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}
-		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}, record.Key})
+		smap[kBytes] = IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum, Tombstoned: record.Tombstoned}
+		sx = append(sx, sliceKey{smap[kBytes], record.Key})
 
 		i++
 	}
