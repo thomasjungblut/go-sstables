@@ -23,13 +23,9 @@ func (s SuperSSTableReader) Contains(key []byte) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if !keyExist {
-			continue
+		if keyExist {
+			return true, nil
 		}
-		// we have to check if the value is not tombstoned
-		// maybe had to be implemented in an IsTombstoned in sstableReader
-		res, err := s.readers[i].Get(key)
-		return res != nil, err
 	}
 
 	return false, nil
