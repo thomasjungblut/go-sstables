@@ -103,12 +103,12 @@ func TestReaderHappyPathSkipAllMultiRecordV1(t *testing.T) {
 
 func TestReaderV1VersionMismatchV0(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_v0", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 0")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 0")
 }
 
 func TestReaderV1VersionMismatchV256(t *testing.T) {
 	reader := newTestReader("test_files/v1_compat/recordio_UncompressedSingleRecord_v256", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 256")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 256")
 }
 
 func TestReaderCompressionGzipHeaderV1(t *testing.T) {

@@ -16,7 +16,7 @@ func TestGenerateTestFiles(t *testing.T) {
 		return
 	}
 
-	prefix := "test_files/v3_compat/"
+	prefix := "test_files/v4_compat/"
 	writeUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord")
 	writeUncompressedMultiRecordAscending(t, prefix+"recordio_UncompressedWriterMultiRecord_asc")
 	writeCompressedMultiRecordAscending(t, prefix+"recordio_SnappyWriterMultiRecord_asc")
@@ -28,6 +28,7 @@ func TestGenerateTestFiles(t *testing.T) {
 	writeUncompressedSingleRecordAugmentedMagicNumber(t, prefix+"recordio_UncompressedSingleRecord_mnm")
 	writeUncompressedNilAndEmptyRecords(t, prefix+"recordio_UncompressedNilAndEmptyRecord")
 	writeMagicNumberIntoContent(t, prefix+"recordio_UncompressedMagicNumberContent")
+	writeCrcFailure(t, prefix+"recordio_UncompressedCrcFailure")
 
 	writeDirectIOUncompressedSingleRecord(t, prefix+"recordio_UncompressedSingleRecord_directio")
 	writeDirectIOUncompressedSingleRecordRandomTrailer(t, prefix+"recordio_UncompressedSingleRecord_directio_trailer")
@@ -115,6 +116,17 @@ func writeVersionMismatchAugmented(t *testing.T, path string, augmentedVersion u
 	bytes, err := os.ReadFile(path)
 
 	binary.LittleEndian.PutUint32(bytes[0:4], augmentedVersion)
+
+	require.NoError(t, err)
+	err = os.WriteFile(path, bytes, 0666)
+	require.NoError(t, err)
+}
+
+func writeCrcFailure(t *testing.T, path string) {
+	writeUncompressedSingleRecord(t, path)
+	bytes, err := os.ReadFile(path)
+
+	binary.LittleEndian.PutUint32(bytes[0x11:0x15], uint32(42))
 
 	require.NoError(t, err)
 	err = os.WriteFile(path, bytes, 0666)

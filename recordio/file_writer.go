@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 
@@ -65,7 +66,7 @@ func (w *FileWriter) Open() error {
 	w.largestOffset = w.currentOffset
 	w.headerOffset = w.currentOffset
 	w.open = true
-	w.recordHeaderCache = make([]byte, RecordHeaderV3MaxSizeBytes)
+	w.recordHeaderCache = make([]byte, RecordHeaderV4MaxSizeBytes)
 	w.bufferPool = pool.NewPool(1024, 20)
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
@@ -156,6 +157,34 @@ func writeRecordHeaderV3(writer *FileWriter, payloadSizeUncompressed uint64, pay
 	return written, nil
 }
 
+func fillRecordHeaderV4(bytes []byte, payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNil bool) []byte {
+	off := binary.PutUvarint(bytes, MagicNumberSeparatorLong)
+	if recordNil {
+		bytes[off] = 1
+	} else {
+		bytes[off] = 0
+	}
+	off += 1
+	off += binary.PutUvarint(bytes[off:], payloadSizeUncompressed)
+	off += binary.PutUvarint(bytes[off:], payloadSizeCompressed)
+
+	crc := crc32.New(crc32.MakeTable(crc32.Castagnoli))
+	_, _ = crc.Write(bytes[:off])
+	off += binary.PutUvarint(bytes[off:], uint64(crc.Sum32()))
+
+	return bytes[:off]
+}
+
+func writeRecordHeaderV4(writer *FileWriter, payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNil bool) (int, error) {
+	header := fillRecordHeaderV4(writer.recordHeaderCache, payloadSizeUncompressed, payloadSizeCompressed, recordNil)
+	written, err := writer.bufWriter.Write(header)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
+}
+
 // Write appends a record of bytes, returns the current offset this item was written to
 func (w *FileWriter) Write(record []byte) (uint64, error) {
 	if !w.open || w.closed {
@@ -179,7 +208,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	}
 
 	prevOffset := w.currentOffset
-	headerBytesWritten, err := writeRecordHeaderV3(w, uncompressedSize, compressedSize, record == nil)
+	headerBytesWritten, err := writeRecordHeaderV4(w, uncompressedSize, compressedSize, record == nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write record header in file at '%s' failed with %w", w.file.Name(), err)
 	}
