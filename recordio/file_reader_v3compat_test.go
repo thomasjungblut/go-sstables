@@ -10,8 +10,8 @@ import (
 	"testing"
 )
 
-func TestReaderHappyPathSingleRecordV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
+func TestReaderHappyPathSingleRecordV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -23,8 +23,8 @@ func TestReaderHappyPathSingleRecordV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderHappyPathMultiRecordV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_UncompressedWriterMultiRecord_asc")
+func TestReaderHappyPathMultiRecordV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -37,8 +37,8 @@ func TestReaderHappyPathMultiRecordV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderHappyPathMultiRecordSnappyCompressedV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_SnappyWriterMultiRecord_asc")
+func TestReaderHappyPathMultiRecordSnappyCompressedV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_SnappyWriterMultiRecord_asc")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -51,8 +51,8 @@ func TestReaderHappyPathMultiRecordSnappyCompressedV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderHappyPathSkipMultiRecordV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_UncompressedWriterMultiRecord_asc")
+func TestReaderHappyPathSkipMultiRecordV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -70,8 +70,8 @@ func TestReaderHappyPathSkipMultiRecordV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderHappyPathSkipMultiRecordCompressedV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_SnappyWriterMultiRecord_asc")
+func TestReaderHappyPathSkipMultiRecordCompressedV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_SnappyWriterMultiRecord_asc")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -89,8 +89,8 @@ func TestReaderHappyPathSkipMultiRecordCompressedV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderHappyPathSkipAllMultiRecordV2(t *testing.T) {
-	reader, err := newOpenedTestReader(t, "test_files/v2_compat/recordio_UncompressedWriterMultiRecord_asc")
+func TestReaderHappyPathSkipAllMultiRecordV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedWriterMultiRecord_asc")
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 
@@ -102,34 +102,34 @@ func TestReaderHappyPathSkipAllMultiRecordV2(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestReaderV2VersionMismatchV0(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v0", t)
+func TestReaderV3VersionMismatchV0(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_v0", t)
 	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 0")
 }
 
-func TestReaderV2VersionMismatchV256(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v256", t)
+func TestReaderV3VersionMismatchV356(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_v256", t)
 	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 256")
 }
 
-func TestReaderCompressionGzipHeaderV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp1", t)
+func TestReaderCompressionGzipHeaderV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp1", t)
 	err := reader.Open()
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 	assert.Equal(t, 1, reader.header.compressionType)
 }
 
-func TestReaderCompressionSnappyHeaderV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_comp2", t)
+func TestReaderCompressionSnappyHeaderV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp2", t)
 	err := reader.Open()
 	require.Nil(t, err)
 	defer closeFileReader(t, reader)
 	assert.Equal(t, 2, reader.header.compressionType)
 }
 
-func TestReaderMagicNumberMismatchV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_mnm", t)
+func TestReaderMagicNumberMismatchV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_mnm", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
 	require.Nil(t, err)
@@ -138,8 +138,8 @@ func TestReaderMagicNumberMismatchV2(t *testing.T) {
 	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
 }
 
-func TestReaderDirectIOV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_directio", t)
+func TestReaderDirectIOV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_directio", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
 	require.NoError(t, err)
@@ -152,8 +152,8 @@ func TestReaderDirectIOV2(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 }
 
-func TestReaderDirectIOTrailerV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord_directio_trailer", t)
+func TestReaderDirectIOTrailerV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord_directio_trailer", t)
 	err := reader.Open()
 	defer closeFileReader(t, reader)
 	require.NoError(t, err)
@@ -166,8 +166,27 @@ func TestReaderDirectIOTrailerV2(t *testing.T) {
 	assert.ErrorIs(t, err, MagicNumberMismatchErr)
 }
 
-func TestReaderForbidsClosedReaderV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord", t)
+func TestReaderHappyPathMagicNumberContentV3(t *testing.T) {
+	reader, err := newOpenedTestReader(t, "test_files/v3_compat/recordio_UncompressedMagicNumberContent")
+	require.NoError(t, err)
+	defer closeFileReader(t, reader)
+
+	buf, err := reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, buf)
+	buf, err = reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, []byte{21, 8, 23}, buf)
+	buf, err = reader.ReadNext()
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, buf)
+
+	// next read should yield EOF
+	readNextExpectEOF(t, reader)
+}
+
+func TestReaderForbidsClosedReaderV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Close()
 	require.Nil(t, err)
 	_, err = reader.ReadNext()
@@ -178,8 +197,8 @@ func TestReaderForbidsClosedReaderV2(t *testing.T) {
 	assert.Contains(t, err.Error(), "already closed")
 }
 
-func TestReaderForbidsDoubleOpensV2(t *testing.T) {
-	reader := newTestReader("test_files/v2_compat/recordio_UncompressedSingleRecord", t)
+func TestReaderForbidsDoubleOpensV3(t *testing.T) {
+	reader := newTestReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
 	err := reader.Open()
 	require.Nil(t, err)
 	expectErrorStringOnOpen(t, reader, "already opened")
