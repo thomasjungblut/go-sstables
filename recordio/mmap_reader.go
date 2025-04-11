@@ -19,8 +19,7 @@ type MMapReader struct {
 	closed     bool
 	bufferPool *pool.Pool
 	path       string
-
-	seekLen int
+	seekLen    int
 }
 
 func (r *MMapReader) Open() error {
@@ -105,16 +104,18 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 			// we found the marker starting at i, we try to read it
 			trialOffset := uint64(next) + uint64(i)
 			record, err := r.ReadNextAt(trialOffset)
-			// TODO(thomas): we also need to ensure that the value after that record is a valid header or EOF
+			if err != nil {
+				if errors.Is(err, HeaderChecksumMismatchErr) || errors.Is(err, MagicNumberMismatchErr) || errors.Is(err, io.EOF) {
+					// try to seek again, the record couldn't be read fully
+					i = ix
+					continue
+				}
 
-			if err == nil {
-				return trialOffset, record, nil
+				return 0, nil, err
 			} else {
-				// TODO(thomas): this can be any error, but the mmap reader only ever returns io.EOF
+				return trialOffset, record, nil
 			}
 
-			// try to seek again, the record couldn't be read fully
-			i = ix
 		}
 
 		// avoid infinity looping when the marker is at the end of the file
@@ -135,9 +136,13 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 		return readNextAtV1(r, offset)
 	} else if r.header.fileVersion == Version2 {
 		return readNextAtV2(r, offset)
+	} else if r.header.fileVersion == Version3 {
+		return readNextAtV3(r, offset)
 	} else {
-		headerBufPooled := r.bufferPool.Get(RecordHeaderV3MaxSizeBytes)
+		headerBufPooled := r.bufferPool.Get(RecordHeaderV4MaxSizeBytes)
 		defer r.bufferPool.Put(headerBufPooled)
+		headerBufPooledCrc := r.bufferPool.Get(RecordHeaderV4MaxSizeBytes)
+		defer r.bufferPool.Put(headerBufPooledCrc)
 
 		numRead, err := r.mmapReader.ReadAt(headerBufPooled, int64(offset))
 		if err != nil {
@@ -153,8 +158,9 @@ func (r *MMapReader) ReadNextAt(offset uint64) ([]byte, error) {
 			}
 		}
 
-		headerByteReader := NewCountingByteReader(bufio.NewReader(bytes.NewReader(headerBufPooled[:numRead])))
-		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(headerByteReader)
+		// TODO(thomas): we can make this more efficient without the double allocation, we can simply read from the pooled buf
+		headerByteReader := newChecksumByteReader(bytes.NewReader(headerBufPooled[:numRead]), headerBufPooledCrc)
+		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV4(headerByteReader)
 		if err != nil {
 			return nil, fmt.Errorf("failed reading record header at offset %d in mmap reader for '%s': %w", offset, r.path, err)
 		}
@@ -255,6 +261,66 @@ func readNextAtV2(r *MMapReader, offset uint64) ([]byte, error) {
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(headerByteReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading record header at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+	}
+
+	expectedBytesRead, pooledRecordBuf := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
+	defer r.bufferPool.Put(pooledRecordBuf)
+
+	numRead, err = r.mmapReader.ReadAt(pooledRecordBuf, int64(offset)+int64(headerByteReader.Count()))
+	if err != nil {
+		return nil, fmt.Errorf("failed reading record at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+	}
+
+	if uint64(numRead) != expectedBytesRead {
+		return nil, fmt.Errorf("not enough bytes in the record found in mmap reader '%s', expected %d but were %d", r.path, expectedBytesRead, numRead)
+	}
+
+	var returnSlice []byte
+	if r.header.compressor != nil {
+		pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+		defer r.bufferPool.Put(pooledDecompressionBuffer)
+
+		decompressedRecord, err := r.header.compressor.DecompressWithBuf(pooledRecordBuf, pooledDecompressionBuffer)
+		if err != nil {
+			return nil, fmt.Errorf("failed decompressing record at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+		}
+		// we do a defensive copy here not to leak the pooled slice
+		returnSlice = make([]byte, len(decompressedRecord))
+		copy(returnSlice, decompressedRecord)
+	} else {
+		// we do a defensive copy here not to leak the pooled slice
+		returnSlice = make([]byte, len(pooledRecordBuf))
+		copy(returnSlice, pooledRecordBuf)
+	}
+	return returnSlice, nil
+}
+
+func readNextAtV3(r *MMapReader, offset uint64) ([]byte, error) {
+	headerBufPooled := r.bufferPool.Get(RecordHeaderV3MaxSizeBytes)
+	defer r.bufferPool.Put(headerBufPooled)
+
+	numRead, err := r.mmapReader.ReadAt(headerBufPooled, int64(offset))
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
+			// which will return EOF when you have read less than the buffers actual size due to the EOF.
+			// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
+			if numRead == 0 {
+				return nil, io.EOF
+			}
+		} else {
+			return nil, fmt.Errorf("ReadNextAt failed reading at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+		}
+	}
+
+	headerByteReader := NewCountingByteReader(bufio.NewReader(bytes.NewReader(headerBufPooled[:numRead])))
+	payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(headerByteReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading record header at offset %d in mmap reader for '%s': %w", offset, r.path, err)
+	}
+
+	if recordNil {
+		return nil, nil
 	}
 
 	expectedBytesRead, pooledRecordBuf := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)

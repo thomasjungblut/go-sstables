@@ -1,0 +1,133 @@
+package recordio
+
+import (
+	"errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"io"
+	"testing"
+)
+
+func TestMMapReaderHappyPathSingleRecordV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
+	defer closeMMapReader(t, reader)
+
+	// should contain an ascending 13 byte buffer
+	buf, err := reader.ReadNextAt(FileHeaderSizeBytes)
+	require.Nil(t, err)
+	assertAscendingBytes(t, buf, 13)
+}
+
+func TestMMapReaderSingleRecordMisalignedOffsetV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
+	defer closeMMapReader(t, reader)
+
+	_, err := reader.ReadNextAt(FileHeaderSizeBytes + 1)
+	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
+}
+
+func TestMMapReaderSingleRecordOffsetBiggerThanFileV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
+	defer closeMMapReader(t, reader)
+
+	_, err := reader.ReadNextAt(42000)
+	assert.Equal(t, errors.New("mmap: invalid ReadAt offset 42000"), errors.Unwrap(err))
+}
+
+func TestMMapReaderV3VersionMismatchV0(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord_v0", t)
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 0")
+}
+
+func TestMMapReaderV3VersionMismatchV256(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord_v256", t)
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 256")
+}
+
+func TestMMapReaderCompressionGzipHeaderV3(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp1", t)
+	err := reader.Open()
+	require.Nil(t, err)
+	defer closeMMapReader(t, reader)
+	assert.Equal(t, 1, reader.header.compressionType)
+}
+
+func TestMMapReaderCompressionSnappyHeaderV3(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp2", t)
+	err := reader.Open()
+	require.Nil(t, err)
+	defer closeMMapReader(t, reader)
+	assert.Equal(t, 2, reader.header.compressionType)
+}
+
+func TestMMapReaderCompressionUnknownV3(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord_comp300", t)
+	expectErrorStringOnOpen(t, reader, "unknown compression type [300]")
+}
+
+func TestMMapReaderForbidsClosedReaderV3(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
+	err := reader.Close()
+	require.Nil(t, err)
+	_, err = reader.ReadNextAt(100)
+	assert.Contains(t, err.Error(), "was either not opened yet or is closed already")
+	err = reader.Open()
+	assert.Contains(t, err.Error(), "already closed")
+}
+
+func TestMMapReaderForbidsDoubleOpensV3(t *testing.T) {
+	reader := newTestMMapReader("test_files/v3_compat/recordio_UncompressedSingleRecord", t)
+	err := reader.Open()
+	require.Nil(t, err)
+	expectErrorStringOnOpen(t, reader, "already opened")
+}
+
+// this is explicitly testing the difference in mmap semantics, where we would get an EOF error due to the following:
+// * record header is very small (5 bytes)
+// * record itself is smaller than the remainder of the buffer (RecordHeaderV3MaxSizeBytes - 5 bytes of the header = 15 bytes)
+// * only the EOF follows
+// this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderV3MaxSizeBytes size (up until the EOF) AND return the io.EOF as an error.
+// that caused some failed tests in the sstable reader, so it makes sense to have an explicit test for it
+func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectlyV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedSingleRecord")
+	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
+	require.Nil(t, err)
+	assertAscendingBytes(t, bytes, 13)
+	bytes, err = reader.ReadNextAt(uint64(FileHeaderSizeBytes + 6 + len(bytes)))
+	require.Nil(t, bytes)
+	assert.Equal(t, io.EOF, err)
+
+	// testing the boundaries around, which should give us a magic number mismatch
+	bytes, err = reader.ReadNextAt(uint64(FileHeaderSizeBytes + 5 + len(bytes)))
+	require.Nil(t, bytes)
+	assert.Equal(t, errors.New("magic number mismatch"), errors.Unwrap(err))
+}
+
+func TestMMapReaderReadsNilAndEmptiesV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedNilAndEmptyRecord")
+	bytes, err := reader.ReadNextAt(FileHeaderSizeBytes)
+	require.Nil(t, err)
+	require.Nil(t, bytes)
+
+	bytes, err = reader.ReadNextAt(uint64(14))
+	require.Nil(t, err)
+	require.Equal(t, []byte{}, bytes)
+}
+
+func TestMMapReaderMagicNumberContentsV3(t *testing.T) {
+	reader := newOpenedTestMMapReader(t, "test_files/v3_compat/recordio_UncompressedMagicNumberContent")
+	next, record, err := reader.SeekNext(0)
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, record)
+
+	next, record, err = reader.SeekNext(next + 1)
+	require.NoError(t, err)
+	require.Equal(t, []byte{21, 8, 23}, record)
+
+	next, record, err = reader.SeekNext(next + 1)
+	require.NoError(t, err)
+	require.Equal(t, MagicNumberSeparatorLongBytes, record)
+
+	_, _, err = reader.SeekNext(next + 1)
+	require.Equal(t, io.EOF, err)
+}

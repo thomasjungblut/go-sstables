@@ -40,10 +40,10 @@ func TestSingleWriteSize(t *testing.T) {
 	defer removeFileWriterFile(t, writer)
 
 	size := writer.Size()
-	assert.Equal(t, uint64(0x1b), size)
+	assert.Equal(t, uint64(0x20), size)
 	stat, err := os.Stat(writer.file.Name())
 	require.Nil(t, err)
-	assert.Equal(t, int64(0x1b), stat.Size())
+	assert.Equal(t, int64(0x20), stat.Size())
 	assert.Equal(t, size, uint64(stat.Size()))
 }
 
@@ -53,28 +53,28 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 
 	offset, err := writer.Write(randomRecordOfSize(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
-	assert.Equal(t, uint64(0x13), writer.Size())
+	assert.Equal(t, uint64(0x18), writer.Size())
 	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(10))
-	assert.Equal(t, uint64(0x13), offset)
-	assert.Equal(t, uint64(0x23), writer.Size())
+	assert.Equal(t, uint64(0x18), offset)
+	assert.Equal(t, uint64(0x2d), writer.Size())
 	require.Nil(t, err)
 
 	offset, err = writer.Write(randomRecordOfSize(25))
-	assert.Equal(t, uint64(0x23), offset)
-	assert.Equal(t, uint64(0x42), writer.Size())
+	assert.Equal(t, uint64(0x2d), offset)
+	assert.Equal(t, uint64(0x51), writer.Size())
 	require.Nil(t, err)
 
-	assert.Equal(t, uint64(0x42), writer.currentOffset)
-	assert.Equal(t, uint64(0x42), writer.Size())
+	assert.Equal(t, uint64(0x51), writer.currentOffset)
+	assert.Equal(t, uint64(0x51), writer.Size())
 
 	err = writer.Close()
 	require.Nil(t, err)
 
 	stat, err := os.Stat(writer.file.Name())
 	require.Nil(t, err)
-	assert.Equal(t, int64(66), stat.Size())
+	assert.Equal(t, int64(81), stat.Size())
 
 	reader := newReaderOnTopOfWriter(t, writer)
 	defer closeFileReader(t, reader)
@@ -228,14 +228,14 @@ func TestWriterSeekHappyPath(t *testing.T) {
 	previousOffset := writer.Size()
 	offset, err := writer.Write([]byte{12, 13, 14, 15, 16})
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
-	assert.Equal(t, uint64(0x13), writer.Size())
+	assert.Equal(t, uint64(0x18), writer.Size())
 	require.Nil(t, err)
 
 	require.NoError(t, writer.Seek(previousOffset))
 
 	offset, err = writer.Write([]byte{1, 2, 3, 4, 5})
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
-	assert.Equal(t, uint64(0x13), writer.Size())
+	assert.Equal(t, uint64(0x18), writer.Size())
 	require.Nil(t, err)
 
 	require.NoError(t, writer.Close())

@@ -51,10 +51,10 @@ func TestReadStreamedWriteEndToEndCheckMetadata(t *testing.T) {
 	// check the metadata is accurate
 	assert.Equal(t, 1, int(reader.MetaData().Version))
 	assert.Equal(t, len(expectedNumbers), int(reader.MetaData().NumRecords))
-	assert.Equal(t, 12008, int(reader.MetaData().DataBytes))
+	assert.Equal(t, 17008, int(reader.MetaData().DataBytes))
 	// depending on how well protobuf can vint compress the checksums, we end up with more or less bytes
-	assert.InDelta(t, 25000, int(reader.MetaData().IndexBytes), 1024)
-	assert.InDelta(t, 37000, int(reader.MetaData().TotalBytes), 1024)
+	assert.InDelta(t, 30515, int(reader.MetaData().IndexBytes), 1024)
+	assert.InDelta(t, 47523, int(reader.MetaData().TotalBytes), 1024)
 	assert.Equal(t, intToByteSlice(expectedNumbers[0]), reader.MetaData().MinKey)
 	assert.Equal(t, intToByteSlice(expectedNumbers[len(expectedNumbers)-1]), reader.MetaData().MaxKey)
 }
