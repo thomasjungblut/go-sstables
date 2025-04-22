@@ -1,5 +1,5 @@
 meta:
-  id: recordio_v3
+  id: recordio_v4
   endian: le
   imports:
     - vlq_base128_le
@@ -34,6 +34,9 @@ types:
         type: vlq_base128_le
       - id: compressed_payload_len
         type: vlq_base128_le
+      - id: crc32_checksum
+        type: vlq_base128_le
+        doc: The checksum is a CRC32 (Castagnoli table mapping) built from the previous fields of the record header.
       - id: payload
         size: len_payload
     instances:
