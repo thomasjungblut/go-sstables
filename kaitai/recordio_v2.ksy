@@ -32,9 +32,9 @@ types:
       - id: compressed_payload_len
         type: vlq_base128_le
       - id: payload
-        size: record_size
+        size: len_payload
     instances:
-      record_size:
+      len_payload:
         value: uncompressed_payload_len.value ^ compressed_payload_len.value
         doc: The size is either the compressed or uncompressed length.
 enums:

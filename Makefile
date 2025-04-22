@@ -14,6 +14,16 @@ SHELL=/bin/bash
 
 .DEFAULT_GOAL := unit-test
 
+.PHONY: compile-kaitai
+compile-kaitai:
+	@echo
+	@echo "==> Compiling Kaitai files <=="
+	kaitai-struct-compiler -t go --go-package gokaitai kaitai/recordio_v2.ksy
+	kaitai-struct-compiler -t go --go-package gokaitai kaitai/recordio_v3.ksy
+	kaitai-struct-compiler -t go --go-package gokaitai kaitai/recordio_v4.ksy
+	mv gokaitai/*.go kaitai/gokaitai/
+	rm -rf gokaitai
+
 .PHONY: compile-proto
 compile-proto:
 	@echo
