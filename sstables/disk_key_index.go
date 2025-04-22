@@ -70,9 +70,14 @@ func (s *DiskKeyIndex) IteratorBetween(keyLower []byte, keyHigher []byte) (skipl
 		return nil, err
 	}
 
-	endOffset, _, _, err := s.binarySearch(keyHigher)
+	endOffset, _, found, err := s.binarySearch(keyHigher)
 	if err != nil {
 		return nil, err
+	}
+
+	// due to the inclusivity of keyHigher, we want to exclude the next item if it's not an exact match
+	if !found {
+		endOffset = endOffset - 1
 	}
 
 	return s.newIterator(startOffset, endOffset), nil

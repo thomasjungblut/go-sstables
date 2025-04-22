@@ -222,6 +222,65 @@ func TestIndexIteratorBetween(t *testing.T) {
 	}
 }
 
+func TestIndexIteratorBetweenHoles(t *testing.T) {
+	writer, err := newTestSSTableSimpleWriter()
+	require.Nil(t, err)
+	defer cleanWriterDir(t, writer.streamWriter)
+
+	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements([]int{0, 1, 2, 4, 8, 9, 10}))
+	require.Nil(t, err)
+
+	for _, loaderFunc := range indexLoaders {
+		loader := loaderFunc()
+		t.Run(reflect.TypeOf(loader).String(), func(t *testing.T) {
+			idx, err := loader.Load(writer.streamWriter.indexFilePath, &proto.MetaData{})
+			require.NoError(t, err)
+
+			require.NoError(t, idx.Open())
+			defer func() {
+				require.NoError(t, idx.Close())
+			}()
+
+			// whole sequence when out of bounds to the left and right
+			it, err := idx.IteratorBetween(intToByteSlice(0), intToByteSlice(10))
+			require.Nil(t, err)
+			assertIndexIteratorMatchesSlice(t, it, []int{0, 1, 2, 4, 8, 9, 10})
+
+			// sequence when in bounds for inclusiveness
+			it, err = idx.IteratorBetween(intToByteSlice(1), intToByteSlice(7))
+			require.Nil(t, err)
+			assertIndexIteratorMatchesSlice(t, it, []int{1, 2, 4})
+
+			// sequence when out of bounds for inclusiveness
+			it, err = idx.IteratorBetween(intToByteSlice(3), intToByteSlice(7))
+			require.Nil(t, err)
+			assertIndexIteratorMatchesSlice(t, it, []int{4})
+
+			// sequence when start is out of bounds for inclusiveness
+			it, err = idx.IteratorBetween(intToByteSlice(3), intToByteSlice(9))
+			require.Nil(t, err)
+			assertIndexIteratorMatchesSlice(t, it, []int{4, 8, 9})
+
+			// only 4 when requesting between 4 and 4
+			it, err = idx.IteratorBetween(intToByteSlice(4), intToByteSlice(4))
+			require.Nil(t, err)
+			assertIndexIteratorMatchesSlice(t, it, []int{4})
+
+			// error when higher key and lower key are inconsistent
+			_, err = idx.IteratorBetween(intToByteSlice(1), intToByteSlice(0))
+			require.Error(t, err)
+
+			// test out of range iteration, which should yield an empty iterator
+			it, err = idx.IteratorBetween(intToByteSlice(11), intToByteSlice(100))
+			require.Nil(t, err)
+			k, v, err := it.Next()
+			require.Nil(t, k)
+			require.Equal(t, IndexVal{}, v)
+			require.Equal(t, Done, err)
+		})
+	}
+}
+
 func assertIndexIteratorMatchesSlice(t *testing.T, it skiplist.IteratorI[[]byte, IndexVal], expectedSlice []int) {
 	numRead := 0
 	for _, e := range expectedSlice {

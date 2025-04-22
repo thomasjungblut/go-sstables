@@ -57,9 +57,15 @@ func (s *SliceKeyIndex) IteratorBetween(keyLower []byte, keyHigher []byte) (skip
 	}
 
 	startIdx, _ := s.search(keyLower)
-	fx, _ := s.search(keyHigher)
-	// we have slightly different opinions on the inclusivity of the end of the range scans here
-	endIdx := min(fx+1, len(s.index))
+	endIdx, _ := s.search(keyHigher)
+
+	// we need to adjust the ending a bit, because our iterator always includes the keyHigher in the result
+	if endIdx >= 0 && endIdx < len(s.index) {
+		if bytes.Compare(s.index[endIdx].key, keyHigher) <= 0 {
+			endIdx = endIdx + 1
+		}
+	}
+
 	return &SliceKeyIndexIterator{index: s.index, currentIndex: startIdx, endIndexExcl: endIdx}, nil
 }
 
