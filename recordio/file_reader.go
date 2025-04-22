@@ -18,6 +18,9 @@ type FileReader struct {
 	header        *Header
 	reader        ByteReaderResetCount
 	bufferPool    *pool.Pool
+
+	recordHeaderCache      []byte
+	recordHeaderByteReader *checksumByteReader
 }
 
 func (r *FileReader) Open() error {
@@ -48,6 +51,8 @@ func (r *FileReader) Open() error {
 	r.currentOffset = uint64(len(bytes))
 
 	r.bufferPool = pool.NewPool(1024, 20)
+	r.recordHeaderCache = r.bufferPool.Get(RecordHeaderV4MaxSizeBytes)
+	r.recordHeaderByteReader = newChecksumByteReader(r.reader, r.recordHeaderCache)
 	r.open = true
 
 	return nil
@@ -62,9 +67,11 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		return readNextV1(r)
 	} else if r.header.fileVersion == Version2 {
 		return readNextV2(r)
+	} else if r.header.fileVersion == Version3 {
+		return readNextV3(r)
 	} else {
 		start := r.reader.Count()
-		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(r.reader)
+		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV4(r.recordHeaderByteReader)
 		if err != nil {
 			// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
 			// This would indicate a properly written file and the actual end - and not a malformed record.
@@ -132,9 +139,11 @@ func (r *FileReader) SkipNext() error {
 		return SkipNextV1(r)
 	} else if r.header.fileVersion == Version2 {
 		return SkipNextV2(r)
+	} else if r.header.fileVersion == Version3 {
+		return SkipNextV3(r)
 	} else {
 		start := r.reader.Count()
-		payloadSizeUncompressed, payloadSizeCompressed, _, err := readRecordHeaderV3(r.reader)
+		payloadSizeUncompressed, payloadSizeCompressed, _, err := readRecordHeaderV4(r.recordHeaderByteReader)
 		if err != nil {
 			return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 		}
@@ -232,7 +241,38 @@ func SkipNextV2(r *FileReader) error {
 	return nil
 }
 
+func SkipNextV3(r *FileReader) error {
+	start := r.reader.Count()
+	payloadSizeUncompressed, payloadSizeCompressed, _, err := readRecordHeaderV3(r.reader)
+	if err != nil {
+		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
+	}
+
+	expectedBytesSkipped := payloadSizeUncompressed
+	if r.header.compressor != nil {
+		expectedBytesSkipped = payloadSizeCompressed
+	}
+
+	// here we have to add the header to the offset too, otherwise we will seek not far enough
+	expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
+	newOffset, err := r.file.Seek(expectedOffset, 0)
+	if err != nil {
+		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
+	}
+
+	if newOffset != expectedOffset {
+		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
+	}
+
+	r.reader.Reset(r.file)
+	r.currentOffset = uint64(newOffset)
+	return nil
+}
+
 func (r *FileReader) Close() error {
+	if r.recordHeaderCache != nil {
+		r.bufferPool.Put(r.recordHeaderCache)
+	}
 	r.closed = true
 	r.open = false
 	return r.file.Close()
@@ -344,6 +384,66 @@ func readNextV2(r *FileReader) ([]byte, error) {
 	// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
 	r.currentOffset = r.currentOffset + (r.reader.Count() - start)
 	return returnSlice, nil
+}
+
+func readNextV3(r *FileReader) ([]byte, error) {
+	start := r.reader.Count()
+	payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(r.reader)
+	if err != nil {
+		// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
+		// This would indicate a properly written file and the actual end - and not a malformed record.
+		if errors.Is(err, MagicNumberMismatchErr) {
+			remainder, err := io.ReadAll(r.reader)
+			if err != nil {
+				return nil, fmt.Errorf("error while parsing record header seeking for file end of '%s': %w", r.file.Name(), err)
+			}
+			for _, b := range remainder {
+				if b != 0 {
+					return nil, fmt.Errorf("error while parsing record header for zeros towards the file end of '%s': %w", r.file.Name(), MagicNumberMismatchErr)
+				}
+			}
+
+			// no other bytes than zeros have been read so far, that must've been the valid end of the file.
+			return nil, io.EOF
+		}
+
+		return nil, fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
+	}
+
+	if recordNil {
+		r.currentOffset = r.currentOffset + (r.reader.Count() - start)
+		return nil, nil
+	}
+
+	expectedBytesRead, pooledRecordBuffer := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
+	defer r.bufferPool.Put(pooledRecordBuffer)
+
+	numRead, err := io.ReadFull(r.reader, pooledRecordBuffer)
+	if err != nil {
+		return nil, fmt.Errorf("error while reading into record buffer of '%s': %w", r.file.Name(), err)
+	}
+
+	if uint64(numRead) != expectedBytesRead {
+		return nil, fmt.Errorf("not enough bytes in the record of '%s' found, expected %d but were %d", r.file.Name(), expectedBytesRead, numRead)
+	}
+
+	// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
+	r.currentOffset = r.currentOffset + (r.reader.Count() - start)
+	if r.header.compressor != nil {
+		pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
+		defer r.bufferPool.Put(pooledDecompressionBuffer)
+
+		buf, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
+		if err != nil {
+			return nil, err
+		}
+
+		return copyBuf(buf), nil
+	}
+
+	// TODO(thomas): copyBuf is a huge performance bottleneck, just returning the pooled buffer will
+	// immediately unlock 1.5x-2x more throughput
+	return copyBuf(pooledRecordBuffer), nil
 }
 
 // options

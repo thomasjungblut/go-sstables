@@ -17,6 +17,7 @@ type Header struct {
 }
 
 var MagicNumberMismatchErr = fmt.Errorf("magic number mismatch")
+var HeaderChecksumMismatchErr = fmt.Errorf("header checksum mismatch")
 
 func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	if len(buffer) != FileHeaderSizeBytes {
@@ -42,7 +43,7 @@ func readFileHeaderFromBuffer(buffer []byte) (*Header, error) {
 	return header, nil
 }
 
-func readRecordHeaderV1(buffer []byte) (uint64, uint64, error) {
+func readRecordHeaderV1(buffer []byte) (payloadSizeUncompressed uint64, payloadSizeCompressed uint64, err error) {
 	if len(buffer) != RecordHeaderSizeBytesV1V2 {
 		return 0, 0, fmt.Errorf("record header buffer size mismatch, expected %d but was %d", RecordHeaderSizeBytesV1V2, len(buffer))
 	}
@@ -52,12 +53,12 @@ func readRecordHeaderV1(buffer []byte) (uint64, uint64, error) {
 		return 0, 0, MagicNumberMismatchErr
 	}
 
-	payloadSizeUncompressed := binary.LittleEndian.Uint64(buffer[4:12])
-	payloadSizeCompressed := binary.LittleEndian.Uint64(buffer[12:20])
+	payloadSizeUncompressed = binary.LittleEndian.Uint64(buffer[4:12])
+	payloadSizeCompressed = binary.LittleEndian.Uint64(buffer[12:20])
 	return payloadSizeUncompressed, payloadSizeCompressed, nil
 }
 
-func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
+func readRecordHeaderV2(r io.ByteReader) (payloadSizeUncompressed uint64, payloadSizeCompressed uint64, err error) {
 	magicNumber, err := binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, err
@@ -66,12 +67,12 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 		return 0, 0, MagicNumberMismatchErr
 	}
 
-	payloadSizeUncompressed, err := binary.ReadUvarint(r)
+	payloadSizeUncompressed, err = binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	payloadSizeCompressed, err = binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -79,11 +80,7 @@ func readRecordHeaderV2(r io.ByteReader) (uint64, uint64, error) {
 	return payloadSizeUncompressed, payloadSizeCompressed, nil
 }
 
-func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
-	// TODO(thomas): V4 will need some kind of CRC hash to ensure that this header is valid
-	// currently we can read a valid magic number inside some data chunk, and a totally invalid
-	// remainder of the header e.g. a nil record bit or an uncompressed run-length that's huge and going past EOF.
-
+func readRecordHeaderV3(r io.ByteReader) (payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNilBool bool, err error) {
 	magicNumber, err := binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err
@@ -97,14 +94,57 @@ func readRecordHeaderV3(r io.ByteReader) (uint64, uint64, bool, error) {
 		return 0, 0, false, err
 	}
 
-	payloadSizeUncompressed, err := binary.ReadUvarint(r)
+	payloadSizeUncompressed, err = binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err
 	}
 
-	payloadSizeCompressed, err := binary.ReadUvarint(r)
+	payloadSizeCompressed, err = binary.ReadUvarint(r)
 	if err != nil {
 		return 0, 0, false, err
+	}
+
+	return payloadSizeUncompressed, payloadSizeCompressed, recordNil == 1, nil
+}
+
+func readRecordHeaderV4(reader *checksumByteReader) (payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNilBool bool, err error) {
+	reader.Reset()
+	magicNumber, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if magicNumber != MagicNumberSeparatorLong {
+		return 0, 0, false, MagicNumberMismatchErr
+	}
+
+	recordNil, err := reader.ReadByte()
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeUncompressed, err = binary.ReadUvarint(reader)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	payloadSizeCompressed, err = binary.ReadUvarint(reader)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	actualChecksum, err := reader.Checksum()
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	expectedChecksum, err := binary.ReadUvarint(reader)
+	if err != nil {
+		return 0, 0, false, err
+	}
+
+	if actualChecksum != expectedChecksum {
+		return 0, 0, false,
+			fmt.Errorf("%w: expected [%x], but found [%x]", HeaderChecksumMismatchErr, expectedChecksum, actualChecksum)
 	}
 
 	return payloadSizeUncompressed, payloadSizeCompressed, recordNil == 1, nil

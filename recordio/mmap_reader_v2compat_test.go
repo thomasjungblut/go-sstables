@@ -36,12 +36,12 @@ func TestMMapReaderSingleRecordOffsetBiggerThanFileV2(t *testing.T) {
 
 func TestMMapReaderV2VersionMismatchV0(t *testing.T) {
 	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v0", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 0")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 0")
 }
 
 func TestMMapReaderV2VersionMismatchV256(t *testing.T) {
 	reader := newTestMMapReader("test_files/v2_compat/recordio_UncompressedSingleRecord_v256", t)
-	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 3 but was 256")
+	expectErrorStringOnOpen(t, reader, "version mismatch, expected a value from 1 to 4 but was 256")
 }
 
 func TestMMapReaderCompressionGzipHeaderV2(t *testing.T) {
@@ -84,9 +84,9 @@ func TestMMapReaderForbidsDoubleOpensV2(t *testing.T) {
 
 // this is explicitly testing the difference in mmap semantics, where we would get an EOF error due to the following:
 // * record header is very small (5 bytes)
-// * record itself is smaller than the remainder of the buffer (RecordHeaderV2MaxSizeBytes - 5 bytes of the header = 15 bytes)
+// * record itself is smaller than the remainder of the buffer (RecordHeaderSizeBytesV1V2 - 5 bytes of the header = 15 bytes)
 // * only the EOF follows
-// this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderV2MaxSizeBytes size (up until the EOF) AND return the io.EOF as an error.
+// this basically triggers the mmap.ReaderAt to fill a buffer of RecordHeaderSizeBytesV1V2 size (up until the EOF) AND return the io.EOF as an error.
 // that caused some failed tests in the sstable reader, so it makes sense to have an explicit test for it
 func TestMMapReaderReadsSmallVarIntHeaderEOFCorrectlyV2(t *testing.T) {
 	reader := newOpenedTestMMapReader(t, "test_files/v2_compat/recordio_UncompressedSingleRecord")
