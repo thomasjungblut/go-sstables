@@ -273,8 +273,7 @@ func NewSSTableReader(readerOptions ...ReadOption) (SSTableReaderI, error) {
 	}
 
 	if opts.indexLoader == nil {
-		opts.indexLoader = &SkipListIndexLoader{
-			KeyComparator:  opts.keyComparator,
+		opts.indexLoader = &SliceKeyIndexLoader{
 			ReadBufferSize: opts.readBufferSizeBytes,
 		}
 	}
