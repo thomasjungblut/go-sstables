@@ -177,7 +177,7 @@ func (l *DiskIndexLoader) Load(indexPath string, _ *proto.MetaData) (_ SortedKey
 
 	idx := &DiskKeyIndex{
 		reader:             reader,
-		offsetCacheMaxSize: 128,
+		offsetCacheMaxSize: 1024,
 		offsetCache:        make(map[uint64]*proto.IndexEntry),
 	}
 	return idx, nil
