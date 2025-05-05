@@ -57,6 +57,8 @@ other languages and read the data.
 
 Currently, there is support for:
 
+* [RecordIO (v2)](kaitai/recordio_v2.ksy)
+* [RecordIO (v3)](kaitai/recordio_v3.ksy)
 * [RecordIO (v4)](kaitai/recordio_v4.ksy)
 
 You can find more information on how to generate Kaitai readers in [kaitai/README.md](kaitai/README.md).
