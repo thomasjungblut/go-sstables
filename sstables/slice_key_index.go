@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables/proto"
 	"golang.org/x/exp/slices"
-	"io"
 )
 
 type sliceKey struct {
@@ -125,7 +126,7 @@ func (s *SliceKeyIndexLoader) Load(indexPath string, metadata *proto.MetaData) (
 			return nil, fmt.Errorf("error while reading index records of sstable in '%s': %w", indexPath, err)
 		}
 
-		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum}, record.Key})
+		sx = append(sx, sliceKey{IndexVal{Offset: record.ValueOffset, Checksum: record.Checksum, Tombstoned: record.Tombstoned}, record.Key})
 	}
 
 	return &SliceKeyIndex{NoOpOpenClose{}, sx}, nil
