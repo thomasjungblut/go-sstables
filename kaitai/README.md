@@ -13,7 +13,7 @@ In the case of recordio v4 we need receive two files: one for the vint compressi
 The Java code is fairly easy to use, you would just need to run:
 
 ```java
-RecordioV2 records = RecordioV2.fromFile("/some/record.io");
+RecordioV4 records = RecordioV4.fromFile("/some/record.io");
 for(Record r : records.record()) {
   ...
 }
