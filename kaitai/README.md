@@ -6,11 +6,11 @@ All we need here is the `ksc` command (or `kaitai-struct-compiler`), the respect
 
 Here, for example, we compile for Java:
 
-> ksc recordio_v2.ksy --target java
+> ksc recordio_v4.ksy --target java
 
-In the case of recordio v2 we need receive two files: one for the vint compression schema and one for the actual recordio files.
+In the case of recordio v4 we need receive two files: one for the vint compression schema and one for the actual recordio files.
 
-The Java code is fairly easy to use (even though it doesn't that intuitive), you would just need to run:
+The Java code is fairly easy to use, you would just need to run:
 
 ```java
 RecordioV2 records = RecordioV2.fromFile("/some/record.io");
