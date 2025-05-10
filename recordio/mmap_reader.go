@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/recordio/simd"
 	"io"
+	"reflect"
+	"unsafe"
 
 	"golang.org/x/exp/mmap"
 
@@ -20,6 +23,9 @@ type MMapReader struct {
 	bufferPool *pool.Pool
 	path       string
 	seekLen    int
+
+	simdAvailable   bool
+	mmapReaderSlice []byte
 }
 
 func (r *MMapReader) Open() error {
@@ -48,6 +54,14 @@ func (r *MMapReader) Open() error {
 	r.header = header
 	r.bufferPool = pool.NewPool(1024, 20)
 	r.open = true
+	r.simdAvailable = simd.AVXSupported()
+
+	v := reflect.ValueOf(r.mmapReader).Elem()
+	dataField := v.FieldByName("data")
+	dataPtr := unsafe.Pointer(dataField.UnsafeAddr())
+	dataSlice := *(*[]byte)(dataPtr)
+	r.mmapReaderSlice = unsafe.Slice(&dataSlice[0], len(dataSlice))
+
 	return nil
 }
 
@@ -61,6 +75,10 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 	}
 	if r.header.fileVersion < Version2 {
 		return 0, nil, fmt.Errorf("unsupported on files with version lower than v2")
+	}
+
+	if r.simdAvailable {
+		return r.seekNextVectorized(offset)
 	}
 
 	headerBufPooled := r.bufferPool.Get(r.seekLen)
@@ -124,6 +142,29 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 		}
 
 		next += int64(i)
+	}
+}
+
+func (r *MMapReader) seekNextVectorized(offset uint64) (uint64, []byte, error) {
+	i := offset
+	for {
+		ofx := simd.FindMagicNumber(r.mmapReaderSlice, int(i))
+		if ofx < 0 {
+			return 0, nil, io.EOF
+		}
+
+		record, err := r.ReadNextAt(uint64(ofx))
+		if err != nil {
+			if errors.Is(err, HeaderChecksumMismatchErr) || errors.Is(err, MagicNumberMismatchErr) || errors.Is(err, io.EOF) {
+				// try to seek again, the record couldn't be read fully
+				i = uint64(ofx + 1)
+				continue
+			}
+
+			return 0, nil, err
+		} else {
+			return uint64(ofx), record, nil
+		}
 	}
 }
 
