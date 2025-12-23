@@ -6,6 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
+	"unsafe"
+
+	"github.com/thomasjungblut/go-sstables/recordio/simd"
 
 	"golang.org/x/exp/mmap"
 
@@ -20,6 +24,8 @@ type MMapReader struct {
 	bufferPool *pool.Pool
 	path       string
 	seekLen    int
+
+	mmapReaderSlice []byte
 }
 
 func (r *MMapReader) Open() error {
@@ -48,6 +54,13 @@ func (r *MMapReader) Open() error {
 	r.header = header
 	r.bufferPool = pool.NewPool(1024, 20)
 	r.open = true
+
+	v := reflect.ValueOf(r.mmapReader).Elem()
+	dataField := v.FieldByName("data")
+	dataPtr := unsafe.Pointer(dataField.UnsafeAddr())
+	dataSlice := *(*[]byte)(dataPtr)
+	r.mmapReaderSlice = unsafe.Slice(&dataSlice[0], len(dataSlice))
+
 	return nil
 }
 
@@ -63,67 +76,29 @@ func (r *MMapReader) SeekNext(offset uint64) (uint64, []byte, error) {
 		return 0, nil, fmt.Errorf("unsupported on files with version lower than v2")
 	}
 
-	headerBufPooled := r.bufferPool.Get(r.seekLen)
-	defer r.bufferPool.Put(headerBufPooled)
+	return r.seekNextVectorized(offset)
+}
 
-	next := int64(offset)
+func (r *MMapReader) seekNextVectorized(offset uint64) (uint64, []byte, error) {
+	i := offset
 	for {
-		numRead, err := r.mmapReader.ReadAt(headerBufPooled, next)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// we'll only return EOF when we actually could not read anymore, that's different to the mmapReader semantics
-				// which will return EOF when you have read less than the buffers actual size due to the EOF.
-				// thankfully it's the same across the platforms they implement mmap for (unix mmap and windows umap file views).
-				if numRead == 0 {
-					return 0, nil, io.EOF
-				}
-			} else {
-				return 0, nil, err
-			}
-		}
-
-		i := 0
-	outer:
-		for i < numRead {
-			ix := i
-			for j := 0; j < len(MagicNumberSeparatorLongBytes); j++ {
-				if headerBufPooled[ix] != MagicNumberSeparatorLongBytes[j] {
-					break
-				}
-				ix++
-				// we may have a marker at the boundary of our mmap reader, we will rewind next and read again from there
-				if ix >= numRead {
-					break outer
-				}
-			}
-			if ix-i < len(MagicNumberSeparatorLongBytes) {
-				i = ix + 1
-				continue
-			}
-
-			// we found the marker starting at i, we try to read it
-			trialOffset := uint64(next) + uint64(i)
-			record, err := r.ReadNextAt(trialOffset)
-			if err != nil {
-				if errors.Is(err, HeaderChecksumMismatchErr) || errors.Is(err, MagicNumberMismatchErr) || errors.Is(err, io.EOF) {
-					// try to seek again, the record couldn't be read fully
-					i = ix
-					continue
-				}
-
-				return 0, nil, err
-			} else {
-				return trialOffset, record, nil
-			}
-
-		}
-
-		// avoid infinity looping when the marker is at the end of the file
-		if i == 0 {
+		ofx := simd.FindMagicNumber(r.mmapReaderSlice, int(i))
+		if ofx < 0 {
 			return 0, nil, io.EOF
 		}
 
-		next += int64(i)
+		record, err := r.ReadNextAt(uint64(ofx))
+		if err != nil {
+			if errors.Is(err, HeaderChecksumMismatchErr) || errors.Is(err, MagicNumberMismatchErr) || errors.Is(err, io.EOF) {
+				// try to seek again, the record couldn't be read fully
+				i = uint64(ofx + 1)
+				continue
+			}
+
+			return 0, nil, err
+		} else {
+			return uint64(ofx), record, nil
+		}
 	}
 }
 
