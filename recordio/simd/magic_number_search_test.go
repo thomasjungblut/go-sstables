@@ -33,6 +33,9 @@ func TestMagicNumberSearchHappyPath(t *testing.T) {
 
 		require.Equalf(t, expectedResult, actualResult, "unexpected result at offset %d", i)
 	}
+
+	foundMarkers := FindAllMagicNumbers(data, 0)
+	require.Equal(t, []int{firstMarker, secondMarker}, foundMarkers)
 }
 
 func TestMagicNumberSearchBoundary(t *testing.T) {

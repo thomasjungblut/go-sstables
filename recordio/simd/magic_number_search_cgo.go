@@ -91,3 +91,32 @@ func FindMagicNumber(data []byte, off int) int {
 
 	return cgo_find_magic_numbers_scalar(data, off)
 }
+
+// FindAllMagicNumbers finds all occurrences of the magic number pattern in the data,
+// starting from the given offset. Returns a slice of all offsets where the pattern was found.
+func FindAllMagicNumbers(data []byte, off int) []int {
+	if len(data) < 3 {
+		return nil
+	}
+	if off >= len(data) || off < 0 {
+		return nil
+	}
+
+	var results []int
+	pos := off
+
+	for {
+		next := FindMagicNumber(data, pos)
+		if next < 0 {
+			break
+		}
+		results = append(results, next)
+		// Start searching from the next position after this match
+		pos = next + 1
+		if pos >= len(data)-2 {
+			break
+		}
+	}
+
+	return results
+}
