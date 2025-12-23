@@ -1,9 +1,15 @@
 # go option
 GO        ?= go
 TAGS      :=
+# Disable -race when CGO_ENABLED=0 (race detector requires cgo)
+ifeq ($(CGO_ENABLED),0)
+BUILDFLAGS :=
+TESTFLAGS :=
+else
 BUILDFLAGS := -race
-TESTS     := ./...
 TESTFLAGS := -race
+endif
+TESTS     := ./...
 LDFLAGS   :=
 GOFLAGS   :=
 BINARIES  := sstables
@@ -57,7 +63,7 @@ bench-simpledb:
 unit-test:
 	@echo
 	@echo "==> Building <=="
-	$(GO) build $(BUILDFLAGS) -race $(TESTS)
+	$(GO) build $(BUILDFLAGS) $(TESTS)
 	@echo "==> Running unit tests <=="
 	$(GO) clean -testcache
 	$(GO) test $(GOFLAGS) $(TESTFLAGS) $(TESTS)

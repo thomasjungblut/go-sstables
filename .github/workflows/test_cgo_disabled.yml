@@ -1,4 +1,4 @@
-name: simpledb-test
+name: test-cgo-disabled
 on:
   push:
     branches: [ main ]
@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
     steps:
       - uses: actions/checkout@v6
       - name: Set up Go
@@ -14,11 +16,9 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - run: go version
-      - name: Linearization Test
-        run: make linear-simpledb
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          path: simpledb/porcupine/*.html
-      - name: Crash Test
-        run: make crash-simpledb
+      - name: Go vet
+        run: make vet
+      - name: Unit Test
+        run: make unit-test
+      - name: Example Test
+        run: make example-test
