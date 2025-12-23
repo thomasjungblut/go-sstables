@@ -12,10 +12,19 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.22
+          go-version: 1.25
       - name: Go vet
         run: make vet
       - name: Unit Test
         run: make unit-test
+      - name: Unit Test CGO Disabled
+        run: make unit-test
+        env:
+          CGO_ENABLED: 0
       - name: Example Test
         run: make example-test
+      - name: Example Test CGO Disabled
+        run: make example-test
+        env:
+          CGO_ENABLED: 0
+          
