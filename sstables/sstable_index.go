@@ -7,8 +7,9 @@ import (
 )
 
 type IndexVal struct {
-	Offset   uint64
-	Checksum uint64
+	Offset     uint64
+	Checksum   uint64
+	Tombstoned bool
 }
 
 type NoOpOpenClose struct {
