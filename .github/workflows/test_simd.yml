@@ -1,0 +1,23 @@
+name: test-simd
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      GOEXPERIMENT: simd
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          # simd/archsimd is only available as an experiment from Go 1.26 onwards
+          go-version: '1.26'
+      - run: go version
+      - name: Go vet
+        run: make vet
+      - name: Unit Test
+        run: make unit-test
