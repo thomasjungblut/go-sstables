@@ -1,31 +1,19 @@
-//go:build cgo
-
 package simd
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-var allImplementationScenarios = []struct {
-	name      string
-	fx        func([]byte, int) int
-	available func() bool
-}{
-	{"Scalar", cgo_find_magic_numbers_scalar, func() bool { return true }},
-	{"SSE4", cgo_find_magic_numbers_sse4, func() bool { return sse42Supported }},
-	{"AVX2", cgo_find_magic_numbers_avx2, func() bool { return avx2Supported }},
-	{"AVX512", cgo_find_magic_numbers_avx512, func() bool { return avx512Supported }},
-}
-
 func TestMagicNumberSearchByImplementationHappyPath(t *testing.T) {
 	for _, scenario := range allImplementationScenarios {
-		if !scenario.available() {
-			t.Skip("cpu instruction not available")
-		}
 		t.Run(scenario.name, func(t *testing.T) {
+			if !scenario.available() {
+				t.Skip("cpu instruction not available")
+			}
 			data := make([]byte, 10000)
 
 			firstMarker := 10000 - 300
@@ -58,10 +46,10 @@ func TestMagicNumberSearchByImplementationHappyPath(t *testing.T) {
 
 func TestMagicNumberSearchByImplementation(t *testing.T) {
 	for _, scenario := range allImplementationScenarios {
-		if !scenario.available() {
-			t.Skip("cpu instruction not available")
-		}
 		t.Run(scenario.name, func(t *testing.T) {
+			if !scenario.available() {
+				t.Skip("cpu instruction not available")
+			}
 			t.Run("BoundarySizes", func(t *testing.T) {
 				// Test sizes around critical boundaries for SIMD implementations
 				for size := 9; size < 100; size++ {
@@ -199,7 +187,7 @@ func TestMagicNumberSearchByImplementation(t *testing.T) {
 
 			// Test the transition point where loop stops and fallback takes over
 			t.Run("LoopToFallbackTransition", func(t *testing.T) {
-				// AVX2 loop advances by 30, so test around positions 30-34
+				// AVX2 loop advances by 32 and needs 34 readable bytes, so test around positions 30-34
 				for size := 32; size <= 70; size++ {
 					t.Run(fmt.Sprintf("Size%d", size), func(t *testing.T) {
 						// Test pattern at various positions near the boundary
@@ -250,6 +238,28 @@ func TestMagicNumberSearchByImplementation(t *testing.T) {
 					}
 				}
 			})
+		})
+	}
+}
+
+func TestMagicNumberSearchByImplementationMatchesScalar(t *testing.T) {
+	// random data drawn from the pattern bytes only, so partial and overlapping matches are frequent
+	rnd := rand.New(rand.NewPCG(42, 1337))
+	alphabet := []byte{145, 141, 76, 0}
+	for _, scenario := range allImplementationScenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			if !scenario.available() {
+				t.Skip("cpu instruction not available")
+			}
+			for iter := 0; iter < 2000; iter++ {
+				data := make([]byte, 3+rnd.IntN(300))
+				for i := range data {
+					data[i] = alphabet[rnd.IntN(len(alphabet))]
+				}
+				off := rnd.IntN(len(data))
+				require.Equalf(t, findMagicNumberScalar(data, off), scenario.fx(data, off),
+					"size %d, offset %d, data %v", len(data), off, data)
+			}
 		})
 	}
 }

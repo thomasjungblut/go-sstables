@@ -1,7 +1,14 @@
-//go:build !cgo
-
 package simd
 
+const (
+	magic0 = 145
+	magic1 = 141
+	magic2 = 76
+)
+
+// FindMagicNumber returns the first offset at or after off where the magic number
+// pattern starts, or -1 if there is none. When built with GOEXPERIMENT=simd on amd64,
+// this dispatches to the widest vectorized implementation the CPU supports.
 func FindMagicNumber(data []byte, off int) int {
 	if len(data) < 3 {
 		return -1
@@ -10,14 +17,7 @@ func FindMagicNumber(data []byte, off int) int {
 		return -1
 	}
 
-	for i := off; i < len(data)-2; i++ {
-		if data[i] == 145 &&
-			data[i+1] == 141 &&
-			data[i+2] == 76 {
-			return i
-		}
-	}
-	return -1
+	return findMagicNumber(data, off)
 }
 
 // FindAllMagicNumbers finds all occurrences of the magic number pattern in the data,
@@ -34,7 +34,7 @@ func FindAllMagicNumbers(data []byte, off int) []int {
 	pos := off
 
 	for {
-		next := FindMagicNumber(data, pos)
+		next := findMagicNumber(data, pos)
 		if next < 0 {
 			break
 		}
@@ -47,4 +47,16 @@ func FindAllMagicNumbers(data []byte, off int) []int {
 	}
 
 	return results
+}
+
+// findMagicNumberScalar expects len(data) >= 3 and 0 <= off < len(data).
+func findMagicNumberScalar(data []byte, off int) int {
+	for i := off; i < len(data)-2; i++ {
+		if data[i] == magic0 &&
+			data[i+1] == magic1 &&
+			data[i+2] == magic2 {
+			return i
+		}
+	}
+	return -1
 }

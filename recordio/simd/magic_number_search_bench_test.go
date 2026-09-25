@@ -1,5 +1,3 @@
-//go:build cgo
-
 package simd
 
 import (
@@ -25,11 +23,10 @@ func BenchmarkFindMagicNumber(b *testing.B) {
 	data[len(data)-1] = pattern[2]
 
 	for _, scenario := range allImplementationScenarios {
-		if !scenario.available() {
-			b.Skip("cpu instruction not available")
-		}
-
 		b.Run(scenario.name, func(b *testing.B) {
+			if !scenario.available() {
+				b.Skip("cpu instruction not available")
+			}
 			b.ResetTimer()
 			b.ReportAllocs()
 
