@@ -8,10 +8,19 @@ type Reset interface {
 	Reset(r io.Reader)
 }
 
+// BufferPeeker allows to decode directly from the read buffer instead of going byte by byte.
+type BufferPeeker interface {
+	// PeekBuffered returns up to n buffered bytes without advancing the reader, see Reader.PeekBuffered.
+	PeekBuffered(n int) []byte
+	// DiscardBuffered skips n bytes previously returned by PeekBuffered.
+	DiscardBuffered(n int)
+}
+
 type ByteReaderReset interface {
 	io.ByteReader
 	io.Reader
 	Reset
+	BufferPeeker
 	Size() int
 }
 
@@ -60,6 +69,17 @@ func (c *CountingBufferedReader) Count() uint64 {
 
 func (c *CountingBufferedReader) Size() int {
 	return c.r.Size()
+}
+
+// PeekBuffered returns up to n buffered bytes without advancing the reader or the count.
+func (c *CountingBufferedReader) PeekBuffered(n int) []byte {
+	return c.r.PeekBuffered(n)
+}
+
+// DiscardBuffered skips n bytes previously returned by PeekBuffered.
+func (c *CountingBufferedReader) DiscardBuffered(n int) {
+	c.r.DiscardBuffered(n)
+	c.count += uint64(n)
 }
 
 func NewCountingByteReader(reader ByteReaderReset) ByteReaderResetCount {

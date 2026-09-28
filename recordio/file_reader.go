@@ -1,6 +1,7 @@
 package recordio
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -71,7 +72,7 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		return readNextV3(r)
 	} else {
 		start := r.reader.Count()
-		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV4(r.recordHeaderByteReader)
+		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := r.readRecordHeaderV4()
 		if err != nil {
 			// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
 			// This would indicate a properly written file and the actual end - and not a malformed record.
@@ -98,16 +99,22 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			return nil, nil
 		}
 
-		expectedBytesRead, pooledRecordBuffer := allocateRecordBufferPooled(r.bufferPool, r.header, payloadSizeUncompressed, payloadSizeCompressed)
-		defer r.bufferPool.Put(pooledRecordBuffer)
+		var recordBuffer []byte
+		if r.header.compressor == nil {
+			// the buffer is returned to the caller directly, pooling would only add a zeroing and a defensive copy
+			recordBuffer = make([]byte, payloadSizeUncompressed)
+		} else {
+			recordBuffer = r.bufferPool.Get(int(payloadSizeCompressed))
+			defer r.bufferPool.Put(recordBuffer)
+		}
 
-		numRead, err := io.ReadFull(r.reader, pooledRecordBuffer)
+		numRead, err := io.ReadFull(r.reader, recordBuffer)
 		if err != nil {
 			return nil, fmt.Errorf("error while reading into record buffer of '%s': %w", r.file.Name(), err)
 		}
 
-		if uint64(numRead) != expectedBytesRead {
-			return nil, fmt.Errorf("not enough bytes in the record of '%s' found, expected %d but were %d", r.file.Name(), expectedBytesRead, numRead)
+		if numRead != len(recordBuffer) {
+			return nil, fmt.Errorf("not enough bytes in the record of '%s' found, expected %d but were %d", r.file.Name(), len(recordBuffer), numRead)
 		}
 
 		// why not just r.currentOffset = r.reader.count? we could've skipped something in between which makes the counts inconsistent
@@ -116,18 +123,36 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 			pooledDecompressionBuffer := r.bufferPool.Get(int(payloadSizeUncompressed))
 			defer r.bufferPool.Put(pooledDecompressionBuffer)
 
-			buf, err := r.header.compressor.DecompressWithBuf(pooledRecordBuffer, pooledDecompressionBuffer)
+			buf, err := r.header.compressor.DecompressWithBuf(recordBuffer, pooledDecompressionBuffer)
 			if err != nil {
 				return nil, err
 			}
 
-			return copyBuf(buf), nil
+			return bytes.Clone(buf), nil
 		}
 
-		// TODO(thomas): copyBuf is a huge performance bottleneck, just returning the pooled buffer will
-		// immediately unlock 1.5x-2x more throughput
-		return copyBuf(pooledRecordBuffer), nil
+		return recordBuffer, nil
 	}
+}
+
+// readRecordHeaderV4 decodes the record header straight from the read buffer when possible. Headers that aren't fully
+// buffered (e.g. across buffer boundaries or at the end of the file) are read byte by byte, which refills the buffer.
+func (r *FileReader) readRecordHeaderV4() (payloadSizeUncompressed uint64, payloadSizeCompressed uint64, recordNil bool, err error) {
+	buf := r.reader.PeekBuffered(RecordHeaderV4MaxSizeBytes)
+	var n int
+	payloadSizeUncompressed, payloadSizeCompressed, recordNil, n, err = readRecordHeaderV4FromSlice(buf)
+	if err == nil || errors.Is(err, MagicNumberMismatchErr) {
+		// consume exactly what the byte by byte path would have, the zero-trailer check relies on it
+		r.reader.DiscardBuffered(n)
+		return payloadSizeUncompressed, payloadSizeCompressed, recordNil, err
+	}
+
+	truncated := errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
+	if !truncated || len(buf) == RecordHeaderV4MaxSizeBytes {
+		return 0, 0, false, err
+	}
+
+	return readRecordHeaderV4(r.recordHeaderByteReader)
 }
 
 func (r *FileReader) SkipNext() error {
@@ -438,12 +463,12 @@ func readNextV3(r *FileReader) ([]byte, error) {
 			return nil, err
 		}
 
-		return copyBuf(buf), nil
+		return bytes.Clone(buf), nil
 	}
 
 	// TODO(thomas): copyBuf is a huge performance bottleneck, just returning the pooled buffer will
 	// immediately unlock 1.5x-2x more throughput
-	return copyBuf(pooledRecordBuffer), nil
+	return bytes.Clone(pooledRecordBuffer), nil
 }
 
 // options
