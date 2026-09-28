@@ -30,6 +30,10 @@ var benchCompressionTypes = []struct {
 // writeBenchFile writes records of the given size until benchFileSize is reached and returns the path, the offsets
 // of all records and the total file size.
 func writeBenchFile(b *testing.B, recordSize int, compType int) (string, []uint64, int64) {
+	return writeBenchFileT(b, recordSize, compType)
+}
+
+func writeBenchFileT(b testing.TB, recordSize int, compType int) (string, []uint64, int64) {
 	path := filepath.Join(benchDir(b), "bench.rio")
 	w, err := recordio.NewFileWriter(recordio.Path(path), recordio.CompressionType(compType))
 	require.NoError(b, err)
