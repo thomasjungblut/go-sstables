@@ -12,8 +12,10 @@ type Reset interface {
 type BufferPeeker interface {
 	// PeekBuffered returns up to n buffered bytes without advancing the reader, see Reader.PeekBuffered.
 	PeekBuffered(n int) []byte
-	// DiscardBuffered skips n bytes previously returned by PeekBuffered.
+	// DiscardBuffered skips n buffered bytes, n must not be larger than Buffered.
 	DiscardBuffered(n int)
+	// Buffered returns the number of bytes that can be read from the current buffer.
+	Buffered() int
 }
 
 type ByteReaderReset interface {
@@ -76,10 +78,14 @@ func (c *CountingBufferedReader) PeekBuffered(n int) []byte {
 	return c.r.PeekBuffered(n)
 }
 
-// DiscardBuffered skips n bytes previously returned by PeekBuffered.
+// DiscardBuffered skips n buffered bytes, n must not be larger than Buffered.
 func (c *CountingBufferedReader) DiscardBuffered(n int) {
 	c.r.DiscardBuffered(n)
 	c.count += uint64(n)
+}
+
+func (c *CountingBufferedReader) Buffered() int {
+	return c.r.Buffered()
 }
 
 func NewCountingByteReader(reader ByteReaderReset) ByteReaderResetCount {

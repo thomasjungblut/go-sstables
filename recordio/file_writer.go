@@ -168,9 +168,7 @@ func fillRecordHeaderV4(bytes []byte, payloadSizeUncompressed uint64, payloadSiz
 	off += binary.PutUvarint(bytes[off:], payloadSizeUncompressed)
 	off += binary.PutUvarint(bytes[off:], payloadSizeCompressed)
 
-	crc := crc32.New(crc32.MakeTable(crc32.Castagnoli))
-	_, _ = crc.Write(bytes[:off])
-	off += binary.PutUvarint(bytes[off:], uint64(crc.Sum32()))
+	off += binary.PutUvarint(bytes[off:], uint64(crc32.Checksum(bytes[:off], castagnoliTable)))
 
 	return bytes[:off]
 }
@@ -196,7 +194,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 	compressedSize := uint64(0)
 
 	if w.compressor != nil {
-		poolBuffer := w.bufferPool.Get(int(uncompressedSize))
+		poolBuffer := w.bufferPool.Get(w.compressor.CompressBound(int(uncompressedSize)))
 		defer w.bufferPool.Put(poolBuffer)
 
 		compressedRecord, err := w.compressor.CompressWithBuf(recordToWrite, poolBuffer)

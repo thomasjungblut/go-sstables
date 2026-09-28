@@ -2,7 +2,6 @@ package recordio
 
 import (
 	"fmt"
-	"hash"
 	"hash/crc32"
 	"io"
 )
@@ -12,7 +11,6 @@ type checksumByteReader struct {
 	io.ByteReader
 
 	bytes []byte
-	crc   hash.Hash32
 	idx   int
 }
 
@@ -33,7 +31,6 @@ func (h *checksumByteReader) ReadByte() (byte, error) {
 }
 
 func (h *checksumByteReader) Reset() {
-	h.crc.Reset()
 	h.idx = 0
 }
 
@@ -42,19 +39,13 @@ func (h *checksumByteReader) Count() int {
 }
 
 func (h *checksumByteReader) Checksum() (uint64, error) {
-	_, err := h.crc.Write(h.bytes[:h.idx])
-	if err != nil {
-		return 0, err
-	}
-	return uint64(h.crc.Sum32()), nil
+	return uint64(crc32.Checksum(h.bytes[:h.idx], castagnoliTable)), nil
 }
 
 func newChecksumByteReader(r io.ByteReader, cachedBytes []byte) *checksumByteReader {
-	crc := crc32.New(crc32.MakeTable(crc32.Castagnoli))
 	return &checksumByteReader{
 		ByteReader: r,
 		bytes:      cachedBytes,
-		crc:        crc,
 		idx:        0,
 	}
 }

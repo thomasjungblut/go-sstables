@@ -27,6 +27,7 @@ type WriteSeekerCloserFlusher interface {
 // Namely, it has a new constructor in NewWriterBuf & NewAlignedWriterBuf, implements Close() and supports block aligned flushes.
 // Later the interface of the writer added io.Seeker, which the writer now fully implements as well.
 // Additionally, several methods that were not needed are removed to reduce the test surface of the original.
+// For performance improvements, the Writer now implements the BufferPeeker interface.
 type Writer struct {
 	err        error
 	buf        []byte
@@ -299,7 +300,7 @@ func (b *Reader) PeekBuffered(n int) []byte {
 	return b.buf[b.r:min(b.r+n, b.w)]
 }
 
-// DiscardBuffered skips the next n bytes, n must not be larger than the length of the last PeekBuffered result.
+// DiscardBuffered skips the next n bytes, n must not be larger than Buffered.
 func (b *Reader) DiscardBuffered(n int) {
 	b.r += n
 	b.lastByte = -1

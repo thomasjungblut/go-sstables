@@ -10,6 +10,9 @@ type CompressionI interface {
 	// If the buffer doesn't fit, it will resize it (truncate/enlarging copy).
 	// Thus, it's important to use the returned buffer value.
 	CompressWithBuf(record []byte, destinationBuffer []byte) ([]byte, error)
+	// CompressBound returns an upper bound of the compressed size of a record with n bytes. It's used to size the
+	// destination buffer of CompressWithBuf, so that compression doesn't need to allocate.
+	CompressBound(n int) int
 	// DecompressWithBuf decompresses the given byte buffer and a buffer where to decompress into.
 	// If the buffer doesn't fit, it will resize it (truncate/enlarging copy).
 	// Thus, it's important to use the returned buffer value.

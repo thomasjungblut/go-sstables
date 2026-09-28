@@ -19,6 +19,14 @@ func (c *SnappyCompressor) CompressWithBuf(record []byte, destinationBuffer []by
 	return snappy.Encode(destinationBuffer, record), nil
 }
 
+func (c *SnappyCompressor) CompressBound(n int) int {
+	if bound := snappy.MaxEncodedLen(n); bound >= 0 {
+		return bound
+	}
+	// too large for snappy, Encode will panic regardless
+	return n
+}
+
 func (c *SnappyCompressor) DecompressWithBuf(buf []byte, destinationBuffer []byte) ([]byte, error) {
 	return snappy.Decode(destinationBuffer, buf)
 }
