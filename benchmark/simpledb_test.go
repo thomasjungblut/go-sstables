@@ -23,7 +23,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 
 	for _, n := range dbSizes {
 		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "simpledb_Bench")
+			tmpDir, err := os.MkdirTemp(benchDir(b), "simpledb_Bench")
 			require.Nil(b, err)
 			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
 			db, err := simpledb.NewSimpleDB(tmpDir,
@@ -57,7 +57,7 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 
 	for _, n := range dbSizes {
 		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "simpledb_Bench")
+			tmpDir, err := os.MkdirTemp(benchDir(b), "simpledb_Bench")
 			require.Nil(b, err)
 			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
 

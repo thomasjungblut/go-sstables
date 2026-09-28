@@ -4,15 +4,14 @@
 package porcupine
 
 import (
-	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"math/rand"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/anishathalye/porcupine"
 	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 

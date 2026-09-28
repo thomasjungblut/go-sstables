@@ -41,7 +41,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 
 			var tmpDirs []string
 			for n := 0; n < b.N; n++ {
-				tmpDir, err := os.MkdirTemp("", "sstable_BenchWrite")
+				tmpDir, err := os.MkdirTemp(benchDir(b), "sstable_BenchWrite")
 				assert.Nil(b, err)
 				tmpDirs = append(tmpDirs, tmpDir)
 			}
