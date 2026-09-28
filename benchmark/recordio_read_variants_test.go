@@ -3,6 +3,7 @@ package benchmark
 import (
 	"errors"
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func writeBenchFile(b *testing.B, recordSize int, compType int) (string, []uint6
 	require.NoError(b, err)
 	require.NoError(b, w.Open())
 
-	record := randomRecordOfSize(recordSize)
+	record := testutil.Bytes(nil, recordSize)
 	var offsets []uint64
 	for w.Size() < benchFileSize {
 		off, err := w.Write(record)

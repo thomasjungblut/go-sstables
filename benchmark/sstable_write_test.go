@@ -3,6 +3,7 @@ package benchmark
 import (
 	"encoding/binary"
 	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
@@ -28,7 +29,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			mStore := memstore.NewMemStore()
-			bytes := randomRecordOfSize(1024)
+			bytes := testutil.Bytes(nil, 1024)
 
 			i := 0
 			for mStore.EstimatedSizeInBytes() < uint64(bm.memstoreSize) {

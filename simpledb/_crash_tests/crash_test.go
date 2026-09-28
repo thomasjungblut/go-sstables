@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io"
 	"log"
 	"math/rand"
@@ -139,7 +140,7 @@ func TestOutOfProcessCrashesRandomKeysWithDeletion(t *testing.T) {
 	var expectedKeys []string
 	var unexpectedKeys []string
 	for i := 0; i < 2500; i++ {
-		key := randomAsciiString(rnd, 32)
+		key := testutil.Letters(rnd, 32)
 		err := c.Put(key, key)
 		require.NoError(t, err)
 
@@ -331,13 +332,4 @@ func newRequestClient(id int) *porcupine.DatabaseClientRecorder {
 
 func formatUrl(key string) string {
 	return fmt.Sprintf("http://%s?key=%s", fullDataEndpoint, key)
-}
-
-func randomAsciiString(rand *rand.Rand, size int) string {
-	builder := strings.Builder{}
-	for i := 0; i < size; i++ {
-		builder.WriteRune(65 + rand.Int31n(25))
-	}
-
-	return builder.String()
 }

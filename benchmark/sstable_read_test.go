@@ -3,6 +3,7 @@ package benchmark
 import (
 	"errors"
 	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -132,7 +133,7 @@ func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
 
 func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) [][]byte {
 	mStore := memstore.NewMemStore()
-	bytes := randomRecordOfSize(1024)
+	bytes := testutil.Bytes(nil, 1024)
 
 	var keys [][]byte
 	i := 0

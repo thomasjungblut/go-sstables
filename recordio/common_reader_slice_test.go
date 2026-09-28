@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,9 +61,9 @@ func TestFileReaderSmallBuffersHeadersAcrossBoundaries(t *testing.T) {
 		case 0:
 			record = nil
 		case 1:
-			record = randomRecordOfSize(i % 17)
+			record = testutil.Bytes(nil, i%17)
 		default:
-			record = randomRecordOfSize(i)
+			record = testutil.Bytes(nil, i)
 		}
 		_, err := w.Write(record)
 		require.NoError(t, err)
@@ -105,11 +107,11 @@ func TestFileReaderSkipNextAcrossBufferSizes(t *testing.T) {
 			case 0:
 				record = nil
 			case 1:
-				record = randomRecordOfSize(i % 13)
+				record = testutil.Bytes(nil, i%13)
 			case 2:
-				record = randomRecordOfSize(i * 3)
+				record = testutil.Bytes(nil, i*3)
 			default:
-				record = randomRecordOfSize(5000 + i)
+				record = testutil.Bytes(nil, 5000+i)
 			}
 			_, err := w.Write(record)
 			require.NoError(t, err)

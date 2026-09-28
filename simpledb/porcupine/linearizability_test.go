@@ -4,6 +4,7 @@
 package porcupine
 
 import (
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"math/rand"
 	"os"
 	"strings"
@@ -29,7 +30,7 @@ func TestHappyPath(t *testing.T) {
 	client := NewDatabaseRecorder(db.db, 0)
 	for i := 0; i < 100; i++ {
 		_, _ = client.Get(key)
-		_ = client.Put(key, randomString(5))
+		_ = client.Put(key, testutil.Letters(nil, 5))
 		if rand.Float32() < 0.25 {
 			_ = client.Delete(key)
 		}
@@ -45,9 +46,9 @@ func TestHappyPathMultiKey(t *testing.T) {
 
 	client := NewDatabaseRecorder(db.db, 0)
 	for i := 0; i < 100; i++ {
-		key := randomString(5)
+		key := testutil.Letters(nil, 5)
 		_, _ = client.Get(key)
-		_ = client.Put(key, randomString(5))
+		_ = client.Put(key, testutil.Letters(nil, 5))
 		_, _ = client.Get(key)
 		if rand.Float32() < 0.5 {
 			_ = client.Delete(key)
@@ -103,15 +104,6 @@ func cleanDatabaseFolder(t *testing.T, db *TestDatabase) {
 	func(t *testing.T, basePath string) { require.Nil(t, os.RemoveAll(basePath)) }(t, db.basePath)
 }
 
-func randomString(size int) string {
-	builder := strings.Builder{}
-	for i := 0; i < size; i++ {
-		builder.WriteRune(rand.Int31n(26) + 97)
-	}
-
-	return builder.String()
-}
-
 func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, valSizeBytes int) []porcupine.Operation[Input, Output] {
 	var operations []porcupine.Operation[Input, Output]
 	var opsLock sync.Mutex
@@ -120,8 +112,8 @@ func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, 
 	var keys []string
 	var values []string
 	for i := 0; i < recordsPerRoutine; i++ {
-		keys = append(keys, randomString(5))
-		values = append(values, randomString(valSizeBytes))
+		keys = append(keys, testutil.Letters(nil, 5))
+		values = append(values, testutil.Letters(nil, valSizeBytes))
 	}
 	for n := 0; n < numGoRoutines; n++ {
 		wg.Add(1)
