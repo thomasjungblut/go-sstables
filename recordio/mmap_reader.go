@@ -96,9 +96,9 @@ func (r *MMapReader) seekNextVectorized(offset uint64) (uint64, []byte, error) {
 			}
 
 			return 0, nil, err
-		} else {
-			return uint64(ofx), record, nil
 		}
+
+		return uint64(ofx), record, nil
 	}
 }
 

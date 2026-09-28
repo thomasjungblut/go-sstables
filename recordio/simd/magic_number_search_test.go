@@ -20,7 +20,7 @@ func TestMagicNumberSearchHappyPath(t *testing.T) {
 	data[secondMarker+2] = 76
 
 	// check the entire range
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		actualResult := FindMagicNumber(data, i)
 		expectedResult := firstMarker
 		if i >= firstMarker+1 {

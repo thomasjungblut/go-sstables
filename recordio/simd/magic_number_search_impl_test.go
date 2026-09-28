@@ -27,7 +27,7 @@ func TestMagicNumberSearchByImplementationHappyPath(t *testing.T) {
 			data[secondMarker+2] = 76
 
 			// check the entire range
-			for i := 0; i < len(data); i++ {
+			for i := range data {
 				actualResult := scenario.fx(data, i)
 				expectedResult := firstMarker
 				if i >= firstMarker+1 {
@@ -80,7 +80,7 @@ func TestMagicNumberSearchByImplementation(t *testing.T) {
 			t.Run("LoopBoundaries", func(t *testing.T) {
 				// Test offsets that might cause issues with loop boundaries
 				// Test with pattern just before the loop would exit
-				for offset := 0; offset < 100; offset++ {
+				for offset := range 100 {
 					data := make([]byte, 100+offset)
 					data[offset+50] = 145
 					data[offset+51] = 141
@@ -149,7 +149,7 @@ func TestMagicNumberSearchByImplementation(t *testing.T) {
 				data[52] = 76
 
 				// Test various starting offsets
-				for offset := 0; offset < 50; offset++ {
+				for offset := range 50 {
 					result := scenario.fx(data, offset)
 					require.Equalf(t, 50, result, "offset %d", offset)
 				}
@@ -251,7 +251,7 @@ func TestMagicNumberSearchByImplementationMatchesScalar(t *testing.T) {
 			if !scenario.available() {
 				t.Skip("cpu instruction not available")
 			}
-			for iter := 0; iter < 2000; iter++ {
+			for range 2000 {
 				data := make([]byte, 3+rnd.IntN(300))
 				for i := range data {
 					data[i] = alphabet[rnd.IntN(len(alphabet))]
