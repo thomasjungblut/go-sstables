@@ -44,7 +44,7 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			bytes := testutil.Bytes(nil, bm.recSize)
-			tmpFile, err := os.CreateTemp("", "recordio_Bench")
+			tmpFile, err := os.CreateTemp(benchDir(b), "recordio_Bench")
 			assert.Nil(b, err)
 			defer os.Remove(tmpFile.Name())
 
@@ -63,7 +63,9 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 				b.SetBytes(int64(len(bytes)))
 			}
 
+			// closing syncs the file, which is part of the measured time
 			assert.Nil(b, writer.Close())
+			b.StopTimer()
 			stat, err := os.Stat(tmpFile.Name())
 			assert.Nil(b, err)
 			assert.Truef(b, stat.Size() > int64(len(bytes)*b.N), "unexpected small file size %d", stat.Size())

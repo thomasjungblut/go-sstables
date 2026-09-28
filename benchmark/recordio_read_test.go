@@ -31,7 +31,7 @@ func BenchmarkRecordIORead(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			bytes := testutil.Bytes(nil, 1024)
-			tmpFile, err := os.CreateTemp("", "recordio_Bench")
+			tmpFile, err := os.CreateTemp(benchDir(b), "recordio_Bench")
 			assert.NoError(b, err)
 			defer os.Remove(tmpFile.Name())
 
@@ -47,6 +47,10 @@ func BenchmarkRecordIORead(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
+				b.StopTimer()
+				dropPageCache(b, tmpFile.Name())
+				b.StartTimer()
+
 				reader, err := recordio.NewFileReader(recordio.ReaderPath(tmpFile.Name()))
 				assert.NoError(b, err)
 				assert.NoError(b, reader.Open())
@@ -83,7 +87,7 @@ func BenchmarkRecordIOProtoRead(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			bytes := testutil.Bytes(nil, 1024)
-			tmpFile, err := os.CreateTemp("", "recordio_Bench")
+			tmpFile, err := os.CreateTemp(benchDir(b), "recordio_Bench")
 			assert.NoError(b, err)
 			defer os.Remove(tmpFile.Name())
 
@@ -100,6 +104,10 @@ func BenchmarkRecordIOProtoRead(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
+				b.StopTimer()
+				dropPageCache(b, tmpFile.Name())
+				b.StartTimer()
+
 				reader, err := rProto.NewReader(rProto.ReaderPath(tmpFile.Name()))
 				assert.NoError(b, err)
 				assert.NoError(b, reader.Open())

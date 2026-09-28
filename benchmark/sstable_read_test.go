@@ -50,7 +50,7 @@ var loadTypeBenchmarks = []struct {
 func BenchmarkSSTableScanDefault(b *testing.B) {
 	for _, bm := range sizeBasedBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
+			tmpDir, err := os.MkdirTemp(benchDir(b), "sstable_BenchRead_"+bm.name)
 			require.NoError(b, err)
 			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
@@ -65,11 +65,13 @@ func BenchmarkSSTableScanDefault(b *testing.B) {
 func BenchmarkSSTableRandomReadDefault(b *testing.B) {
 	for _, bm := range sizeBasedBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "sstable_BenchRead_"+bm.name)
+			tmpDir, err := os.MkdirTemp(benchDir(b), "sstable_BenchRead_"+bm.name)
 			require.NoError(b, err)
 			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			keys := writeSSTableWithSize(b, bm.memstoreSize, tmpDir, cmp)
+			// dropped only once, the page cache warms up during the run like in any long-running process
+			dropPageCache(b, tmpDir)
 
 			opts := []sstables.ReadOption{
 				sstables.ReadBasePath(tmpDir),
@@ -91,7 +93,7 @@ func BenchmarkSSTableRandomReadDefault(b *testing.B) {
 func BenchmarkSSTableScanByReadIndexTypes(b *testing.B) {
 	for _, bm := range loadTypeBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
+			tmpDir, err := os.MkdirTemp(benchDir(b), "sstable_BenchReadIndexLoad_"+bm.name)
 			require.NoError(b, err)
 			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
@@ -106,11 +108,13 @@ func BenchmarkSSTableScanByReadIndexTypes(b *testing.B) {
 func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
 	for _, bm := range loadTypeBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp("", "sstable_BenchReadIndexLoad_"+bm.name)
+			tmpDir, err := os.MkdirTemp(benchDir(b), "sstable_BenchReadIndexLoad_"+bm.name)
 			require.NoError(b, err)
 			defer func() { require.NoError(b, os.RemoveAll(tmpDir)) }()
 
 			keys := writeSSTableWithSize(b, sizeTwoGigs, tmpDir, cmp)
+			// dropped only once, the page cache warms up during the run like in any long-running process
+			dropPageCache(b, tmpDir)
 
 			opts := []sstables.ReadOption{
 				sstables.ReadBasePath(tmpDir),
@@ -160,6 +164,10 @@ func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skipli
 
 func fullScanTable(b *testing.B, tmpDir string, cmp skiplist.Comparator[[]byte], loader sstables.IndexLoader) {
 	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		dropPageCache(b, tmpDir)
+		b.StartTimer()
+
 		loadStart := time.Now()
 		opts := []sstables.ReadOption{
 			sstables.ReadBasePath(tmpDir),

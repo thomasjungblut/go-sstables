@@ -14,3 +14,5 @@
 .glide/
 
 .idea/
+# benchmark files, see benchmark/bench_disk_test.go
+benchmark/bench-*/
