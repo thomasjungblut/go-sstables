@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/steakknife/bloomfilter"
+	"github.com/thomasjungblut/go-sstables/internal/fsutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -148,32 +149,58 @@ func (writer *SSTableStreamWriter) Close() (err error) {
 	err = errors.Join(writer.indexWriter.Close(), writer.dataWriter.Close())
 
 	if writer.opts.enableBloomFilter && writer.bloomFilter != nil {
-		_, bErr := writer.bloomFilter.WriteFile(filepath.Join(writer.opts.basePath, BloomFileName))
+		bErr := writeBloomFilter(writer.bloomFilter, filepath.Join(writer.opts.basePath, BloomFileName))
 		if bErr != nil {
 			err = errors.Join(err, fmt.Errorf("error in writing bloom filter  in '%s': %w", writer.opts.basePath, bErr))
 		}
 	}
 
 	if writer.metaData != nil && writer.metaDataFile != nil {
-		defer func() {
-			err = errors.Join(err, writer.metaDataFile.Close())
-		}()
-
-		writer.metaData.MaxKey = writer.lastKey
-		writer.metaData.DataBytes = writer.dataWriter.Size()
-		writer.metaData.IndexBytes = writer.indexWriter.Size()
-		writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
-		bytes, mErr := proto.Marshal(writer.metaData)
-		if mErr != nil {
-			return errors.Join(err, fmt.Errorf("error in serializing metadata in '%s': %w", writer.opts.basePath, mErr))
-		}
-
-		_, wErr := writer.metaDataFile.Write(bytes)
-		if wErr != nil {
-			return errors.Join(err, fmt.Errorf("error in writing metadata in '%s': %w", writer.opts.basePath, wErr))
-		}
+		err = errors.Join(err, writer.writeMetaData())
 	}
 
+	// makes the entries of all files above durable
+	sErr := fsutil.SyncDir(writer.opts.basePath)
+	if sErr != nil {
+		err = errors.Join(err, fmt.Errorf("error in syncing directory '%s': %w", writer.opts.basePath, sErr))
+	}
+
+	return err
+}
+
+func (writer *SSTableStreamWriter) writeMetaData() (err error) {
+	defer func() {
+		// closing a file does not persist it, only an fsync does
+		err = errors.Join(err, writer.metaDataFile.Sync(), writer.metaDataFile.Close())
+	}()
+
+	writer.metaData.MaxKey = writer.lastKey
+	writer.metaData.DataBytes = writer.dataWriter.Size()
+	writer.metaData.IndexBytes = writer.indexWriter.Size()
+	writer.metaData.TotalBytes = writer.metaData.DataBytes + writer.metaData.IndexBytes
+	bytes, mErr := proto.Marshal(writer.metaData)
+	if mErr != nil {
+		return fmt.Errorf("error in serializing metadata in '%s': %w", writer.opts.basePath, mErr)
+	}
+
+	_, wErr := writer.metaDataFile.Write(bytes)
+	if wErr != nil {
+		return fmt.Errorf("error in writing metadata in '%s': %w", writer.opts.basePath, wErr)
+	}
+	return nil
+}
+
+// writeBloomFilter replaces bloomfilter.Filter.WriteFile, which doesn't sync the file before closing it.
+func writeBloomFilter(bf *bloomfilter.Filter, path string) (err error) {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = errors.Join(err, f.Sync(), f.Close())
+	}()
+
+	_, err = bf.WriteTo(f)
 	return err
 }
 

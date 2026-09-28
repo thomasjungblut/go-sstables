@@ -7,8 +7,10 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"path/filepath"
 
 	pool "capnproto.org/go/capnp/v3/exp/bufferpool"
+	"github.com/thomasjungblut/go-sstables/internal/fsutil"
 
 	"github.com/thomasjungblut/go-sstables/recordio/compressor"
 )
@@ -76,6 +78,12 @@ func (w *FileWriter) Open() error {
 		if err != nil {
 			return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
 		}
+	}
+
+	// makes the file entry durable, otherwise a new file can disappear on crashes even when its contents were synced
+	err = fsutil.SyncDir(filepath.Dir(w.file.Name()))
+	if err != nil {
+		return fmt.Errorf("syncing parent directory of file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	return nil
@@ -270,6 +278,12 @@ func (w *FileWriter) Close() error {
 		if err != nil {
 			return fmt.Errorf("failed to truncate file at '%s' failed with %w", w.file.Name(), err)
 		}
+	}
+
+	// closing a file does not persist it, only an fsync does
+	err = w.file.Sync()
+	if err != nil {
+		return fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	err = w.file.Close()
