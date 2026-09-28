@@ -5,6 +5,7 @@
 package simpledb
 
 import (
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -32,7 +33,7 @@ func TestPutOverlappingRangesEndToEnd(t *testing.T) {
 	defer closeDatabase(t, db)
 
 	// writing the same set of keys with a static 5mb record value
-	r := randomString(rnd, 5*1024*1024)
+	r := testutil.String(rnd, 5*1024*1024)
 	numKeys := 100
 	for n := 0; n < 5; n++ {
 		for i := 0; i < numKeys; i++ {
@@ -66,10 +67,10 @@ func TestPutAndDeleteRandomKeysEndToEnd(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	r := randomString(rnd, 1024*1024)
+	r := testutil.String(rnd, 1024*1024)
 	var keys []string
 	for i := 0; i < 500; i++ {
-		keys = append(keys, randomString(rnd, 10))
+		keys = append(keys, testutil.String(rnd, 10))
 		require.Nil(t, db.Put(keys[i], r))
 	}
 
@@ -97,10 +98,10 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	r := randomString(rnd, 1024*1024)
+	r := testutil.String(rnd, 1024*1024)
 	var keys []string
 	for i := 0; i < 500; i++ {
-		keys = append(keys, randomString(rnd, 10))
+		keys = append(keys, testutil.String(rnd, 10))
 		require.Nil(t, db.Put(keys[i], r))
 	}
 

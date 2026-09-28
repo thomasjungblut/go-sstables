@@ -2,8 +2,8 @@ package benchmark
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
-	"math/rand"
 	"os"
 	"testing"
 )
@@ -43,7 +43,7 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			bytes := randomRecordOfSize(bm.recSize)
+			bytes := testutil.Bytes(nil, bm.recSize)
 			tmpFile, err := os.CreateTemp("", "recordio_Bench")
 			assert.Nil(b, err)
 			defer os.Remove(tmpFile.Name())
@@ -70,13 +70,4 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 		})
 	}
 
-}
-
-func randomRecordOfSize(l int) []byte {
-	bytes := make([]byte, l)
-	for i := 0; i < l; i++ {
-		bytes[i] = byte(rand.Intn(255))
-	}
-
-	return bytes
 }

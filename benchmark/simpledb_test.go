@@ -2,13 +2,12 @@ package benchmark
 
 import (
 	"fmt"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -83,7 +82,7 @@ func parallelWriteDB(db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
 	bytesWritten := int64(0)
 	wg := sync.WaitGroup{}
 	recordsPerRoutine := numRecords / numGoRoutines
-	val := randomString()
+	val := testutil.String(nil, 10000)
 	for n := 0; n < numGoRoutines; n++ {
 		wg.Add(1)
 		go func(db *simpledb.DB, start, end int) {
@@ -99,16 +98,4 @@ func parallelWriteDB(db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
 
 	wg.Wait()
 	return bytesWritten
-}
-
-func randomString() string {
-	return randomStringSize(10000)
-}
-
-func randomStringSize(n int) string {
-	builder := strings.Builder{}
-	for i := 0; i < n; i++ {
-		builder.WriteRune(rand.Int31n(255))
-	}
-	return builder.String()
 }

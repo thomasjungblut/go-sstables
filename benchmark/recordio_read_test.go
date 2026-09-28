@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/stretchr/testify/assert"
 	bProto "github.com/thomasjungblut/go-sstables/benchmark/proto"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	"io"
@@ -29,7 +30,7 @@ func BenchmarkRecordIORead(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			bytes := randomRecordOfSize(1024)
+			bytes := testutil.Bytes(nil, 1024)
 			tmpFile, err := os.CreateTemp("", "recordio_Bench")
 			assert.NoError(b, err)
 			defer os.Remove(tmpFile.Name())
@@ -81,7 +82,7 @@ func BenchmarkRecordIOProtoRead(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			bytes := randomRecordOfSize(1024)
+			bytes := testutil.Bytes(nil, 1024)
 			tmpFile, err := os.CreateTemp("", "recordio_Bench")
 			assert.NoError(b, err)
 			defer os.Remove(tmpFile.Name())

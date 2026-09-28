@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"math/rand"
 	"os"
 	"strconv"
@@ -209,22 +210,11 @@ func recordWithSuffix(prefix int, suffix string) string {
 	return builder.String()
 }
 
-func randomString(rand *rand.Rand, size int) string {
-	builder := strings.Builder{}
-	for i := 0; i < size; i++ {
-		builder.WriteRune(rand.Int31n(255))
-	}
-
-	return builder.String()
-}
-
 func randomRecordWithPrefixWithSize(rand *rand.Rand, prefix, size int) string {
 	builder := strings.Builder{}
 	builder.WriteString(strconv.Itoa(prefix))
 	builder.WriteString("_")
-	for i := 0; i < size; i++ {
-		builder.WriteRune(rand.Int31n(255))
-	}
+	builder.WriteString(testutil.String(rand, size))
 
 	return builder.String()
 }

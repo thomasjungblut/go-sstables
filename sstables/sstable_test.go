@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"math/rand"
@@ -20,7 +21,7 @@ func TestReadSkipListWriteEndToEnd(t *testing.T) {
 	require.Nil(t, err)
 	defer cleanWriterDir(t, writer.streamWriter)
 
-	expectedNumbers := randomIntegerSlice(1000)
+	expectedNumbers := testutil.Integers[int](nil, 1000)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements(expectedNumbers))
 	require.Nil(t, err)
 
@@ -152,7 +153,7 @@ func streamedWrite1kElements(t *testing.T, writer *SSTableStreamWriter) []int {
 func streamedWriteElements(t *testing.T, writer *SSTableStreamWriter, n int) []int {
 	err := writer.Open()
 	require.Nil(t, err)
-	expectedNumbers := randomIntegerSliceSorted(n)
+	expectedNumbers := testutil.SortedIntegers[int](nil, n)
 	for _, e := range expectedNumbers {
 		key, value := getKeyValueAsBytes(e)
 		err = writer.WriteNext(key, value)
@@ -222,23 +223,6 @@ func newTestSSTableStreamWriterWithIndexCompression(compressionType int) (*SSTab
 		WriteBasePath(tmpDir),
 		WithKeyComparator(skiplist.BytesComparator{}),
 		IndexCompressionType(compressionType))
-}
-
-func randomIntegerSliceSorted(len int) []int {
-	slice := randomIntegerSlice(len)
-	sort.Ints(slice)
-	return slice
-}
-
-func randomIntegerSlice(len int) []int {
-	var slice []int
-
-	for i := 0; i < len; i++ {
-		// this will create non-negative randoms, we can treat them as uints later when serializing to bytes
-		slice = append(slice, int(rand.Int31()))
-	}
-
-	return slice
 }
 
 // noinspection GoSnakeCaseUsage

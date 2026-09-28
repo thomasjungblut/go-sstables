@@ -2,8 +2,8 @@ package recordio
 
 import (
 	"errors"
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -51,17 +51,17 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	writer := newOpenedWriter(t)
 	defer removeFileWriterFile(t, writer)
 
-	offset, err := writer.Write(randomRecordOfSize(5))
+	offset, err := writer.Write(testutil.Bytes(nil, 5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	assert.Equal(t, uint64(0x18), writer.Size())
 	require.Nil(t, err)
 
-	offset, err = writer.Write(randomRecordOfSize(10))
+	offset, err = writer.Write(testutil.Bytes(nil, 10))
 	assert.Equal(t, uint64(0x18), offset)
 	assert.Equal(t, uint64(0x2d), writer.Size())
 	require.Nil(t, err)
 
-	offset, err = writer.Write(randomRecordOfSize(25))
+	offset, err = writer.Write(testutil.Bytes(nil, 25))
 	assert.Equal(t, uint64(0x2d), offset)
 	assert.Equal(t, uint64(0x51), writer.Size())
 	require.Nil(t, err)
@@ -361,15 +361,6 @@ func newCompressedTestWriter(compType int) (*FileWriter, error) {
 	}
 
 	return r.(*FileWriter), nil
-}
-
-func randomRecordOfSize(l int) []byte {
-	bytes := make([]byte, l)
-	for i := 0; i < l; i++ {
-		bytes[i] = byte(rand.Intn(255))
-	}
-
-	return bytes
 }
 
 func singleWrite(t *testing.T) *FileWriter {
