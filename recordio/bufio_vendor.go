@@ -287,3 +287,21 @@ func (b *Reader) ReadByte() (byte, error) {
 	b.lastByte = int(c)
 	return c, nil
 }
+
+// PeekBuffered returns up to n bytes of buffered data without advancing the reader. The underlying reader is only
+// read from when the buffer is completely empty, so that fills always start at the beginning of the buffer
+// (which keeps reads aligned for DirectIO). Thus, fewer than n bytes may be returned even when the underlying reader
+// has more data. The returned slice is only valid until the next read.
+func (b *Reader) PeekBuffered(n int) []byte {
+	for b.r == b.w && b.err == nil {
+		b.fill()
+	}
+	return b.buf[b.r:min(b.r+n, b.w)]
+}
+
+// DiscardBuffered skips the next n bytes, n must not be larger than the length of the last PeekBuffered result.
+func (b *Reader) DiscardBuffered(n int) {
+	b.r += n
+	b.lastByte = -1
+	b.lastRuneSize = -1
+}

@@ -77,5 +77,5 @@ func TestReaderHappyResetAndRead(t *testing.T) {
 }
 
 func testReader() ByteReaderResetCount {
-	return NewCountingByteReader(bufio.NewReader(bytes.NewReader(testBuf)))
+	return NewCountingByteReader(NewReaderBuf(bytes.NewReader(testBuf), make([]byte, 4096)))
 }
