@@ -30,6 +30,11 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 		{"SnappyRecordSize100k", 1024 * 100, false, recordio.CompressionTypeSnappy},
 		{"SnappyRecordSize1M", 1024 * 1000, false, recordio.CompressionTypeSnappy},
 
+		{"LzwRecordSize1k", 1024, false, recordio.CompressionTypeLzw},
+		{"LzwRecordSize10k", 1024 * 10, false, recordio.CompressionTypeLzw},
+		{"LzwRecordSize100k", 1024 * 100, false, recordio.CompressionTypeLzw},
+		{"LzwRecordSize1M", 1024 * 1000, false, recordio.CompressionTypeLzw},
+
 		{"SyncRecordSize1k", 1024, true, recordio.CompressionTypeNone},
 		{"SyncRecordSize10k", 1024 * 10, true, recordio.CompressionTypeNone},
 		{"SyncRecordSize100k", 1024 * 100, true, recordio.CompressionTypeNone},
@@ -47,6 +52,7 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 			assert.Nil(b, err)
 			assert.Nil(b, writer.Open())
 
+			b.ReportAllocs()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				if bm.sync {

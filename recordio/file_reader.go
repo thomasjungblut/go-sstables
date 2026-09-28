@@ -168,36 +168,53 @@ func (r *FileReader) SkipNext() error {
 		return SkipNextV3(r)
 	} else {
 		start := r.reader.Count()
-		payloadSizeUncompressed, payloadSizeCompressed, _, err := readRecordHeaderV4(r.recordHeaderByteReader)
+		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := r.readRecordHeaderV4()
 		if err != nil {
 			return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 		}
 
-		expectedBytesSkipped := payloadSizeUncompressed
-		if r.header.compressor != nil {
-			expectedBytesSkipped = payloadSizeCompressed
+		if recordNil {
+			// nil records have no payload, even though a compressed size may be recorded
+			return r.skipPayload(start, 0, 0)
 		}
+		return r.skipPayload(start, payloadSizeUncompressed, payloadSizeCompressed)
+	}
+}
 
-		// here we have to add the header to the offset too, otherwise we will seek not far enough
-		expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
-		newOffset, err := r.file.Seek(expectedOffset, 0)
-		if err != nil {
-			return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
-		}
-
-		if newOffset != expectedOffset {
-			return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
-		}
-
-		r.reader.Reset(r.file)
-		r.currentOffset = uint64(newOffset)
+// skipPayload skips the payload of the record whose header was read starting at reader count start. Payloads that are
+// fully buffered are discarded from the buffer, only larger ones seek in the file and reset the buffer.
+func (r *FileReader) skipPayload(start uint64, payloadSizeUncompressed uint64, payloadSizeCompressed uint64) error {
+	expectedBytesSkipped := payloadSizeUncompressed
+	if r.header.compressor != nil {
+		expectedBytesSkipped = payloadSizeCompressed
 	}
 
+	// here we have to add the header to the offset too, otherwise we will seek not far enough
+	headerBytes := r.reader.Count() - start
+	if expectedBytesSkipped <= uint64(r.reader.Buffered()) {
+		r.reader.DiscardBuffered(int(expectedBytesSkipped))
+		r.currentOffset = r.currentOffset + headerBytes + expectedBytesSkipped
+		return nil
+	}
+
+	expectedOffset := int64(r.currentOffset + expectedBytesSkipped + headerBytes)
+	newOffset, err := r.file.Seek(expectedOffset, io.SeekStart)
+	if err != nil {
+		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
+	}
+
+	if newOffset != expectedOffset {
+		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
+	}
+
+	r.reader.Reset(r.file)
+	r.currentOffset = uint64(newOffset)
 	return nil
 }
 
 // SkipNextV1 is legacy support path for non-vint compressed V1
 func SkipNextV1(r *FileReader) error {
+	start := r.reader.Count()
 	headerBuf := r.bufferPool.Get(RecordHeaderSizeBytesV1V2)
 	defer r.bufferPool.Put(headerBuf)
 
@@ -210,32 +227,12 @@ func SkipNextV1(r *FileReader) error {
 		return fmt.Errorf("not enough bytes in the record header found, expected %d but were %d", RecordHeaderSizeBytesV1V2, numRead)
 	}
 
-	r.currentOffset = r.currentOffset + uint64(numRead)
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV1(headerBuf)
 	if err != nil {
 		return fmt.Errorf("error while parsing record header of '%s': %w", r.file.Name(), err)
 	}
 
-	expectedBytesSkipped := payloadSizeUncompressed
-	if r.header.compressor != nil {
-		expectedBytesSkipped = payloadSizeCompressed
-	}
-
-	expectedOffset := int64(r.currentOffset + expectedBytesSkipped)
-	newOffset, err := r.file.Seek(expectedOffset, 0)
-	if err != nil {
-		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
-	}
-
-	if newOffset != expectedOffset {
-		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
-	}
-
-	// reset the buffered reader after the seek
-	r.reader.Reset(r.file)
-
-	r.currentOffset = r.currentOffset + expectedBytesSkipped
-	return nil
+	return r.skipPayload(start, payloadSizeUncompressed, payloadSizeCompressed)
 }
 
 func SkipNextV2(r *FileReader) error {
@@ -245,53 +242,21 @@ func SkipNextV2(r *FileReader) error {
 		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
-	expectedBytesSkipped := payloadSizeUncompressed
-	if r.header.compressor != nil {
-		expectedBytesSkipped = payloadSizeCompressed
-	}
-
-	// here we have to add the header to the offset too, otherwise we will seek not far enough
-	expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
-	newOffset, err := r.file.Seek(expectedOffset, 0)
-	if err != nil {
-		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
-	}
-
-	if newOffset != expectedOffset {
-		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
-	}
-
-	r.reader.Reset(r.file)
-	r.currentOffset = uint64(newOffset)
-	return nil
+	return r.skipPayload(start, payloadSizeUncompressed, payloadSizeCompressed)
 }
 
 func SkipNextV3(r *FileReader) error {
 	start := r.reader.Count()
-	payloadSizeUncompressed, payloadSizeCompressed, _, err := readRecordHeaderV3(r.reader)
+	payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(r.reader)
 	if err != nil {
 		return fmt.Errorf("error while reading record header of '%s': %w", r.file.Name(), err)
 	}
 
-	expectedBytesSkipped := payloadSizeUncompressed
-	if r.header.compressor != nil {
-		expectedBytesSkipped = payloadSizeCompressed
+	if recordNil {
+		// nil records have no payload, even though a compressed size may be recorded
+		return r.skipPayload(start, 0, 0)
 	}
-
-	// here we have to add the header to the offset too, otherwise we will seek not far enough
-	expectedOffset := int64(r.currentOffset + expectedBytesSkipped + (r.reader.Count() - start))
-	newOffset, err := r.file.Seek(expectedOffset, 0)
-	if err != nil {
-		return fmt.Errorf("error while seeking to offset %d in '%s': %w", expectedOffset, r.file.Name(), err)
-	}
-
-	if newOffset != expectedOffset {
-		return fmt.Errorf("seeking in '%s' did not return expected offset %d, it was %d", r.file.Name(), expectedOffset, newOffset)
-	}
-
-	r.reader.Reset(r.file)
-	r.currentOffset = uint64(newOffset)
-	return nil
+	return r.skipPayload(start, payloadSizeUncompressed, payloadSizeCompressed)
 }
 
 func (r *FileReader) Close() error {

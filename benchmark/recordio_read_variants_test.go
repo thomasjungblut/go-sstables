@@ -22,6 +22,8 @@ var benchCompressionTypes = []struct {
 }{
 	{"none", recordio.CompressionTypeNone},
 	{"snappy", recordio.CompressionTypeSnappy},
+	{"gzip", recordio.CompressionTypeGZIP},
+	{"lzw", recordio.CompressionTypeLzw},
 }
 
 // writeBenchFile writes records of the given size until benchFileSize is reached and returns the path, the offsets
@@ -69,6 +71,30 @@ func BenchmarkRecordIOReadRecordSizes(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+func BenchmarkRecordIOSkipNext(b *testing.B) {
+	for _, size := range benchRecordSizes {
+		b.Run(fmt.Sprintf("none/%d", size), func(b *testing.B) {
+			path, _, fileSize := writeBenchFile(b, size, recordio.CompressionTypeNone)
+			b.SetBytes(fileSize)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				reader, err := recordio.NewFileReaderWithPath(path)
+				require.NoError(b, err)
+				require.NoError(b, reader.Open())
+				for {
+					err := reader.SkipNext()
+					if errors.Is(err, io.EOF) {
+						break
+					}
+					require.NoError(b, err)
+				}
+				require.NoError(b, reader.Close())
+			}
+		})
 	}
 }
 
