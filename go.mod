@@ -8,8 +8,8 @@ require (
 	github.com/ncw/directio v1.0.5
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-	google.golang.org/protobuf v1.36.11
+	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -23,4 +23,4 @@ require (
 
 replace github.com/anishathalye/porcupine v0.1.2 => github.com/tjungblu/porcupine v0.0.0-20221116095144-377185aa0569
 
-go 1.25
+go 1.26.0
