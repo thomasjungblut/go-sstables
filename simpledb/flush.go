@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/thomasjungblut/go-sstables/internal/fsutil"
 	"github.com/thomasjungblut/go-sstables/memstore"
 	"github.com/thomasjungblut/go-sstables/sstables"
 )
@@ -53,6 +54,12 @@ func executeFlush(db *DB, flushAction memStoreFlushAction) error {
 		sstables.WithKeyComparator(db.cmp),
 		sstables.WriteBufferSizeBytes(int(db.writeBufferSizeBytes)),
 		sstables.BloomExpectedNumberOfElements(numElements))
+	if err != nil {
+		return err
+	}
+
+	// the sstable directory entry must be durable before its WAL can be removed
+	err = fsutil.SyncDir(db.basePath)
 	if err != nil {
 		return err
 	}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thomasjungblut/go-sstables/internal/fsutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
 	rProto "github.com/thomasjungblut/go-sstables/recordio/proto"
 	dbproto "github.com/thomasjungblut/go-sstables/simpledb/proto"
@@ -100,6 +101,11 @@ func (db *DB) repairCompactions() error {
 			return err
 		}
 
+		err = fsutil.SyncDir(db.basePath)
+		if err != nil {
+			return err
+		}
+
 		for _, sstablePath := range meta.SstablePaths {
 			if sstablePath != meta.ReplacementPath {
 				err := os.RemoveAll(filepath.Join(db.basePath, sstablePath))
@@ -173,6 +179,11 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 	err := os.MkdirAll(walBasePath, 0700)
 	if err != nil {
 		return fmt.Errorf("could not mkdir WAL dir at %s: %w", walBasePath, err)
+	}
+
+	err = fsutil.SyncDir(db.basePath)
+	if err != nil {
+		return fmt.Errorf("could not sync WAL dir at %s: %w", walBasePath, err)
 	}
 
 	writerOpts := []recordio.FileWriterOption{
@@ -263,6 +274,11 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 	}
 
 	err = os.MkdirAll(walBasePath, 0700)
+	if err != nil {
+		return err
+	}
+
+	err = fsutil.SyncDir(db.basePath)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/thomasjungblut/go-sstables/internal/fsutil"
 	"github.com/thomasjungblut/go-sstables/simpledb/proto"
 	"github.com/thomasjungblut/go-sstables/skiplist"
 	"github.com/thomasjungblut/go-sstables/sstables"
@@ -29,6 +30,12 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		defer s.databaseLock.Unlock()
 		defer s.managerLock.Unlock()
 
+		// the compaction folder must be durable before the sstables it replaces are removed
+		err := fsutil.SyncDir(s.basePath)
+		if err != nil {
+			return err
+		}
+
 		for _, p := range m.SstablePaths {
 			i := indexOfReader(s.allSSTableReaders, p)
 			if i >= 0 {
@@ -48,7 +55,12 @@ func (s *SSTableManager) reflectCompactionResult(m *proto.CompactionMetadata) er
 		// this is another important step in the recovery process, we need to ensure the ordering is preserved in case of crashes and
 		// thus replace the very first written SSTable in the path set. This creates a couple of "holes" in the numbering schema of
 		// the SSTables, but we guarantee that the compaction is in the right place.
-		err := os.Rename(filepath.Join(s.basePath, m.WritePath), filepath.Join(s.basePath, m.ReplacementPath))
+		err = os.Rename(filepath.Join(s.basePath, m.WritePath), filepath.Join(s.basePath, m.ReplacementPath))
+		if err != nil {
+			return err
+		}
+
+		err = fsutil.SyncDir(s.basePath)
 		if err != nil {
 			return err
 		}
