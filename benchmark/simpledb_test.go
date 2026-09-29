@@ -2,100 +2,112 @@ package benchmark
 
 import (
 	"fmt"
-	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io"
 	"log"
-	"os"
-	"runtime"
-	"strconv"
-	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/simpledb"
 )
 
+const simpleDBValueSize = 1024
+
 func BenchmarkSimpleDBReadLatency(b *testing.B) {
 	log.SetOutput(io.Discard)
-	dbSizes := []int{100, 1000, 10000, 100000}
+	dbSizes := []int{1000, 10000, 100000}
 
-	for _, n := range dbSizes {
-		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp(benchDir(b), "simpledb_Bench")
-			require.Nil(b, err)
-			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
-			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(1024*1024*1024))
-			require.Nil(b, err)
-			defer func() { require.Nil(b, db.Close()) }()
-			require.Nil(b, db.Open())
+	for _, numRecords := range dbSizes {
+		// memstore: all records are still in the memstore, sstable: the database was reopened and all records are
+		// read from the sstables, the page cache is only dropped once and warms up during the run
+		for _, source := range []string{"memstore", "sstable"} {
+			b.Run(fmt.Sprintf("%s/%d", source, numRecords), func(b *testing.B) {
+				tmpDir := benchDir(b)
+				db := openSimpleDB(b, tmpDir, simpledb.EnableAsyncWAL())
+				keys := fillSimpleDB(b, db, numRecords)
 
-			parallelWriteDB(db, runtime.NumCPU(), n)
-
-			b.ResetTimer()
-			i := 0
-			for n := 0; n < b.N; n++ {
-				k := strconv.Itoa(i)
-				val, err := db.Get(k)
-				if err != simpledb.ErrNotFound {
-					b.SetBytes(int64(len(k) + len(val)))
+				if source == "sstable" {
+					require.NoError(b, db.Close())
+					db = openSimpleDB(b, tmpDir)
+					dropPageCache(b, tmpDir)
 				}
-				i++
-				if i >= n {
-					i = 0
+				// closing flushes the memstore, which must not be measured
+				defer func() {
+					b.StopTimer()
+					require.NoError(b, db.Close())
+				}()
+
+				b.SetBytes(int64(len(keys[0]) + simpleDBValueSize))
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					_, err := db.Get(keys[i%len(keys)])
+					if err != nil {
+						b.Fatal(err)
+					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 
 func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 	log.SetOutput(io.Discard)
-	dbSizes := []int{100, 1000, 10000, 100000, 1000000}
+	for _, bm := range []struct {
+		name string
+		opts []simpledb.ExtraOption
+	}{
+		// every Put fsyncs the WAL before it returns, which is the default
+		{"syncWAL", nil},
+		{"asyncWAL", []simpledb.ExtraOption{simpledb.EnableAsyncWAL()}},
+	} {
+		b.Run(bm.name, func(b *testing.B) {
+			db := openSimpleDB(b, benchDir(b), bm.opts...)
+			// closing flushes the memstore, which must not be measured
+			defer func() {
+				b.StopTimer()
+				require.NoError(b, db.Close())
+			}()
 
-	for _, n := range dbSizes {
-		b.Run(fmt.Sprintf("%d", n), func(b *testing.B) {
-			tmpDir, err := os.MkdirTemp(benchDir(b), "simpledb_Bench")
-			require.Nil(b, err)
-			defer func() { require.Nil(b, os.RemoveAll(tmpDir)) }()
-
-			memstoreSize := uint64(1024 * 1024 * 1024)
-			db, err := simpledb.NewSimpleDB(tmpDir,
-				simpledb.MemstoreSizeBytes(memstoreSize))
-			require.Nil(b, err)
-			defer func() { require.Nil(b, db.Close()) }()
-			require.Nil(b, db.Open())
-
+			val := testutil.Letters(nil, simpleDBValueSize)
+			var nextKey atomic.Int64
+			b.SetBytes(int64(len(simpleDBKey(0)) + simpleDBValueSize))
+			b.ReportAllocs()
 			b.ResetTimer()
-			for n := 0; n < b.N; n++ {
-				bytes := parallelWriteDB(db, runtime.NumCPU(), n)
-				b.SetBytes(bytes)
-			}
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					err := db.Put(simpleDBKey(int(nextKey.Add(1))), val)
+					if err != nil {
+						b.Error(err)
+						return
+					}
+				}
+			})
 		})
 	}
 }
 
-func parallelWriteDB(db *simpledb.DB, numGoRoutines int, numRecords int) int64 {
-	numRecordsWritten := int64(0)
-	bytesWritten := int64(0)
-	wg := sync.WaitGroup{}
-	recordsPerRoutine := numRecords / numGoRoutines
-	val := testutil.String(nil, 10000)
-	for n := 0; n < numGoRoutines; n++ {
-		wg.Add(1)
-		go func(db *simpledb.DB, start, end int) {
-			for i := start; i < end; i++ {
-				k := strconv.Itoa(i)
-				_ = db.Put(k, val)
-				atomic.AddInt64(&bytesWritten, int64(len(k)+len(val)))
-				atomic.AddInt64(&numRecordsWritten, 1)
-			}
-			wg.Done()
-		}(db, n*recordsPerRoutine, n*recordsPerRoutine+recordsPerRoutine)
-	}
+func openSimpleDB(b *testing.B, dir string, opts ...simpledb.ExtraOption) *simpledb.DB {
+	opts = append([]simpledb.ExtraOption{simpledb.MemstoreSizeBytes(1024 * 1024 * 1024)}, opts...)
+	db, err := simpledb.NewSimpleDB(dir, opts...)
+	require.NoError(b, err)
+	require.NoError(b, db.Open())
+	return db
+}
 
-	wg.Wait()
-	return bytesWritten
+// fillSimpleDB puts numRecords records with 1 KB values and returns their keys.
+func fillSimpleDB(b *testing.B, db *simpledb.DB, numRecords int) []string {
+	val := testutil.Letters(nil, simpleDBValueSize)
+	keys := make([]string, numRecords)
+	for i := range keys {
+		keys[i] = simpleDBKey(i)
+		require.NoError(b, db.Put(keys[i], val))
+	}
+	return keys
+}
+
+func simpleDBKey(i int) string {
+	return fmt.Sprintf("key_%010d", i)
 }
