@@ -53,8 +53,7 @@ LUKS.
 | 100 KB      | 2468 MB/s    | 2179 MB/s | 76 MB/s  | 92 MB/s  | 6.86 ms/record          |
 | 1 MB        | 2425 MB/s    | 1742 MB/s | 74 MB/s  | 88 MB/s  | 7.23 ms/record          |
 
-Uncompressed, Snappy and Gzip writes of up to 100 KB records don't allocate, bigger records exceed the largest bucket
-of the internal buffer pool. LZW allocates twice per record.
+Writes of up to 100 KB records don't allocate, bigger records exceed the largest bucket of the internal buffer pool.
 
 ### Sequential read
 

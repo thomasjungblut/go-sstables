@@ -13,7 +13,7 @@ type GzipCompressor struct {
 // readers (e.g. the mmap reader), which is why they can't live on the GzipCompressor itself.
 type gzipEncoder struct {
 	w   *gzip.Writer
-	out sliceWriter
+	out bytes.Buffer
 }
 
 type gzipDecoder struct {
@@ -40,12 +40,12 @@ func (c *GzipCompressor) Compress(record []byte) ([]byte, error) {
 func (c *GzipCompressor) CompressWithBuf(record []byte, destinationBuffer []byte) ([]byte, error) {
 	enc := gzipEncoderPool.Get().(*gzipEncoder)
 	defer func() {
-		enc.out.buf = nil
+		enc.out = bytes.Buffer{}
 		gzipEncoderPool.Put(enc)
 	}()
 
-	// we have to set the length of the buffer (keeping capacity) to make sure gzip doesn't append
-	enc.out.buf = destinationBuffer[:0]
+	// writing into the capacity of the destination buffer, it's only reallocated when the output doesn't fit
+	enc.out = *bytes.NewBuffer(destinationBuffer[:0])
 	enc.w.Reset(&enc.out)
 	_, err := enc.w.Write(record)
 	if err != nil {
@@ -55,7 +55,7 @@ func (c *GzipCompressor) CompressWithBuf(record []byte, destinationBuffer []byte
 	if err != nil {
 		return nil, err
 	}
-	return enc.out.buf, nil
+	return enc.out.Bytes(), nil
 }
 
 // CompressBound is zlib's compressBound plus the gzip header and trailer.
