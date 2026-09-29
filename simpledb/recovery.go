@@ -188,6 +188,8 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 
 	writerOpts := []recordio.FileWriterOption{
 		recordio.CompressionType(recordio.CompressionTypeSnappy),
+		// the WAL is only read back on recovery, it shouldn't take space in the page cache
+		recordio.DontCache(),
 	}
 
 	walOpts, err := wal.NewWriteAheadLogOptions(wal.BasePath(walBasePath),
