@@ -54,6 +54,59 @@ err := wal.Close()
 
 The "AppendSync" operation is always followed by a fsync syscall, so the throughput is quite bad as a trade-off with durability. 
 
+### Concurrent writers and group commit
+
+The WAL itself is not safe for concurrent use. With many concurrent writers, wrap it into a `GroupCommitAppender`, which
+also shares the fsyncs between them (group commit): concurrent `AppendSync` calls are written as one batch that is
+made durable with a single fsync. Every call still only returns once its own record is durable:
+
+```go
+appender := wal.NewGroupCommitAppender(log)
+
+// safe to call from many goroutines
+err := appender.AppendSync(record)
+```
+
+While a batch is being synced, the next one queues up behind it, so the batches grow with the number of writers without
+any waiting. By default, a batch contains at most `wal.DefaultMaxGroupCommitBatchSize` records, which can be changed.
+Optionally, a batch can also wait a moment for more writers before it is synced. This helps when the writers arrive
+slower than an fsync takes, but it delays every write, even a single one:
+
+```go
+appender := wal.NewGroupCommitAppender(log,
+    wal.MaxBatchSize(128),
+    wal.MaxBatchWait(500*time.Microsecond),
+)
+```
+
+When the records also need to be applied to some in-memory state in the same order as they are written to the WAL
+(e.g. a memstore), use the underlying `Batcher` directly. Its commit function receives the whole batch and is only ever
+called by one goroutine at a time, `AppendSyncBatch` appends the records with a single fsync:
+
+```go
+batcher := wal.NewBatcher(func(batch []*mutation) error {
+    records := make([][]byte, len(batch))
+    for i, m := range batch {
+        records[i] = m.record
+    }
+    if err := wal.AppendSyncBatch(log, records); err != nil {
+        return err
+    }
+    // the whole batch is durable, apply it in order
+    for _, m := range batch {
+        m.apply()
+    }
+    return nil
+}, wal.MaxBatchSize(1024))
+
+// returns once the mutation was committed with its batch
+err := batcher.Submit(m)
+```
+
+This is how [simpledb](/simpledb) implements its synced writes. With 20 concurrent writers on an NVMe with about 7 ms
+fsync latency, group commit increases its synced writes from about 150 to about 1,550 per second, and to about 2,400 with a
+batch delay of 1 ms.
+
 ### Replaying from the WAL
 
 Replaying can be done by supplying a function that processes one record at a time:

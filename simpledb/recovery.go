@@ -189,17 +189,6 @@ func (db *DB) replayAndSetupWriteAheadLog() error {
 	writerOpts := []recordio.FileWriterOption{
 		recordio.CompressionType(recordio.CompressionTypeSnappy),
 	}
-	if db.enableDirectIOWAL {
-		ok, err := recordio.IsDirectIOAvailable()
-		if err != nil {
-			return fmt.Errorf("could not detected directIO status: %w", err)
-		}
-		if ok {
-			writerOpts = append(writerOpts, recordio.DirectIO())
-		} else {
-			log.Printf("directIO requested, but not available\n")
-		}
-	}
 
 	walOpts, err := wal.NewWriteAheadLogOptions(wal.BasePath(walBasePath),
 		// we do manual rotation in lockstep with the memstore flushes, thus just set this super high to not trigger

@@ -82,7 +82,8 @@ The database can be configured using options, here are a few that can be used to
 ```go
 db, err := NewSimpleDB(
     "some_path", // the non-empty and existing base path of the database - only mandatory argument
-    DisableAsyncWAL(), // this enables fsync after every modification -> safe option for data consistency, but affects performance greatly
+    GroupCommitMaxBatchSize(1024),         // how many concurrent writes share a single fsync of the WAL at most
+    GroupCommitMaxWait(0),                // how long a write waits for more concurrent writes to share its fsync
     MemstoreSizeBytes(1024*1024*1024),     // the maximum size a memstore should have in bytes
     CompactionRunInterval(30*time.Second), // how often the compaction process should run  
     CompactionMaxSizeBytes(1024 * 1024 * 1024 * 5) // up to which size in bytes to continue to compact sstables
@@ -95,6 +96,17 @@ db, err := NewSimpleDB(
 
 The database itself is thread-safe and can be used from multiple goroutines. It's not advised to open or close it from
 multiple threads however - which is mostly a matter of idempotency than concurrency.
+
+### Durability and group commit
+
+Every `Put` and `Delete` returns only once it's durable: the mutation is written to the WAL and fsync'ed before it's
+applied to the memstore and becomes visible. Concurrent writes share their fsyncs (group commit): while one batch of
+writes is being synced, the next one queues up behind it and is made durable with a single fsync too. The throughput
+thus grows with the number of concurrent writers, while a single writer always waits for its own fsync.
+
+`GroupCommitMaxBatchSize` limits the number of writes per batch. `GroupCommitMaxWait` lets a batch wait for more
+writers before it is synced, which can help when writes arrive slower than an fsync takes, but also delays every
+single write. See the [wal package](/wal) for the underlying building blocks.
 
 ## How does it work?
 
