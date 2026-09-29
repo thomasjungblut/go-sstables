@@ -29,7 +29,7 @@ func BenchmarkSSTableMemstoreFlush(b *testing.B) {
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
 			mStore := memstore.NewMemStore()
-			bytes := testutil.Bytes(nil, 1024)
+			bytes := testutil.Bytes(1024)
 
 			i := 0
 			for mStore.EstimatedSizeInBytes() < uint64(bm.memstoreSize) {

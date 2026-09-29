@@ -51,17 +51,17 @@ func TestWriterMultiRecordWriteOffsetCheck(t *testing.T) {
 	writer := newOpenedWriter(t)
 	defer removeFileWriterFile(t, writer)
 
-	offset, err := writer.Write(testutil.Bytes(nil, 5))
+	offset, err := writer.Write(testutil.Bytes(5))
 	assert.Equal(t, uint64(FileHeaderSizeBytes), offset)
 	assert.Equal(t, uint64(0x18), writer.Size())
 	require.Nil(t, err)
 
-	offset, err = writer.Write(testutil.Bytes(nil, 10))
+	offset, err = writer.Write(testutil.Bytes(10))
 	assert.Equal(t, uint64(0x18), offset)
 	assert.Equal(t, uint64(0x2d), writer.Size())
 	require.Nil(t, err)
 
-	offset, err = writer.Write(testutil.Bytes(nil, 25))
+	offset, err = writer.Write(testutil.Bytes(25))
 	assert.Equal(t, uint64(0x2d), offset)
 	assert.Equal(t, uint64(0x51), writer.Size())
 	require.Nil(t, err)

@@ -43,7 +43,7 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 
 	for _, bm := range benchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			bytes := testutil.Bytes(nil, bm.recSize)
+			bytes := testutil.Bytes(bm.recSize)
 			tmpFile, err := os.CreateTemp(benchDir(b), "recordio_Bench")
 			assert.Nil(b, err)
 			defer os.Remove(tmpFile.Name())

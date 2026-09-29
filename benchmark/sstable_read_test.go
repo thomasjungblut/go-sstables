@@ -137,7 +137,7 @@ func BenchmarkSSTableRandomReadByIndexTypes(b *testing.B) {
 
 func writeSSTableWithSize(b *testing.B, sizeBytes int, tmpDir string, cmp skiplist.BytesComparator) [][]byte {
 	mStore := memstore.NewMemStore()
-	bytes := testutil.Bytes(nil, 1024)
+	bytes := testutil.Bytes(1024)
 
 	var keys [][]byte
 	i := 0

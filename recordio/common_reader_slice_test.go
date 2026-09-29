@@ -61,9 +61,9 @@ func TestFileReaderSmallBuffersHeadersAcrossBoundaries(t *testing.T) {
 		case 0:
 			record = nil
 		case 1:
-			record = testutil.Bytes(nil, i%17)
+			record = testutil.Bytes(i % 17)
 		default:
-			record = testutil.Bytes(nil, i)
+			record = testutil.Bytes(i)
 		}
 		_, err := w.Write(record)
 		require.NoError(t, err)
@@ -107,11 +107,11 @@ func TestFileReaderSkipNextAcrossBufferSizes(t *testing.T) {
 			case 0:
 				record = nil
 			case 1:
-				record = testutil.Bytes(nil, i%13)
+				record = testutil.Bytes(i % 13)
 			case 2:
-				record = testutil.Bytes(nil, i*3)
+				record = testutil.Bytes(i * 3)
 			default:
-				record = testutil.Bytes(nil, 5000+i)
+				record = testutil.Bytes(5000 + i)
 			}
 			_, err := w.Write(record)
 			require.NoError(t, err)
