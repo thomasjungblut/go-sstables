@@ -48,10 +48,10 @@ LUKS.
 
 | Record size | Uncompressed | Snappy    | Gzip     | LZW      | Sync (fsync per record) |
 |-------------|--------------|-----------|----------|----------|-------------------------|
-| 1 KB        | 2338 MB/s    | 1515 MB/s | 21 MB/s  | 91 MB/s  | 6.78 ms/record          |
-| 10 KB       | 2475 MB/s    | 1953 MB/s | 83 MB/s  | 91 MB/s  | 6.95 ms/record          |
-| 100 KB      | 2468 MB/s    | 2179 MB/s | 76 MB/s  | 92 MB/s  | 6.86 ms/record          |
-| 1 MB        | 2425 MB/s    | 1742 MB/s | 74 MB/s  | 88 MB/s  | 7.23 ms/record          |
+| 1 KB        | 2338 MB/s    | 1515 MB/s | 21 MB/s  | 95 MB/s  | 6.78 ms/record          |
+| 10 KB       | 2475 MB/s    | 1953 MB/s | 82 MB/s  | 91 MB/s  | 6.95 ms/record          |
+| 100 KB      | 2468 MB/s    | 2179 MB/s | 75 MB/s  | 92 MB/s  | 6.86 ms/record          |
+| 1 MB        | 2425 MB/s    | 1742 MB/s | 73 MB/s  | 91 MB/s  | 7.23 ms/record          |
 
 Writes of up to 100 KB records don't allocate, bigger records exceed the largest bucket of the internal buffer pool.
 
@@ -70,10 +70,10 @@ files with `ReadNext` (`FileReader`) and `ReadNextAt` (`MMapReader`), from front
 
 | Record size | `FileReader` | +Snappy   | +Gzip     | +LZW     | `MMapReader` | +Snappy   | +Gzip     | +LZW     |
 |-------------|--------------|-----------|-----------|----------|--------------|-----------|-----------|----------|
-| 16 B        | 110 MB/s     | 76 MB/s   | 70 MB/s   | 42 MB/s  | 521 MB/s     | 530 MB/s  | 115 MB/s  | 75 MB/s  |
-| 128 B       | 478 MB/s     | 313 MB/s  | 229 MB/s  | 103 MB/s | 1466 MB/s    | 1200 MB/s | 422 MB/s  | 132 MB/s |
-| 1 KB        | 1400 MB/s    | 1062 MB/s | 861 MB/s  | 158 MB/s | 2120 MB/s    | 2114 MB/s | 1335 MB/s | 172 MB/s |
-| 64 KB       | 1791 MB/s    | 1673 MB/s | 1664 MB/s | 178 MB/s | 2438 MB/s    | 2411 MB/s | 2238 MB/s | 188 MB/s |
+| 16 B        | 110 MB/s     | 76 MB/s   | 70 MB/s   | 42 MB/s  | 521 MB/s     | 530 MB/s  | 116 MB/s  | 73 MB/s  |
+| 128 B       | 478 MB/s     | 313 MB/s  | 225 MB/s  | 103 MB/s | 1466 MB/s    | 1200 MB/s | 403 MB/s  | 134 MB/s |
+| 1 KB        | 1400 MB/s    | 1062 MB/s | 854 MB/s  | 159 MB/s | 2120 MB/s    | 2114 MB/s | 1296 MB/s | 172 MB/s |
+| 64 KB       | 1791 MB/s    | 1673 MB/s | 1668 MB/s | 176 MB/s | 2438 MB/s    | 2411 MB/s | 2204 MB/s | 188 MB/s |
 
 Every record read allocates its returned slice, compression doesn't add further allocations.
 
