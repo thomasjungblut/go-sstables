@@ -48,8 +48,7 @@ func TestSSTableManagerClearingReaders(t *testing.T) {
 }
 
 func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
-	dir, err := os.MkdirTemp("", "simpledb_compactionReflection")
-	assert.Nil(t, err)
+	dir := t.TempDir()
 	// that's our fake compaction path that actually must exist for the logic to work properly
 	const compactionOutputPath = "4"
 	assert.Nil(t, os.MkdirAll(filepath.Join(dir, compactionOutputPath), 0700))
@@ -65,7 +64,7 @@ func TestSSTableCompactionReflectionHappyPath(t *testing.T) {
 		ReplacementPath: "1",
 		SstablePaths:    []string{"1", "2"},
 	}
-	err = manager.reflectCompactionResult(meta)
+	err := manager.reflectCompactionResult(meta)
 	assert.Nil(t, err)
 	assert.Equal(t, 2, len(manager.allSSTableReaders))
 	assert.Equal(t, "1", filepath.Base(manager.allSSTableReaders[0].BasePath()))
