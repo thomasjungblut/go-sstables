@@ -5,7 +5,6 @@
 package simpledb
 
 import (
-	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -16,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 )
 
 // those are end2end tests for the whole package, some are very heavyweight
