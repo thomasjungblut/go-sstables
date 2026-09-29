@@ -144,8 +144,35 @@ their latency is dominated by the in-memory index lookup:
 
 ## SimpleDB
 
-The SimpleDB read and write latency benchmarks are currently broken (the benchmark loop variable shadows the database
-size) and are being fixed. Their previous numbers were removed.
+All records have 14 byte keys and 1 KB values.
+
+### Write
+
+20 goroutines writing concurrently. By default every `Put` fsyncs the write-ahead log before it returns, the async WAL
+skips that fsync and trades durability of the most recent writes for speed. The time per `Put` is the total time
+divided by the number of `Put`s of all goroutines, thus the inverse of the throughput:
+
+| WAL              | Time per `Put` | Throughput        |
+|------------------|----------------|-------------------|
+| sync (default)   | 6.57 ms        | 152 `Put`/s       |
+| async            | 2.4 µs         | ~420,000 `Put`/s  |
+
+The WAL fsyncs are not batched across goroutines (no group commit), every synced `Put` waits for its own fsync. The
+synced writes are thus capped by the fsync latency of the disk, independent of the number of writers, and a single
+writer waits about 20 times the fsync latency when 20 goroutines write at once.
+
+### Read
+
+`Get` latency, cycling through all keys of a database with the given number of records. For the memstore variant all
+records are still in the memstore, which is where recently written records are read from. For the sstable variant,
+the database was reopened, so all records are read from the SSTables. The page cache is only dropped once before the
+run and the whole data set is read many times over, the numbers thus mostly show the lookup cost with a warm cache:
+
+| Records | Memstore | SSTable |
+|---------|----------|---------|
+| 1,000   | 332 ns   | 561 ns  |
+| 10,000  | 428 ns   | 586 ns  |
+| 100,000 | 513 ns   | 698 ns  |
 
 ### YCSB
 
