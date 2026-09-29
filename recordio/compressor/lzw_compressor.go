@@ -13,7 +13,17 @@ type LzwCompressor struct {
 // readers (e.g. the mmap reader), which is why they can't live on the LzwCompressor itself.
 type lzwEncoder struct {
 	w   lzw.Writer
-	out sliceWriter
+	out flushBuffer
+}
+
+// flushBuffer satisfies the buffered writer interface of the lzw package (WriteByte and Flush), otherwise lzw.Writer
+// wraps the output into a new bufio.Writer on every Reset.
+type flushBuffer struct {
+	bytes.Buffer
+}
+
+func (*flushBuffer) Flush() error {
+	return nil
 }
 
 type lzwDecoder struct {
@@ -36,12 +46,12 @@ func (l LzwCompressor) Decompress(buf []byte) ([]byte, error) {
 func (l LzwCompressor) CompressWithBuf(record []byte, destinationBuffer []byte) ([]byte, error) {
 	enc := lzwEncoderPool.Get().(*lzwEncoder)
 	defer func() {
-		enc.out.buf = nil
+		enc.out.Buffer = bytes.Buffer{}
 		lzwEncoderPool.Put(enc)
 	}()
 
-	// we have to set the length of the buffer (keeping capacity) to make sure lzw doesn't append
-	enc.out.buf = destinationBuffer[:0]
+	// writing into the capacity of the destination buffer, it's only reallocated when the output doesn't fit
+	enc.out.Buffer = *bytes.NewBuffer(destinationBuffer[:0])
 	enc.w.Reset(&enc.out, lzw.LSB, 8)
 	_, err := enc.w.Write(record)
 	if err != nil {
@@ -51,7 +61,7 @@ func (l LzwCompressor) CompressWithBuf(record []byte, destinationBuffer []byte) 
 	if err != nil {
 		return nil, err
 	}
-	return enc.out.buf, nil
+	return enc.out.Bytes(), nil
 }
 
 // CompressBound assumes the worst case of one 12-bit code per input byte, plus the clear and eof codes.
