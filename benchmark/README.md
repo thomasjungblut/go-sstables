@@ -175,169 +175,77 @@ run and the whole data set is read many times over, the numbers thus mostly show
 
 ### YCSB
 
-(benchmark below aws done on different hardware specs than those above, namely a Toshiba m.2 NVME with 2.5GB/s sequential read and 1.5GB/s sequential write)
+[YCSB](https://github.com/brianfrankcooper/YCSB) is a popular benchmarking system for databases, there is a Go port
+where SimpleDB can be hooked in. The binding lives in the `sdb` branch of this fork:
+https://github.com/tjungblu/go-ycsb/tree/sdb
 
-YCSB is a popular benchmarking system for databases, gladly there is a Go port where one can hook SimpleDB in. 
-You can find the whole code in the sdb branch on my fork: https://github.com/tjungblu/go-ycsb/tree/sdb
-
-Clone the fork, then build with the makefile or:
-
-> go build -o bin/go-ycsb cmd/go-ycsb/*
-
-Which then allows you to load/run using:
-
-> bin/go-ycsb load gosstables -P workloads/workloada
-> 
-> bin/go-ycsb run gosstables -P workloads/workloada
-
-SimpleDB here is used as an embedded database on your local disk, which by default writes to `/tmp/gosstables-simpledb`.  
-
-To test the performance for longer I've created a [workload scenario](https://github.com/tjungblu/go-ycsb/blob/sdb/workloads/simpledb) to 
-do 20% insert, 30% read and 50% updates on 1KB records. MemStore size is reduced to only 128mb to exercise the disk paths and compaction more often.
-
-The results are with asynchronous WAL (no fsync):
-```
-[tjungblu ~/git/go-ycsb]$ bin/go-ycsb load gosstables -P workloads/simpledb 
-2022/09/09 15:37:35 done with recovery, starting with fresh WAL directory in /home/tjungblu/simpledb.tmp/wal
-***************** properties *****************
-"insertproportion"="0.2"
-"gosstables.asyncWal"="true"
-"command"="load"
-"fieldcount"="10"
-"requestdistribution"="uniform"
-"dotransactions"="false"
-"operationcount"="1000000"
-"scanproportion"="0"
-"gosstables.path"="/home/tjungblu/simpledb.tmp"
-"updateproportion"="0.5"
-"readproportion"="0.3"
-"readallfields"="true"
-"recordcount"="1000000"
-"gosstables.memstoreSizeBytes"="134217728"
-"workload"="core"
-**********************************************
-INSERT - Takes(s): 10.0, Count: 394419, OPS: 39440.6, Avg(us): 11, Min(us): 6, Max(us): 11431, 99th(us): 31, 99.9th(us): 62, 99.99th(us): 1645
-INSERT - Takes(s): 20.0, Count: 779775, OPS: 38986.9, Avg(us): 11, Min(us): 6, Max(us): 11431, 99th(us): 31, 99.9th(us): 57, 99.99th(us): 1687
-INSERT - Takes(s): 27.6, Count: 1000000, OPS: 36259.0, Avg(us): 13, Min(us): 6, Max(us): 25727, 99th(us): 39, 99.9th(us): 103, 99.99th(us): 1815
-
-[tjungblu ~/git/go-ycsb]$ bin/go-ycsb run gosstables -P workloads/simpledb 
-2022/09/09 15:38:53 found 3 existing sstables, starting recovery...
-2022/09/09 15:38:54 done with recovery, starting with fresh WAL directory in /home/tjungblu/simpledb.tmp/wal
-***************** properties *****************
-"gosstables.path"="/home/tjungblu/simpledb.tmp"
-"gosstables.asyncWal"="true"
-"workload"="core"
-"requestdistribution"="uniform"
-"fieldcount"="10"
-"updateproportion"="0.5"
-"command"="run"
-"dotransactions"="true"
-"operationcount"="1000000"
-"readproportion"="0.3"
-"gosstables.memstoreSizeBytes"="134217728"
-"insertproportion"="0.2"
-"readallfields"="true"
-"recordcount"="1000000"
-"scanproportion"="0"
-**********************************************
-INSERT - Takes(s): 10.0, Count: 85005, OPS: 8500.2, Avg(us): 14, Min(us): 7, Max(us): 8719, 99th(us): 42, 99.9th(us): 82, 99.99th(us): 1698
-READ   - Takes(s): 10.0, Count: 127529, OPS: 12751.3, Avg(us): 36, Min(us): 8, Max(us): 13695, 99th(us): 87, 99.9th(us): 152, 99.99th(us): 508
-UPDATE - Takes(s): 10.0, Count: 212649, OPS: 21261.8, Avg(us): 9, Min(us): 2, Max(us): 4061, 99th(us): 32, 99.9th(us): 52, 99.99th(us): 167
-INSERT - Takes(s): 20.0, Count: 168353, OPS: 8417.5, Avg(us): 14, Min(us): 7, Max(us): 13111, 99th(us): 40, 99.9th(us): 73, 99.99th(us): 1698
-READ   - Takes(s): 20.0, Count: 252125, OPS: 12605.5, Avg(us): 38, Min(us): 7, Max(us): 17151, 99th(us): 85, 99.9th(us): 132, 99.99th(us): 474
-UPDATE - Takes(s): 20.0, Count: 420114, OPS: 21003.9, Avg(us): 9, Min(us): 2, Max(us): 14255, 99th(us): 31, 99.9th(us): 46, 99.99th(us): 127
-INSERT - Takes(s): 24.0, Count: 200279, OPS: 8340.8, Avg(us): 14, Min(us): 7, Max(us): 13111, 99th(us): 39, 99.9th(us): 70, 99.99th(us): 1677
-READ   - Takes(s): 24.0, Count: 300283, OPS: 12505.3, Avg(us): 39, Min(us): 7, Max(us): 17151, 99th(us): 87, 99.9th(us): 129, 99.99th(us): 474
-UPDATE - Takes(s): 24.0, Count: 499438, OPS: 20799.1, Avg(us): 9, Min(us): 2, Max(us): 14255, 99th(us): 31, 99.9th(us): 45, 99.99th(us): 130
-```
-
-Without the async WAL (default without supplied argument), you get much worse numbers which is expected as we're calling fsync after every operation:
+Clone the fork, build it with `make` and then load and run a workload:
 
 ```
-[tjungblu ~/git/go-ycsb]$ bin/go-ycsb load gosstables -P workloads/simpledb 
-2022/09/09 15:41:51 done with recovery, starting with fresh WAL directory in /home/tjungblu/simpledb.tmp/wal
-***************** properties *****************
-"workload"="core"
-"readproportion"="0.3"
-"updateproportion"="0.5"
-"dotransactions"="false"
-"command"="load"
-"insertproportion"="0.2"
-"recordcount"="1000000"
-"gosstables.memstoreSizeBytes"="134217728"
-"operationcount"="1000000"
-"fieldcount"="10"
-"readallfields"="true"
-"requestdistribution"="uniform"
-"scanproportion"="0"
-"gosstables.path"="/home/tjungblu/simpledb.tmp"
-**********************************************
-INSERT - Takes(s): 10.0, Count: 4988, OPS: 498.9, Avg(us): 1982, Min(us): 1252, Max(us): 44511, 99th(us): 5071, 99.9th(us): 6835, 99.99th(us): 44511
-INSERT - Takes(s): 20.0, Count: 9955, OPS: 497.8, Avg(us): 1989, Min(us): 1252, Max(us): 44511, 99th(us): 5035, 99.9th(us): 6835, 99.99th(us): 21679
-INSERT - Takes(s): 30.0, Count: 14942, OPS: 498.1, Avg(us): 1988, Min(us): 1252, Max(us): 44511, 99th(us): 5027, 99.9th(us): 6443, 99.99th(us): 21679
-INSERT - Takes(s): 40.0, Count: 19985, OPS: 499.6, Avg(us): 1982, Min(us): 1252, Max(us): 44511, 99th(us): 4995, 99.9th(us): 6459, 99.99th(us): 21679
-...
-INSERT - Takes(s): 2020.2, Count: 1000000, OPS: 495.0, Avg(us): 2001, Min(us): 1234, Max(us): 982527, 99th(us): 5031, 99.9th(us): 6867, 99.99th(us): 25311
-
-[tjungblu ~/git/go-ycsb]$ bin/go-ycsb run gosstables -P workloads/simpledb 
-2022/09/09 16:16:23 found 3 existing sstables, starting recovery...
-2022/09/09 16:16:24 done with recovery, starting with fresh WAL directory in /home/tjungblu/simpledb.tmp/wal
-***************** properties *****************
-"recordcount"="1000000"
-"command"="run"
-"insertproportion"="0.2"
-"updateproportion"="0.5"
-"readproportion"="0.3"
-"workload"="core"
-"operationcount"="1000000"
-"scanproportion"="0"
-"fieldcount"="10"
-"gosstables.path"="/home/tjungblu/simpledb.tmp"
-"requestdistribution"="uniform"
-"dotransactions"="true"
-"readallfields"="true"
-"gosstables.memstoreSizeBytes"="134217728"
-**********************************************
-INSERT - Takes(s): 10.0, Count: 1456, OPS: 145.6, Avg(us): 1939, Min(us): 1279, Max(us): 9567, 99th(us): 4903, 99.9th(us): 7199, 99.99th(us): 9567
-READ   - Takes(s): 10.0, Count: 2267, OPS: 226.8, Avg(us): 49, Min(us): 21, Max(us): 363, 99th(us): 114, 99.9th(us): 321, 99.99th(us): 363
-UPDATE - Takes(s): 10.0, Count: 3634, OPS: 363.5, Avg(us): 1928, Min(us): 1264, Max(us): 26799, 99th(us): 4923, 99.9th(us): 9135, 99.99th(us): 26799
-INSERT - Takes(s): 20.0, Count: 2890, OPS: 144.5, Avg(us): 1972, Min(us): 1279, Max(us): 9567, 99th(us): 5007, 99.9th(us): 6231, 99.99th(us): 9567
-READ   - Takes(s): 20.0, Count: 4376, OPS: 218.9, Avg(us): 50, Min(us): 12, Max(us): 384, 99th(us): 142, 99.9th(us): 306, 99.99th(us): 384
-UPDATE - Takes(s): 20.0, Count: 7195, OPS: 359.8, Avg(us): 1941, Min(us): 1264, Max(us): 26799, 99th(us): 4927, 99.9th(us): 7167, 99.99th(us): 26527
-...
-INSERT - Takes(s): 1418.6, Count: 199794, OPS: 140.8, Avg(us): 2001, Min(us): 1233, Max(us): 52703, 99th(us): 5063, 99.9th(us): 6751, 99.99th(us): 19407
-READ   - Takes(s): 1418.6, Count: 300617, OPS: 211.9, Avg(us): 65, Min(us): 8, Max(us): 2163, 99th(us): 251, 99.9th(us): 493, 99.99th(us): 728
-UPDATE - Takes(s): 1418.6, Count: 499589, OPS: 352.2, Avg(us): 1982, Min(us): 1213, Max(us): 104127, 99th(us): 5023, 99.9th(us): 6663, 99.99th(us): 19615
-
+$ bin/go-ycsb load gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb
+$ bin/go-ycsb run gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb
 ```
 
-With fsync we're about 100x slower than without, which becomes especially noticeable in the latencies and the similarly reduced throughput. 
-In this mixed benchmark, we also see the lock contention of the writes to cause the read performance to degrade significantly, compare the above with a workload of 100% reads:
+SimpleDB runs as an embedded database in the YCSB process. It writes to `/tmp/gosstables-simpledb` by default, which
+might be a tmpfs, thus set `gosstables.path` to a directory on the disk you want to benchmark. Add
+`-p gosstables.asyncWal=true` to disable the fsync of the write-ahead log on every write.
+
+The [simpledb workload](https://github.com/tjungblu/go-ycsb/blob/sdb/workloads/simpledb) loads one million 1 KB
+records, then runs one million operations: 20% inserts, 30% reads and 50% updates with uniformly distributed keys. The
+memstore is reduced to 128 MB to exercise flushes and compactions more often. The read-only run uses the same workload
+with `-p readproportion=1 -p insertproportion=0 -p updateproportion=0` on the database from the async runs. The
+database was evicted from the page cache before every run.
+
+go-ycsb uses a single client thread by default, the throughput is thus the inverse of the average latency:
+
+| Run                       | Throughput     | Write latency (avg / p99) | Read latency (avg / p99) |
+|---------------------------|----------------|---------------------------|--------------------------|
+| Load, async WAL           | 65,265 ops/s   | 6 µs / 12 µs              |                          |
+| Mixed, async WAL          | 91,468 ops/s   | 3-6 µs / 8-16 µs          | 15 µs / 32 µs            |
+| Read-only                 | 92,917 ops/s   |                           | 9 µs / 20 µs             |
+| Load, synced WAL          | 101 ops/s      | 9.9 ms / 18.4 ms          |                          |
+| Mixed, synced WAL         | 136 ops/s      | 10.5 ms / 19.3 ms         | 34 µs / 155 µs           |
+
+With the synced WAL, every insert and update waits for an fsync, which takes about 10 ms here. That's slower than in
+the SimpleDB write benchmark above, likely because btrfs has more to commit with the flushes and compactions running
+alongside. The loading thus takes 2h45m instead of 15 seconds. The reads have a slower tail in the synced mix too
+(p99 155 µs instead of 32 µs). That's not lock contention, a single client thread never reads and writes at the same
+time. It's more likely caused by the background flushes and compactions, which ran for two hours instead of eleven
+seconds, but this wasn't investigated further.
+
+The detailed results, async WAL:
 
 ```
-[tjungblu ~/git/go-ycsb]$ bin/go-ycsb run gosstables -P workloads/simpledb 
-2022/09/09 16:42:32 found 7 existing sstables, starting recovery...
-2022/09/09 16:42:34 done with recovery, starting with fresh WAL directory in /home/tjungblu/simpledb.tmp/wal
-***************** properties *****************
-"readproportion"="1"
-"gosstables.memstoreSizeBytes"="134217728"
-"scanproportion"="0"
-"readallfields"="true"
-"workload"="core"
-"updateproportion"="0"
-"requestdistribution"="uniform"
-"dotransactions"="true"
-"recordcount"="1000000"
-"insertproportion"="0"
-"gosstables.path"="/home/tjungblu/simpledb.tmp"
-"operationcount"="1000000"
-"command"="run"
-"fieldcount"="10"
-**********************************************
-READ   - Takes(s): 10.0, Count: 329358, OPS: 32929.0, Avg(us): 28, Min(us): 3, Max(us): 16911, 99th(us): 69, 99.9th(us): 94, 99.99th(us): 166
-READ   - Takes(s): 20.0, Count: 654551, OPS: 32724.9, Avg(us): 29, Min(us): 3, Max(us): 16911, 99th(us): 71, 99.9th(us): 103, 99.99th(us): 212
-READ   - Takes(s): 30.0, Count: 965836, OPS: 32192.1, Avg(us): 29, Min(us): 3, Max(us): 20143, 99th(us): 75, 99.9th(us): 119, 99.99th(us): 236
-Run finished, takes 31.057865283s
-READ   - Takes(s): 31.1, Count: 1000000, OPS: 32197.8, Avg(us): 29, Min(us): 3, Max(us): 20143, 99th(us): 75, 99.9th(us): 118, 99.99th(us): 234
+$ bin/go-ycsb load gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb -p gosstables.asyncWal=true
+Run finished, takes 15.322108927s
+INSERT - Takes(s): 15.3, Count: 1000000, OPS: 65264.8, Avg(us): 6, Min(us): 3, Max(us): 61855, 50th(us): 5, 90th(us): 6, 95th(us): 7, 99th(us): 12, 99.9th(us): 35, 99.99th(us): 471
+
+$ bin/go-ycsb run gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb -p gosstables.asyncWal=true
+Run finished, takes 10.932801012s
+INSERT - Takes(s): 10.9, Count: 199936, OPS: 18287.6, Avg(us): 6, Min(us): 4, Max(us): 58591, 50th(us): 6, 90th(us): 7, 95th(us): 8, 99th(us): 16, 99.9th(us): 37, 99.99th(us): 453
+READ   - Takes(s): 10.9, Count: 299967, OPS: 27437.0, Avg(us): 15, Min(us): 3, Max(us): 668, 50th(us): 16, 90th(us): 21, 95th(us): 22, 99th(us): 32, 99.9th(us): 52, 99.99th(us): 117
+UPDATE - Takes(s): 10.9, Count: 500097, OPS: 45742.5, Avg(us): 3, Min(us): 1, Max(us): 70591, 50th(us): 3, 90th(us): 5, 95th(us): 6, 99th(us): 8, 99.9th(us): 19, 99.99th(us): 79
 ```
 
+Read-only:
+
+```
+$ bin/go-ycsb run gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb \
+    -p readproportion=1 -p insertproportion=0 -p updateproportion=0
+Run finished, takes 10.762387944s
+READ   - Takes(s): 10.8, Count: 1000000, OPS: 92916.4, Avg(us): 9, Min(us): 1, Max(us): 730, 50th(us): 13, 90th(us): 14, 95th(us): 15, 99th(us): 20, 99.9th(us): 41, 99.99th(us): 89
+```
+
+Synced WAL:
+
+```
+$ bin/go-ycsb load gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb
+Run finished, takes 2h45m7.100491439s
+INSERT - Takes(s): 9907.1, Count: 1000000, OPS: 100.9, Avg(us): 9888, Min(us): 5252, Max(us): 1104895, 50th(us): 9703, 90th(us): 10959, 95th(us): 13143, 99th(us): 18351, 99.9th(us): 34655, 99.99th(us): 50655
+
+$ bin/go-ycsb run gosstables -P workloads/simpledb -p gosstables.path=/var/tmp/ycsb-simpledb
+Run finished, takes 2h2m19.019612045s
+INSERT - Takes(s): 7339.0, Count: 199233, OPS: 27.1, Avg(us): 10459, Min(us): 6132, Max(us): 103039, 50th(us): 9863, 90th(us): 11855, 95th(us): 13863, 99th(us): 19327, 99.9th(us): 40191, 99.99th(us): 70719
+READ   - Takes(s): 7339.0, Count: 300302, OPS: 40.9, Avg(us): 34, Min(us): 4, Max(us): 773, 50th(us): 29, 90th(us): 44, 95th(us): 97, 99th(us): 155, 99.9th(us): 191, 99.99th(us): 230
+UPDATE - Takes(s): 7339.0, Count: 500465, OPS: 68.2, Avg(us): 10463, Min(us): 5476, Max(us): 259455, 50th(us): 9879, 90th(us): 11855, 95th(us): 13879, 99th(us): 19247, 99.9th(us): 38655, 99.99th(us): 77567
+```
