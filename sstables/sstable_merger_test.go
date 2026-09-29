@@ -1,6 +1,8 @@
 package sstables
 
 import (
+	"errors"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/skiplist"
@@ -76,6 +78,33 @@ func TestSSTableMergeAndCompactFourFilesEndToEnd(t *testing.T) {
 func TestSSTableMergeAndCompactFiveFilesEndToEnd(t *testing.T) {
 	writeMergeCompactAndCheck(t, 5, 200)
 }
+
+// a failed write must fail the compaction, otherwise records would silently be lost
+func TestSSTableMergeCompactWriteNextErrorIsReturned(t *testing.T) {
+	var writersToClean []*SSTableStreamWriter
+	defer cleanWriterDirs(t, &writersToClean)
+
+	writer, err := newTestSSTableStreamWriter()
+	require.Nil(t, err)
+	writersToClean = append(writersToClean, writer)
+	streamedWriteAscendingIntegers(t, writer, 10)
+	reader, iterator := getFullScanIterator(t, writer.opts.basePath)
+	defer closeReader(t, reader)
+
+	writeErr := errors.New("disk full")
+	err = NewSSTableMerger(skiplist.BytesComparator{}).MergeCompact(
+		[]SSTableMergeIteratorContext{NewMergeIteratorContext(0, iterator)},
+		&failingStreamWriter{err: writeErr}, ScanReduceLatestWins)
+	assert.ErrorIs(t, err, writeErr)
+}
+
+type failingStreamWriter struct {
+	err error
+}
+
+func (f *failingStreamWriter) Open() error                        { return nil }
+func (f *failingStreamWriter) WriteNext(_ []byte, _ []byte) error { return f.err }
+func (f *failingStreamWriter) Close() error                       { return nil }
 
 func writeMergeCompactAndCheck(t *testing.T, numFiles int, numElementsPerFile int) {
 	var writersToClean []*SSTableStreamWriter

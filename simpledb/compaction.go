@@ -86,8 +86,12 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 		return nil, err
 	}
 
+	// on success the writer is closed before the compaction is marked as successful, this only closes on errors
+	writerClosed := false
 	defer func() {
-		err = errors.Join(err, writer.Close())
+		if !writerClosed {
+			err = errors.Join(err, writer.Close())
+		}
 	}()
 
 	var readers []sstables.SSTableReaderI
@@ -132,6 +136,14 @@ func executeCompaction(db *DB) (compactionMetadata *proto.CompactionMetadata, er
 		WritePath:       filepath.Base(writeFolder),
 		ReplacementPath: paths[0],
 		SstablePaths:    paths,
+	}
+
+	// recovery trusts the metadata below to finish a compaction by replacing the compacted sstables, thus the new
+	// sstable must be complete and durable before the metadata is written
+	writerClosed = true
+	err = writer.Close()
+	if err != nil {
+		return nil, err
 	}
 
 	// at this point the compaction is finished, we save the metadata that this was successful for potential recoveries

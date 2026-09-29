@@ -159,6 +159,9 @@ func (m SSTableMerger) MergeCompact(iterators []SSTableMergeIteratorContext, wri
 			}
 		}
 		err = writer.WriteNext(k, v)
+		if err != nil {
+			return fmt.Errorf("merge compact error while writing next record: %w", err)
+		}
 	}
 
 	return nil
