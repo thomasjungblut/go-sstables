@@ -1,7 +1,6 @@
 package simpledb
 
 import (
-	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"math/rand"
 	"os"
 	"strconv"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/thomasjungblut/go-sstables/internal/testutil"
 )
 
 func TestCreationWhenDirNotAvailable(t *testing.T) {
