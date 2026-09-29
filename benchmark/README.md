@@ -147,18 +147,24 @@ All records have 14 byte keys and 1 KB values.
 
 ### Write
 
-20 goroutines writing concurrently. By default every `Put` fsyncs the write-ahead log before it returns, the async WAL
-skips that fsync and trades durability of the most recent writes for speed. The time per `Put` is the total time
-divided by the number of `Put`s of all goroutines, thus the inverse of the throughput:
+20 goroutines writing concurrently. Every `Put` returns once it's durable, i.e. once the write-ahead log was fsynced.
+Concurrent `Put`s share their fsyncs (group commit): while a batch is synced, the next one queues up behind it. The time
+per `Put` is the total time divided by the number of `Put`s of all goroutines, thus the inverse of the throughput:
 
-| WAL              | Time per `Put` | Throughput        |
-|------------------|----------------|-------------------|
-| sync (default)   | 6.57 ms        | 152 `Put`/s       |
-| async            | 2.4 µs         | ~420,000 `Put`/s  |
+| Group commit delay | Time per `Put` | Throughput      |
+|--------------------|----------------|-----------------|
+| none (default)     | 645 µs         | 1,550 `Put`/s   |
+| 1 ms               | 418 µs         | 2,390 `Put`/s   |
+| 5 ms               | 611 µs         | 1,640 `Put`/s   |
 
-The WAL fsyncs are not batched across goroutines (no group commit), every synced `Put` waits for its own fsync. The
-synced writes are thus capped by the fsync latency of the disk, independent of the number of writers, and a single
-writer waits about 20 times the fsync latency when 20 goroutines write at once.
+Without group commit, every `Put` waited for its own fsync: 6.57 ms, thus about 150 `Put`/s, independent of the
+number of writers.
+
+With a delay (`GroupCommitMaxWait`), a batch waits for more writers before it's synced, up to the delay or until the
+batch is full (`GroupCommitMaxBatchSize`). With 20 writers, 5 ms is mostly idle waiting: a batch can't hold more
+than the 20 writes, and 20 writes per 5 ms delay plus about 7 ms fsync cap the throughput at about 1,670 `Put`/s. The
+best delay thus depends on the number of writers and the fsync latency. The delay isn't enabled by default, as it delays every write, even
+a single writer's that has no one to share the fsync with.
 
 ### Read
 
@@ -169,9 +175,9 @@ run and the whole data set is read many times over, the numbers thus mostly show
 
 | Records | Memstore | SSTable |
 |---------|----------|---------|
-| 1,000   | 332 ns   | 561 ns  |
-| 10,000  | 428 ns   | 586 ns  |
-| 100,000 | 513 ns   | 698 ns  |
+| 1,000   | 329 ns   | 531 ns  |
+| 10,000  | 432 ns   | 582 ns  |
+| 100,000 | 544 ns   | 656 ns  |
 
 ### YCSB
 

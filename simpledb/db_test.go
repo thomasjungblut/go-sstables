@@ -1,6 +1,7 @@
 package simpledb
 
 import (
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
@@ -253,4 +254,20 @@ func tryCleanDatabaseFolder(db *DB) {
 		_ = db.Close()
 		_ = os.RemoveAll(db.basePath)
 	}(db)
+}
+
+func crashDatabaseInternally(t *testing.T, db *DB) {
+	log.Println("crashing the database")
+	close(db.storeFlushChannel)
+	// a real crash stops the flusher too, an in-flight flush must not keep writing into the folder (e.g. removing a WAL
+	// that the next DB instance is about to replay) while the tests reopen the database on the same folder
+	<-db.doneFlushChannel
+	db.compactionTicker.Stop()
+	db.compactionTickerStopChannel <- true
+	// the stop channel is buffered, a running compaction must not keep writing into the folder either
+	<-db.doneCompactionChannel
+	close(db.compactionTickerStopChannel)
+	require.Nil(t, db.wal.Close())
+	db.memStore = nil
+	require.Nil(t, db.sstableManager.currentReader.Close()) // this is mostly to clean the folder properly later
 }

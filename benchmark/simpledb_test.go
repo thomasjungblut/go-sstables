@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -25,7 +27,7 @@ func BenchmarkSimpleDBReadLatency(b *testing.B) {
 		for _, source := range []string{"memstore", "sstable"} {
 			b.Run(fmt.Sprintf("%s/%d", source, numRecords), func(b *testing.B) {
 				tmpDir := benchDir(b)
-				db := openSimpleDB(b, tmpDir, simpledb.EnableAsyncWAL())
+				db := openSimpleDB(b, tmpDir)
 				keys := fillSimpleDB(b, db, numRecords)
 
 				if source == "sstable" {
@@ -59,9 +61,10 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 		name string
 		opts []simpledb.ExtraOption
 	}{
-		// every Put fsyncs the WAL before it returns, which is the default
-		{"syncWAL", nil},
-		{"asyncWAL", []simpledb.ExtraOption{simpledb.EnableAsyncWAL()}},
+		// every Put waits for the WAL fsync, concurrent Puts share it (group commit)
+		{"groupCommit", nil},
+		{"groupCommitWait1ms", []simpledb.ExtraOption{simpledb.GroupCommitMaxWait(time.Millisecond)}},
+		{"groupCommitWait5ms", []simpledb.ExtraOption{simpledb.GroupCommitMaxWait(5 * time.Millisecond)}},
 	} {
 		b.Run(bm.name, func(b *testing.B) {
 			db := openSimpleDB(b, benchDir(b), bm.opts...)
@@ -103,8 +106,24 @@ func fillSimpleDB(b *testing.B, db *simpledb.DB, numRecords int) []string {
 	keys := make([]string, numRecords)
 	for i := range keys {
 		keys[i] = simpleDBKey(i)
-		require.NoError(b, db.Put(keys[i], val))
 	}
+
+	// every Put waits for an fsync, many concurrent writers make the fill much faster through group commit
+	const writers = 64
+	var wg sync.WaitGroup
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := w; i < len(keys); i += writers {
+				if err := db.Put(keys[i], val); err != nil {
+					b.Error(err)
+					return
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
 	return keys
 }
 

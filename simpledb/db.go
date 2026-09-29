@@ -30,6 +30,10 @@ const DefaultCompactionRatio = float32(0.2)
 const DefaultWriteBufferSizeBytes uint64 = 4 * 1024 * 1024 // 4Mb
 const DefaultReadBufferSizeBytes uint64 = 4 * 1024 * 1024  // 4Mb
 
+// DefaultGroupCommitMaxWait doesn't delay writes to wait for more concurrent writes. The group commit
+// batches still grow with the load, as writes queue up while the previous batch is synced.
+const DefaultGroupCommitMaxWait time.Duration = 0
+
 var ErrNotFound = errors.New("ErrNotFound")
 var ErrNotOpenedYet = errors.New("database has not been opened yet, please call Open() first")
 var ErrAlreadyOpen = errors.New("database is already open")
@@ -92,12 +96,11 @@ type DB struct {
 	compactionRatio         float32
 	compactedMaxSizeBytes   uint64
 	enableCompactions       bool
-	enableAsyncWAL          bool
-	enableDirectIOWAL       bool
 	open                    bool
 	closed                  bool
 
 	rwLock         *sync.RWMutex
+	writeBatcher   *wal.Batcher[*pendingWrite]
 	wal            wal.WriteAheadLogI
 	sstableManager *SSTableManager
 	memStore       *RWMemstore
@@ -267,40 +270,9 @@ func (db *DB) PutBytes(keyBytes, valBytes []byte) error {
 		return err
 	}
 
-	return func() error {
-		db.rwLock.Lock()
-		defer db.rwLock.Unlock()
-
-		if !db.open {
-			return ErrNotOpenedYet
-		}
-
-		if db.closed {
-			return ErrAlreadyClosed
-		}
-
-		if db.enableAsyncWAL {
-			err = db.wal.Append(walBytes)
-			if err != nil {
-				return err
-			}
-		} else {
-			err = db.wal.AppendSync(walBytes)
-			if err != nil {
-				return err
-			}
-		}
-
-		err = db.memStore.Upsert(keyBytes, valBytes)
-		if err != nil {
-			return err
-		}
-
-		if db.memStore.EstimatedSizeInBytes() > db.memstoreMaxSize {
-			return db.rotateWalAndFlushMemstore()
-		}
-		return nil
-	}()
+	return db.syncedWrite(walBytes, func() error {
+		return db.memStore.Upsert(keyBytes, valBytes)
+	})
 }
 
 func (db *DB) Delete(key string) error {
@@ -320,30 +292,9 @@ func (db *DB) DeleteBytes(byteKey []byte) error {
 		return err
 	}
 
-	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
-
-	if !db.open {
-		return ErrNotOpenedYet
-	}
-
-	if db.closed {
-		return ErrAlreadyClosed
-	}
-
-	if db.enableAsyncWAL {
-		err = db.wal.Append(bytes)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = db.wal.AppendSync(bytes)
-		if err != nil {
-			return err
-		}
-	}
-
-	return db.memStore.Delete(byteKey)
+	return db.syncedWrite(bytes, func() error {
+		return db.memStore.Delete(byteKey)
+	})
 }
 
 // NewSimpleDB creates a new db that requires a directory that exist, it can be empty in case of existing databases.
@@ -355,18 +306,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		return nil, err
 	}
 
-	extraOpts := &ExtraOptions{
-		MemStoreMaxSizeBytes,
-		true,
-		false,
-		false,
-		NumSSTablesToTriggerCompaction,
-		DefaultCompactionMaxSizeBytes,
-		DefaultCompactionInterval,
-		DefaultCompactionRatio,
-		DefaultWriteBufferSizeBytes,
-		DefaultReadBufferSizeBytes,
-	}
+	extraOpts := defaultExtraOptions()
 
 	for _, extraOption := range extraOptions {
 		extraOption(extraOpts)
@@ -382,7 +322,7 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 
 	sstableManager := NewSSTableManager(cmp, rwLock, basePath)
 
-	return &DB{
+	db := &DB{
 		currentGeneration:           uint64(0),
 		cmp:                         cmp,
 		basePath:                    basePath,
@@ -391,8 +331,6 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		compactionFileThreshold:     extraOpts.compactionFileThreshold,
 		compactedMaxSizeBytes:       extraOpts.compactionMaxSizeBytes,
 		enableCompactions:           extraOpts.enableCompactions,
-		enableAsyncWAL:              extraOpts.enableAsyncWAL,
-		enableDirectIOWAL:           extraOpts.enableDirectIOWAL,
 		compactionInterval:          extraOpts.compactionRunInterval,
 		compactionRatio:             extraOpts.compactionRatio,
 		closed:                      false,
@@ -406,7 +344,11 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 		doneCompactionChannel:       doneCompactionChan,
 		readBufferSizeBytes:         extraOpts.readBufferSizeBytes,
 		writeBufferSizeBytes:        extraOpts.writeBufferSizeBytes,
-	}, nil
+	}
+	// writes with a synced WAL are batched to share their fsyncs (group commit)
+	db.writeBatcher = wal.NewBatcher(db.commitWrites,
+		wal.MaxBatchSize(extraOpts.groupCommitMaxBatchSize), wal.MaxBatchWait(extraOpts.groupCommitMaxWait))
+	return db, nil
 }
 
 // options
@@ -414,8 +356,8 @@ func NewSimpleDB(basePath string, extraOptions ...ExtraOption) (*DB, error) {
 type ExtraOptions struct {
 	memstoreSizeBytes       uint64
 	enableCompactions       bool
-	enableAsyncWAL          bool
-	enableDirectIOWAL       bool
+	groupCommitMaxBatchSize int
+	groupCommitMaxWait      time.Duration
 	compactionFileThreshold int
 	compactionMaxSizeBytes  uint64
 	compactionRunInterval   time.Duration
@@ -425,6 +367,21 @@ type ExtraOptions struct {
 }
 
 type ExtraOption func(options *ExtraOptions)
+
+func defaultExtraOptions() *ExtraOptions {
+	return &ExtraOptions{
+		memstoreSizeBytes:       MemStoreMaxSizeBytes,
+		enableCompactions:       true,
+		groupCommitMaxBatchSize: wal.DefaultMaxGroupCommitBatchSize,
+		groupCommitMaxWait:      DefaultGroupCommitMaxWait,
+		compactionFileThreshold: NumSSTablesToTriggerCompaction,
+		compactionMaxSizeBytes:  DefaultCompactionMaxSizeBytes,
+		compactionRunInterval:   DefaultCompactionInterval,
+		compactionRatio:         DefaultCompactionRatio,
+		writeBufferSizeBytes:    DefaultWriteBufferSizeBytes,
+		readBufferSizeBytes:     DefaultReadBufferSizeBytes,
+	}
+}
 
 // MemstoreSizeBytes controls the size of the memstore, after this limit is hit the memstore will be written to disk.
 // Default is 1 GiB.
@@ -441,17 +398,21 @@ func DisableCompactions() ExtraOption {
 	}
 }
 
-// EnableAsyncWAL will turn on the asynchronous WAL writes, which should give faster writes at the expense of safety.
-func EnableAsyncWAL() ExtraOption {
+// GroupCommitMaxBatchSize limits how many concurrent writes are made durable together with a single fsync of the WAL
+// (group commit). Default is wal.DefaultMaxGroupCommitBatchSize.
+func GroupCommitMaxBatchSize(n int) ExtraOption {
 	return func(args *ExtraOptions) {
-		args.enableAsyncWAL = true
+		args.groupCommitMaxBatchSize = n
 	}
 }
 
-// EnableDirectIOWAL will turn on the WAL writes using DirectIO, which should give faster aligned block writes and less cache churn.
-func EnableDirectIOWAL() ExtraOption {
+// GroupCommitMaxWait is the timeout for which a write waits for more concurrent writes to share its WAL fsync. It's
+// synced earlier once the batch is full (GroupCommitMaxBatchSize), but never waits longer than the timeout. This
+// increases the batch sizes, but also delays every write, even a single one. Default is DefaultGroupCommitMaxWait, zero
+// disables waiting.
+func GroupCommitMaxWait(d time.Duration) ExtraOption {
 	return func(args *ExtraOptions) {
-		args.enableDirectIOWAL = true
+		args.groupCommitMaxWait = d
 	}
 }
 
