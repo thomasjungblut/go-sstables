@@ -99,7 +99,8 @@ func TestPutAndDeleteRandomKeysReplacementEndToEnd(t *testing.T) {
 	defer cleanDatabaseFolder(t, db)
 	defer closeDatabase(t, db)
 
-	r := testutil.StringRng(rnd, 1024*1024)
+	// with the 2mb memstore, this flushes about every 20 puts
+	r := testutil.StringRng(rnd, 64*1024)
 	var keys []string
 	for i := 0; i < 500; i++ {
 		keys = append(keys, testutil.StringRng(rnd, 10))
