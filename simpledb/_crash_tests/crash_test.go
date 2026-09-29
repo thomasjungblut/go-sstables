@@ -140,7 +140,7 @@ func TestOutOfProcessCrashesRandomKeysWithDeletion(t *testing.T) {
 	var expectedKeys []string
 	var unexpectedKeys []string
 	for i := 0; i < 2500; i++ {
-		key := testutil.Letters(rnd, 32)
+		key := testutil.LettersRng(rnd, 32)
 		err := c.Put(key, key)
 		require.NoError(t, err)
 

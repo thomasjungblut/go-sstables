@@ -1,4 +1,7 @@
 // Package testutil contains helpers shared by tests and benchmarks across the module.
+//
+// Every random generator comes in two flavours: one using the global source of math/rand, and one suffixed with Rng
+// that uses the given source, e.g. for reproducible tests with a fixed seed.
 package testutil
 
 import (
@@ -12,49 +15,74 @@ type integer interface {
 	~int | ~int32 | ~int64 | ~uint | ~uint32 | ~uint64
 }
 
-// Bytes returns n random bytes. A nil rng uses the global source.
-func Bytes(rng *rand.Rand, n int) []byte {
-	b := make([]byte, n)
-	if rng == nil {
-		_, _ = rand.Read(b)
-	} else {
-		_, _ = rng.Read(b)
-	}
-	return b
+// Bytes returns n random bytes.
+func Bytes(n int) []byte {
+	return randomBytes(rand.Read, n)
+}
+
+// BytesRng is like Bytes, but uses the given source.
+func BytesRng(rng *rand.Rand, n int) []byte {
+	return randomBytes(rng.Read, n)
 }
 
 // String returns a string of n random runes from [0, 255). Runes above 127 are encoded with two bytes, thus the
-// string is longer than n bytes. A nil rng uses the global source.
-func String(rng *rand.Rand, n int) string {
-	return randomRunes(rng, n, 0, 255)
+// string is longer than n bytes.
+func String(n int) string {
+	return randomRunes(rand.Int31n, n, 0, 255)
 }
 
-// Letters returns a string of n random lowercase ASCII letters. A nil rng uses the global source.
-func Letters(rng *rand.Rand, n int) string {
-	return randomRunes(rng, n, 'a', 26)
+// StringRng is like String, but uses the given source.
+func StringRng(rng *rand.Rand, n int) string {
+	return randomRunes(rng.Int31n, n, 0, 255)
 }
 
-func randomRunes(rng *rand.Rand, n int, offset rune, count int32) string {
-	intn := rand.Int31n
-	if rng != nil {
-		intn = rng.Int31n
-	}
+// Letters returns a string of n random lowercase ASCII letters.
+func Letters(n int) string {
+	return randomRunes(rand.Int31n, n, 'a', 26)
+}
 
+// LettersRng is like Letters, but uses the given source.
+func LettersRng(rng *rand.Rand, n int) string {
+	return randomRunes(rng.Int31n, n, 'a', 26)
+}
+
+// Integers returns n random non-negative integers from [0, 2^31).
+func Integers[T integer](n int) []T {
+	return randomIntegers[T](rand.Int31, n)
+}
+
+// IntegersRng is like Integers, but uses the given source.
+func IntegersRng[T integer](rng *rand.Rand, n int) []T {
+	return randomIntegers[T](rng.Int31, n)
+}
+
+// SortedIntegers is like Integers, but returns the integers sorted ascending.
+func SortedIntegers[T integer](n int) []T {
+	return sorted(Integers[T](n))
+}
+
+// SortedIntegersRng is like SortedIntegers, but uses the given source.
+func SortedIntegersRng[T integer](rng *rand.Rand, n int) []T {
+	return sorted(IntegersRng[T](rng, n))
+}
+
+func randomBytes(read func([]byte) (int, error), n int) []byte {
+	b := make([]byte, n)
+	// neither the global source nor a rand.Rand return errors on Read
+	_, _ = read(b)
+	return b
+}
+
+func randomRunes(int31n func(int32) int32, n int, offset rune, count int32) string {
 	builder := strings.Builder{}
 	builder.Grow(n)
 	for i := 0; i < n; i++ {
-		builder.WriteRune(offset + intn(count))
+		builder.WriteRune(offset + int31n(count))
 	}
 	return builder.String()
 }
 
-// Integers returns n random non-negative integers from [0, 2^31). A nil rng uses the global source.
-func Integers[T integer](rng *rand.Rand, n int) []T {
-	int31 := rand.Int31
-	if rng != nil {
-		int31 = rng.Int31
-	}
-
+func randomIntegers[T integer](int31 func() int32, n int) []T {
 	result := make([]T, n)
 	for i := range result {
 		result[i] = T(int31())
@@ -62,9 +90,7 @@ func Integers[T integer](rng *rand.Rand, n int) []T {
 	return result
 }
 
-// SortedIntegers is like Integers, but returns the integers sorted ascending.
-func SortedIntegers[T integer](rng *rand.Rand, n int) []T {
-	result := Integers[T](rng, n)
-	slices.Sort(result)
-	return result
+func sorted[T integer](s []T) []T {
+	slices.Sort(s)
+	return s
 }

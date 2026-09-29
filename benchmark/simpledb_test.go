@@ -71,7 +71,7 @@ func BenchmarkSimpleDBWriteLatency(b *testing.B) {
 				require.NoError(b, db.Close())
 			}()
 
-			val := testutil.Letters(nil, simpleDBValueSize)
+			val := testutil.Letters(simpleDBValueSize)
 			var nextKey atomic.Int64
 			b.SetBytes(int64(len(simpleDBKey(0)) + simpleDBValueSize))
 			b.ReportAllocs()
@@ -99,7 +99,7 @@ func openSimpleDB(b *testing.B, dir string, opts ...simpledb.ExtraOption) *simpl
 
 // fillSimpleDB puts numRecords records with 1 KB values and returns their keys.
 func fillSimpleDB(b *testing.B, db *simpledb.DB, numRecords int) []string {
-	val := testutil.Letters(nil, simpleDBValueSize)
+	val := testutil.Letters(simpleDBValueSize)
 	keys := make([]string, numRecords)
 	for i := range keys {
 		keys[i] = simpleDBKey(i)

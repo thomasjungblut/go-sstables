@@ -215,7 +215,7 @@ func randomRecordWithPrefixWithSize(rand *rand.Rand, prefix, size int) string {
 	builder := strings.Builder{}
 	builder.WriteString(strconv.Itoa(prefix))
 	builder.WriteString("_")
-	builder.WriteString(testutil.String(rand, size))
+	builder.WriteString(testutil.StringRng(rand, size))
 
 	return builder.String()
 }

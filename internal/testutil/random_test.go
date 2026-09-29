@@ -9,41 +9,49 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func seeded() *rand.Rand {
+	return rand.New(rand.NewSource(1))
+}
+
 func TestBytes(t *testing.T) {
-	assert.Len(t, Bytes(nil, 0), 0)
-	assert.Len(t, Bytes(nil, 42), 42)
-	assert.Equal(t, Bytes(rand.New(rand.NewSource(1)), 64), Bytes(rand.New(rand.NewSource(1)), 64))
+	assert.Len(t, Bytes(0), 0)
+	assert.Len(t, Bytes(42), 42)
+	assert.Len(t, BytesRng(seeded(), 42), 42)
+	assert.Equal(t, BytesRng(seeded(), 64), BytesRng(seeded(), 64))
 }
 
 func TestString(t *testing.T) {
-	s := String(nil, 1000)
-	assert.Equal(t, 1000, utf8.RuneCountInString(s))
-	for _, r := range s {
-		assert.Less(t, r, rune(255))
+	for _, s := range []string{String(1000), StringRng(seeded(), 1000)} {
+		assert.Equal(t, 1000, utf8.RuneCountInString(s))
+		for _, r := range s {
+			assert.Less(t, r, rune(255))
+		}
 	}
-	assert.Equal(t, String(rand.New(rand.NewSource(1)), 64), String(rand.New(rand.NewSource(1)), 64))
+	assert.Equal(t, StringRng(seeded(), 64), StringRng(seeded(), 64))
 }
 
 func TestLetters(t *testing.T) {
-	s := Letters(nil, 1000)
-	assert.Len(t, s, 1000)
-	for _, r := range s {
-		assert.True(t, r >= 'a' && r <= 'z', "unexpected rune %q", r)
+	for _, s := range []string{Letters(1000), LettersRng(seeded(), 1000)} {
+		assert.Len(t, s, 1000)
+		for _, r := range s {
+			assert.True(t, r >= 'a' && r <= 'z', "unexpected rune %q", r)
+		}
 	}
-	assert.Equal(t, Letters(rand.New(rand.NewSource(1)), 64), Letters(rand.New(rand.NewSource(1)), 64))
+	assert.Equal(t, LettersRng(seeded(), 64), LettersRng(seeded(), 64))
 }
 
 func TestIntegers(t *testing.T) {
-	ints := Integers[int](nil, 1000)
-	assert.Len(t, ints, 1000)
-	for _, i := range ints {
-		assert.True(t, i >= 0 && i < 1<<31, "unexpected integer %d", i)
+	for _, ints := range [][]int{Integers[int](1000), IntegersRng[int](seeded(), 1000)} {
+		assert.Len(t, ints, 1000)
+		for _, i := range ints {
+			assert.True(t, i >= 0 && i < 1<<31, "unexpected integer %d", i)
+		}
 	}
-	assert.Equal(t, Integers[uint64](rand.New(rand.NewSource(1)), 64), Integers[uint64](rand.New(rand.NewSource(1)), 64))
+	assert.Equal(t, IntegersRng[uint64](seeded(), 64), IntegersRng[uint64](seeded(), 64))
 }
 
 func TestSortedIntegers(t *testing.T) {
-	ints := SortedIntegers[uint32](nil, 1000)
-	assert.Len(t, ints, 1000)
-	assert.True(t, slices.IsSorted(ints))
+	assert.True(t, slices.IsSorted(SortedIntegers[uint32](1000)))
+	assert.True(t, slices.IsSorted(SortedIntegersRng[uint32](seeded(), 1000)))
+	assert.Equal(t, SortedIntegersRng[int](seeded(), 64), SortedIntegersRng[int](seeded(), 64))
 }

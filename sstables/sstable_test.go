@@ -21,7 +21,7 @@ func TestReadSkipListWriteEndToEnd(t *testing.T) {
 	require.Nil(t, err)
 	defer cleanWriterDir(t, writer.streamWriter)
 
-	expectedNumbers := testutil.Integers[int](nil, 1000)
+	expectedNumbers := testutil.Integers[int](1000)
 	err = writer.WriteSkipListMap(TEST_ONLY_NewSkipListMapWithElements(expectedNumbers))
 	require.Nil(t, err)
 
@@ -153,7 +153,7 @@ func streamedWrite1kElements(t *testing.T, writer *SSTableStreamWriter) []int {
 func streamedWriteElements(t *testing.T, writer *SSTableStreamWriter, n int) []int {
 	err := writer.Open()
 	require.Nil(t, err)
-	expectedNumbers := testutil.SortedIntegers[int](nil, n)
+	expectedNumbers := testutil.SortedIntegers[int](n)
 	for _, e := range expectedNumbers {
 		key, value := getKeyValueAsBytes(e)
 		err = writer.WriteNext(key, value)

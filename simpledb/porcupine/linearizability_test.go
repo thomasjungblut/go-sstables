@@ -29,7 +29,7 @@ func TestHappyPath(t *testing.T) {
 	client := NewDatabaseRecorder(db.db, 0)
 	for i := 0; i < 100; i++ {
 		_, _ = client.Get(key)
-		_ = client.Put(key, testutil.Letters(nil, 5))
+		_ = client.Put(key, testutil.Letters(5))
 		if rand.Float32() < 0.25 {
 			_ = client.Delete(key)
 		}
@@ -45,9 +45,9 @@ func TestHappyPathMultiKey(t *testing.T) {
 
 	client := NewDatabaseRecorder(db.db, 0)
 	for i := 0; i < 100; i++ {
-		key := testutil.Letters(nil, 5)
+		key := testutil.Letters(5)
 		_, _ = client.Get(key)
-		_ = client.Put(key, testutil.Letters(nil, 5))
+		_ = client.Put(key, testutil.Letters(5))
 		_, _ = client.Get(key)
 		if rand.Float32() < 0.5 {
 			_ = client.Delete(key)
@@ -111,8 +111,8 @@ func parallelWriteGetDelete(db *simpledb.DB, numGoRoutines int, numRecords int, 
 	var keys []string
 	var values []string
 	for i := 0; i < recordsPerRoutine; i++ {
-		keys = append(keys, testutil.Letters(nil, 5))
-		values = append(values, testutil.Letters(nil, valSizeBytes))
+		keys = append(keys, testutil.Letters(5))
+		values = append(values, testutil.Letters(valSizeBytes))
 	}
 	for n := 0; n < numGoRoutines; n++ {
 		wg.Add(1)
