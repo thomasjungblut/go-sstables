@@ -27,7 +27,7 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file      *os.File
+	file      writableFile
 	bufWriter WriteSeekerCloserFlusher
 	// largestOffset tracks the largest currentOffset that was returned so far
 	// this is important in scenarios when we seek back in the file, but are not writing past largestOffset
@@ -36,14 +36,20 @@ type FileWriter struct {
 	currentOffset uint64
 	headerOffset  uint64
 
-	compressionType    int
-	compressor         compressor.CompressionI
-	recordHeaderCache  []byte
-	bufferPool         *pool.Pool
-	alignedBlockWrites bool
+	compressionType   int
+	compressor        compressor.CompressionI
+	recordHeaderCache []byte
+	bufferPool        *pool.Pool
 }
 
-var DirectIOSyncWriteErr = errors.New("currently not supporting directIO with sync writing")
+// writableFile is the file a FileWriter writes into: an *os.File, or a wrapper like dontCacheFile that controls how the
+// data is written and synced.
+type writableFile interface {
+	WriteSeekerCloser
+	Name() string
+	Sync() error
+	Truncate(size int64) error
+}
 
 func (w *FileWriter) Open() error {
 	if w.open {
@@ -72,12 +78,9 @@ func (w *FileWriter) Open() error {
 	w.bufferPool = pool.NewPool(1024, 20)
 
 	// we flush early to get a valid file with header written, this is important in crash scenarios
-	// when directIO is enabled however, we can't write misaligned blocks - thus this is not executed
-	if !w.alignedBlockWrites {
-		err = w.bufWriter.Flush()
-		if err != nil {
-			return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
-		}
+	err = w.bufWriter.Flush()
+	if err != nil {
+		return fmt.Errorf("flushing header in file at '%s' failed with %w", w.file.Name(), err)
 	}
 
 	// makes the file entry durable, otherwise a new file can disappear on crashes even when its contents were synced
@@ -239,12 +242,7 @@ func (w *FileWriter) Write(record []byte) (uint64, error) {
 }
 
 // WriteSync appends a record of bytes and forces a disk sync, returns the current offset this item was written to.
-// When directIO is enabled however, we can't write misaligned blocks and immediately returns DirectIOSyncWriteErr
 func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
-	if w.alignedBlockWrites {
-		return 0, DirectIOSyncWriteErr
-	}
-
 	offset, err := w.Write(record)
 	if err != nil {
 		return 0, fmt.Errorf("failed to write record to file at '%s' failed with %w", w.file.Name(), err)
@@ -321,7 +319,7 @@ type FileWriterOptions struct {
 	file            *os.File
 	compressionType int
 	bufferSizeBytes int
-	enableDirectIO  bool
+	dontCache       bool
 }
 
 type FileWriterOption func(*FileWriterOptions)
@@ -358,11 +356,13 @@ func BufferSizeBytes(p int) FileWriterOption {
 	}
 }
 
-// DirectIO is experimental: this flag enables DirectIO while writing. This has some limitation when writing headers and
-// disables the ability to use WriteSync.
-func DirectIO() FileWriterOption {
+// DontCache keeps the written data out of the page cache, for files that are rarely read back, like a WAL. On Linux,
+// the data is written with RWF_DONTCACHE where the filesystem supports it, the kernel then drops the pages once they are
+// written back. Otherwise, the pages are evicted after every sync (WriteSync and Close). Without effect on other
+// platforms.
+func DontCache() FileWriterOption {
 	return func(args *FileWriterOptions) {
-		args.enableDirectIO = true
+		args.dontCache = true
 	}
 }
 
@@ -373,7 +373,6 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		file:            nil,
 		compressionType: CompressionTypeNone,
 		bufferSizeBytes: DefaultBufferSize,
-		enableDirectIO:  false,
 	}
 
 	for _, writeOption := range writerOptions {
@@ -388,13 +387,6 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		opts.path = opts.file.Name()
 	}
 
-	var factory ReaderWriterCloserFactory
-	if opts.enableDirectIO {
-		factory = DirectIOFactory{}
-	} else {
-		factory = BufferedIOFactory{}
-	}
-
 	// we have to close the passed file handle because we're going to create a new one based on paths
 	if opts.file != nil {
 		err := opts.file.Close()
@@ -403,22 +395,26 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		}
 	}
 
-	file, writer, err := factory.CreateNewWriter(opts.path, opts.bufferSizeBytes)
+	osFile, err := os.OpenFile(opts.path, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Writer at '%s' failed with %w", opts.path, err)
 	}
-	return newCompressedFileWriterWithFile(file, writer, opts.compressionType, opts.enableDirectIO)
+
+	var file writableFile = osFile
+	if opts.dontCache {
+		file = newDontCacheFile(osFile)
+	}
+	return newCompressedFileWriterWithFile(file, NewWriterBuf(file, make([]byte, opts.bufferSizeBytes)), opts.compressionType), nil
 }
 
-// creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteSeekerCloserFlusher, compType int, alignedBlockWrites bool) (WriterI, error) {
+// creates a new writer with the given file, with the desired compression
+func newCompressedFileWriterWithFile(file writableFile, bufWriter WriteSeekerCloserFlusher, compType int) *FileWriter {
 	return &FileWriter{
-		file:               file,
-		bufWriter:          bufWriter,
-		alignedBlockWrites: alignedBlockWrites,
-		open:               false,
-		closed:             false,
-		compressionType:    compType,
-		currentOffset:      0,
-	}, nil
+		file:            file,
+		bufWriter:       bufWriter,
+		open:            false,
+		closed:          false,
+		compressionType: compType,
+		currentOffset:   0,
+	}
 }

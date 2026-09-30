@@ -53,30 +53,6 @@ func TestReadWriteEndToEndLzw(t *testing.T) {
 	endToEndReadWrite(writer, openedReaderFunc(t, tmpFile), t)
 }
 
-func TestReadWriteEndToEndDirectIO(t *testing.T) {
-	ok, err := IsDirectIOAvailable()
-	require.NoError(t, err)
-	if !ok {
-		t.Skip("directio not available here")
-		return
-	}
-
-	tmpFile, err := os.CreateTemp("", "recordio_EndToEnd")
-	require.NoError(t, err)
-	defer func() { require.NoError(t, os.Remove(tmpFile.Name())) }()
-	writer, err := NewFileWriter(File(tmpFile), DirectIO())
-	require.NoError(t, err)
-
-	reader := func() ReaderI {
-		reader, err := NewFileReader(ReaderPath(tmpFile.Name()), ReaderIoFactory(DirectIOFactory{}))
-		require.NoError(t, err)
-		require.NoError(t, reader.Open())
-		return reader
-	}
-
-	endToEndReadWrite(writer, reader, t)
-}
-
 func TestMagicNumberMatchesConstant(t *testing.T) {
 	actual := make([]byte, 8)
 	n := binary.PutUvarint(actual, MagicNumberSeparatorLong)
