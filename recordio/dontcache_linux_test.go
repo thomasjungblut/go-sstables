@@ -19,8 +19,8 @@ import (
 func writeWithDontCache(t *testing.T, path string, forceFallback bool, records [][]byte) {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0666)
 	require.NoError(t, err)
-	file := &dontCacheFile{File: f, fd: int(f.Fd()), unsupported: forceFallback}
-	w := newCompressedFileWriterWithFile(f, NewWriterBuf(file, make([]byte, 4096)), CompressionTypeNone, true)
+	file := &dontCacheFile{File: f, fd: int(f.Fd()), evictOnSync: forceFallback}
+	w := newCompressedFileWriterWithFile(file, NewWriterBuf(file, make([]byte, 4096)), CompressionTypeNone)
 	require.NoError(t, w.Open())
 
 	for i, record := range records {

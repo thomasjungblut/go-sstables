@@ -9,28 +9,29 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// dontCacheFile writes with RWF_DONTCACHE (uncached buffered IO), the kernel drops the written pages from the page cache
-// once they are written back. Filesystems that don't support it (e.g. btrfs before Linux 7.3, or kernels before 6.14)
-// fall back to plain writes on the first write, their pages are evicted after every sync instead, see
-// evictFromPageCache.
+// dontCacheFile keeps the written data out of the page cache. It writes with RWF_DONTCACHE (uncached buffered IO),
+// where the kernel drops the written pages once they are written back. Filesystems that don't support it (e.g. btrfs
+// before Linux 7.3, or kernels before 6.14) reject the first write with it. From then on, the file writes without the
+// flag and Sync evicts the synced pages instead.
 type dontCacheFile struct {
 	*os.File
-	fd          int
-	unsupported bool
+	fd int
+	// evictOnSync is set once RWF_DONTCACHE turned out to be unsupported
+	evictOnSync bool
 }
 
-func newDontCacheFile(f *os.File) WriteSeekerCloser {
+func newDontCacheFile(f *os.File) writableFile {
 	return &dontCacheFile{File: f, fd: int(f.Fd())}
 }
 
 func (f *dontCacheFile) Write(p []byte) (int, error) {
 	written := 0
-	for !f.unsupported && written < len(p) {
+	for !f.evictOnSync && written < len(p) {
 		// an offset of -1 writes at, and advances, the current file offset, like a plain write does
 		n, err := unix.Pwritev2(f.fd, [][]byte{p[written:]}, -1, unix.RWF_DONTCACHE)
 		switch {
 		case errors.Is(err, unix.EOPNOTSUPP):
-			f.unsupported = true
+			f.evictOnSync = true
 		case errors.Is(err, unix.EINTR):
 		case err != nil:
 			return written, err
@@ -46,7 +47,13 @@ func (f *dontCacheFile) Write(p []byte) (int, error) {
 	return written, nil
 }
 
-// evictFromPageCache drops the clean pages of the file from the page cache, which requires a sync before.
-func evictFromPageCache(f *os.File) error {
-	return unix.Fadvise(int(f.Fd()), 0, 0, unix.FADV_DONTNEED)
+// Sync flushes the file to disk. Without RWF_DONTCACHE, it evicts the now clean pages from the page cache afterwards.
+func (f *dontCacheFile) Sync() error {
+	if err := f.File.Sync(); err != nil {
+		return err
+	}
+	if !f.evictOnSync {
+		return nil
+	}
+	return unix.Fadvise(f.fd, 0, 0, unix.FADV_DONTNEED)
 }

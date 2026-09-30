@@ -8,8 +8,3 @@ import "os"
 func evictFromPageCache(_ *os.File) error {
 	return nil
 }
-
-// cachedFraction is not supported on this platform and always returns -1.
-func cachedFraction(_ string) (float64, error) {
-	return -1, nil
-}

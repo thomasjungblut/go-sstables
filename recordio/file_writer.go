@@ -27,7 +27,7 @@ type FileWriter struct {
 	open   bool
 	closed bool
 
-	file      *os.File
+	file      writableFile
 	bufWriter WriteSeekerCloserFlusher
 	// largestOffset tracks the largest currentOffset that was returned so far
 	// this is important in scenarios when we seek back in the file, but are not writing past largestOffset
@@ -40,8 +40,15 @@ type FileWriter struct {
 	compressor        compressor.CompressionI
 	recordHeaderCache []byte
 	bufferPool        *pool.Pool
-	// dontCache evicts the written data from the page cache after every sync
-	dontCache bool
+}
+
+// writableFile is the file a FileWriter writes into: an *os.File, or a wrapper like dontCacheFile that controls how the
+// data is written and synced.
+type writableFile interface {
+	WriteSeekerCloser
+	Name() string
+	Sync() error
+	Truncate(size int64) error
 }
 
 func (w *FileWriter) Open() error {
@@ -251,11 +258,6 @@ func (w *FileWriter) WriteSync(record []byte) (uint64, error) {
 		return 0, fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
 	}
 
-	err = w.evictIfDontCache()
-	if err != nil {
-		return 0, err
-	}
-
 	return offset, nil
 }
 
@@ -282,27 +284,9 @@ func (w *FileWriter) Close() error {
 		return fmt.Errorf("failed to sync file at '%s' failed with %w", w.file.Name(), err)
 	}
 
-	err = w.evictIfDontCache()
-	if err != nil {
-		return err
-	}
-
 	err = w.file.Close()
 	if err != nil {
 		return fmt.Errorf("failed to close file at '%s' failed with %w", w.file.Name(), err)
-	}
-	return nil
-}
-
-// evictIfDontCache drops the synced data from the page cache with DontCache. With RWF_DONTCACHE the kernel dropped
-// them already, this only evicts anything on the fallback path.
-func (w *FileWriter) evictIfDontCache() error {
-	if !w.dontCache {
-		return nil
-	}
-	err := evictFromPageCache(w.file)
-	if err != nil {
-		return fmt.Errorf("failed to evict file at '%s' from the page cache failed with %w", w.file.Name(), err)
 	}
 	return nil
 }
@@ -403,11 +387,6 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		opts.path = opts.file.Name()
 	}
 
-	var factory ReaderWriterCloserFactory = BufferedIOFactory{}
-	if opts.dontCache {
-		factory = dontCacheIOFactory{}
-	}
-
 	// we have to close the passed file handle because we're going to create a new one based on paths
 	if opts.file != nil {
 		err := opts.file.Close()
@@ -416,19 +395,23 @@ func NewFileWriter(writerOptions ...FileWriterOption) (WriterI, error) {
 		}
 	}
 
-	file, writer, err := factory.CreateNewWriter(opts.path, opts.bufferSizeBytes)
+	osFile, err := os.OpenFile(opts.path, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new Writer at '%s' failed with %w", opts.path, err)
 	}
-	return newCompressedFileWriterWithFile(file, writer, opts.compressionType, opts.dontCache), nil
+
+	var file writableFile = osFile
+	if opts.dontCache {
+		file = newDontCacheFile(osFile)
+	}
+	return newCompressedFileWriterWithFile(file, NewWriterBuf(file, make([]byte, opts.bufferSizeBytes)), opts.compressionType), nil
 }
 
-// creates a new writer with the given os.File, with the desired compression
-func newCompressedFileWriterWithFile(file *os.File, bufWriter WriteSeekerCloserFlusher, compType int, dontCache bool) *FileWriter {
+// creates a new writer with the given file, with the desired compression
+func newCompressedFileWriterWithFile(file writableFile, bufWriter WriteSeekerCloserFlusher, compType int) *FileWriter {
 	return &FileWriter{
 		file:            file,
 		bufWriter:       bufWriter,
-		dontCache:       dontCache,
 		open:            false,
 		closed:          false,
 		compressionType: compType,

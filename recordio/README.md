@@ -201,5 +201,10 @@ then drops the pages once they are written back. Otherwise, for example on btrfs
 to evicting the pages with `posix_fadvise(POSIX_FADV_DONTNEED)` after every sync (`WriteSync` and `Close`). Between two
 syncs, the written data is thus still in the page cache. On other platforms, the option has no effect.
 
-Earlier versions supported DirectIO for the same purpose, which padded the files with zeros to the block size. The
-readers still accept such files. 
+### Files written with DirectIO
+
+Earlier versions had a `DirectIO` writer option for the same purpose, which was removed in favor of `DontCache`.
+DirectIO required writing whole, aligned blocks, couldn't sync partially filled blocks (`WriteSync` wasn't supported)
+and padded every file with zeros up to the block size. Files written that way can still be read: the readers treat
+the zeros after the last record as the end of the file. Any other data after the last record is still reported as a
+corrupted file. There's nothing to migrate, but `DontCache` is the replacement for new files. 

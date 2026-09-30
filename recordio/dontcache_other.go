@@ -5,10 +5,6 @@ package recordio
 import "os"
 
 // newDontCacheFile is not supported on this platform, the written data stays in the page cache.
-func newDontCacheFile(f *os.File) WriteSeekerCloser {
+func newDontCacheFile(f *os.File) writableFile {
 	return f
-}
-
-func evictFromPageCache(_ *os.File) error {
-	return nil
 }
