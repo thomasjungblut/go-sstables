@@ -133,7 +133,19 @@ func TestDontCacheEvictsFromPageCache(t *testing.T) {
 	for _, forceFallback := range []bool{false, true} {
 		path := filepath.Join(dir, "dontcache.rio")
 		writeWithDontCache(t, path, forceFallback, records)
-		assert.Equal(t, 0, residentPages(t, path), "fallback %v", forceFallback)
+		resident := residentPages(t, path)
+		if forceFallback {
+			// fadvise evicts synchronously after the sync
+			assert.Equal(t, 0, resident, "fallback %v", forceFallback)
+		} else {
+			// with RWF_DONTCACHE, the kernel drops the pages when their writeback completes, which can be deferred to
+			// after the sync returned. Some pages may thus still be around right after close (e.g. 128 of 1024 on
+			// ext4 in GitHub Actions), but by far most of them must be gone.
+			stat, err := os.Stat(path)
+			require.NoError(t, err)
+			totalPages := int(stat.Size()) / os.Getpagesize()
+			assert.LessOrEqual(t, resident, totalPages/4, "fallback %v", forceFallback)
+		}
 		require.NoError(t, os.Remove(path))
 	}
 }
