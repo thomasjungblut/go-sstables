@@ -5,10 +5,10 @@ require (
 	github.com/anishathalye/porcupine v0.1.2
 	github.com/golang/snappy v1.0.0
 	github.com/kaitai-io/kaitai_struct_go_runtime v0.11.0
-	github.com/ncw/directio v1.0.5
 	github.com/steakknife/bloomfilter v0.0.0-20180922174646-6819c0d2a570
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+	golang.org/x/sys v0.48.0
 	google.golang.org/protobuf v1.36.12
 )
 

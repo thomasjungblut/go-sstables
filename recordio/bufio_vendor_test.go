@@ -70,33 +70,6 @@ func TestSeekFlushes(t *testing.T) {
 	assert.Equal(t, []byte{13, 6, 91, 22, 0, 0}, sink.buf)
 }
 
-func TestCreateNewBufferWithAlignedSlice(t *testing.T) {
-	sink := &closingWriter{make([]byte, 8)}
-	wBuf := NewAlignedWriterBuf(sink, make([]byte, 4))
-	assert.Equal(t, 4, wBuf.Size())
-
-	_, err := wBuf.Write([]byte{13, 6, 91})
-	require.NoError(t, err)
-	// buffer should not been flushed so far
-	assert.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 0}, sink.buf)
-	require.NoError(t, wBuf.Flush())
-	assert.Equal(t, []byte{13, 6, 91, 0, 0, 0, 0, 0}, sink.buf)
-}
-
-func TestCreateNewBufferWithAlignedSliceZerosBuffer(t *testing.T) {
-	sink := &closingWriter{make([]byte, 8)}
-	dirtyBuf := []byte{1, 1, 1, 1}
-	wBuf := NewAlignedWriterBuf(sink, dirtyBuf)
-	assert.Equal(t, 4, wBuf.Size())
-
-	_, err := wBuf.Write([]byte{13, 6})
-	require.NoError(t, err)
-	// buffer should not been flushed so far
-	assert.Equal(t, []byte{0, 0, 0, 0, 0, 0, 0, 0}, sink.buf)
-	require.NoError(t, wBuf.Flush())
-	assert.Equal(t, []byte{13, 6, 0, 0, 0, 0, 0, 0}, sink.buf)
-}
-
 // recordingReader returns data in chunks of at most chunkSize and records the buffer length of every Read call.
 type recordingReader struct {
 	data      []byte
@@ -137,7 +110,7 @@ func TestPeekBufferedOnlyFillsEmptyBuffer(t *testing.T) {
 	src := &recordingReader{data: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, chunkSize: 4}
 	r := NewReaderBuf(src, make([]byte, 8))
 
-	// the empty buffer is filled from its start with the whole buffer, which keeps reads aligned for DirectIO
+	// the empty buffer is filled from its start with the whole buffer
 	assert.Equal(t, []byte{1, 2, 3, 4}, r.PeekBuffered(8))
 	assert.Equal(t, []int{8}, src.readLens)
 

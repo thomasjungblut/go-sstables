@@ -74,7 +74,8 @@ func (r *FileReader) ReadNext() ([]byte, error) {
 		start := r.reader.Count()
 		payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := r.readRecordHeaderV4()
 		if err != nil {
-			// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
+			// files written with DirectIO by earlier versions are padded with zeros, we need to test whether the remainder of the
+			// file contains only zeros.
 			// This would indicate a properly written file and the actual end - and not a malformed record.
 			if errors.Is(err, MagicNumberMismatchErr) {
 				remainder, err := io.ReadAll(r.reader)
@@ -313,7 +314,8 @@ func readNextV2(r *FileReader) ([]byte, error) {
 	start := r.reader.Count()
 	payloadSizeUncompressed, payloadSizeCompressed, err := readRecordHeaderV2(r.reader)
 	if err != nil {
-		// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
+		// files written with DirectIO by earlier versions are padded with zeros, we need to test whether the remainder of the
+		// file contains only zeros.
 		// This would indicate a properly written file and the actual end - and not a malformed record.
 		if errors.Is(err, MagicNumberMismatchErr) {
 			remainder, err := io.ReadAll(r.reader)
@@ -380,7 +382,8 @@ func readNextV3(r *FileReader) ([]byte, error) {
 	start := r.reader.Count()
 	payloadSizeUncompressed, payloadSizeCompressed, recordNil, err := readRecordHeaderV3(r.reader)
 	if err != nil {
-		// due to the use of blocked writes in DirectIO, we need to test whether the remainder of the file contains only zeros.
+		// files written with DirectIO by earlier versions are padded with zeros, we need to test whether the remainder of the
+		// file contains only zeros.
 		// This would indicate a properly written file and the actual end - and not a malformed record.
 		if errors.Is(err, MagicNumberMismatchErr) {
 			remainder, err := io.ReadAll(r.reader)

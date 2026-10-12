@@ -1,11 +1,15 @@
 package benchmark
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomasjungblut/go-sstables/internal/testutil"
 	"github.com/thomasjungblut/go-sstables/recordio"
-	"os"
-	"testing"
 )
 
 func BenchmarkRecordIOWrite(b *testing.B) {
@@ -71,5 +75,54 @@ func BenchmarkRecordIOWrite(b *testing.B) {
 			assert.Truef(b, stat.Size() > int64(len(bytes)*b.N), "unexpected small file size %d", stat.Size())
 		})
 	}
+}
 
+// BenchmarkRecordIOWriteDontCache compares the write throughput with and without DontCache, including the fsyncs.
+func BenchmarkRecordIOWriteDontCache(b *testing.B) {
+	for _, recordSize := range []int{4 * 1024, 64 * 1024} {
+		for _, syncEvery := range []int{0, 1024 * 1024} {
+			for _, mode := range [][]recordio.FileWriterOption{
+				{recordio.DontCache()},
+				nil,
+			} {
+				syncName := "syncOnClose"
+				if syncEvery > 0 {
+					mb := syncEvery / 1024 / 1024
+					syncName = fmt.Sprintf("syncEvery%dMB", mb)
+				}
+				name := "Default"
+				if mode != nil {
+					name = "DontCache"
+				}
+				b.Run(fmt.Sprintf("%d/%s/%s", recordSize, syncName, name), func(b *testing.B) {
+					dir := benchDir(b)
+					bytes := 256 * 1024 * 1024
+					b.SetBytes(int64(bytes))
+					b.ReportAllocs()
+					b.ResetTimer()
+					for n := 0; n < b.N; n++ {
+						path := filepath.Join(dir, fmt.Sprintf("write_%d.rio", n))
+						w, err := recordio.NewFileWriter(append([]recordio.FileWriterOption{recordio.Path(path)}, mode...)...)
+						require.NoError(b, err)
+						require.NoError(b, w.Open())
+
+						record := testutil.Bytes(recordSize)
+						for written := 0; written < bytes; written += recordSize {
+							if syncEvery > 0 && (written+recordSize)%syncEvery == 0 {
+								_, err = w.WriteSync(record)
+							} else {
+								_, err = w.Write(record)
+							}
+							require.NoError(b, err)
+						}
+						require.NoError(b, w.Close())
+
+						b.StopTimer()
+						require.NoError(b, os.Remove(path))
+						b.StartTimer()
+					}
+				})
+			}
+		}
+	}
 }

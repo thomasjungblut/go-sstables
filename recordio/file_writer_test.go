@@ -176,51 +176,6 @@ func TestWriterCrashCreatesValidHeader(t *testing.T) {
 	readNextExpectEOF(t, reader)
 }
 
-func TestWriterCrashCreatesNoValidHeaderWithDirectIO(t *testing.T) {
-	ok, err := IsDirectIOAvailable()
-	require.NoError(t, err)
-	if !ok {
-		t.Skip("directio not available here")
-		return
-	}
-
-	tmpFile, err := os.CreateTemp("", "recordio_CrashCreatesValidHeaderDirectIO")
-	require.Nil(t, err)
-	defer closeCleanFile(t, tmpFile)
-
-	w, err := NewFileWriter(Path(tmpFile.Name()), DirectIO())
-	require.NoError(t, err)
-	require.NoError(t, w.Open())
-	require.NoError(t, w.(*FileWriter).file.Close())
-
-	reader, err := NewFileReaderWithPath(tmpFile.Name())
-	require.Nil(t, err)
-	defer closeOpenClosable(t, reader)
-
-	require.ErrorIs(t, reader.Open(), io.EOF)
-}
-
-func TestWriterNotAllowsSyncsWithDirectIO(t *testing.T) {
-	ok, err := IsDirectIOAvailable()
-	require.NoError(t, err)
-	if !ok {
-		t.Skip("directio not available here")
-		return
-	}
-
-	tmpFile, err := os.CreateTemp("", "recordio_WriterNotAllowsSyncsWithDirectIO")
-	require.Nil(t, err)
-	defer closeCleanFile(t, tmpFile)
-
-	w, err := NewFileWriter(Path(tmpFile.Name()), DirectIO())
-	require.NoError(t, err)
-	defer closeOpenClosable(t, w)
-
-	require.NoError(t, w.Open())
-	_, err = w.WriteSync([]byte{1})
-	require.ErrorIs(t, err, DirectIOSyncWriteErr)
-}
-
 func TestWriterSeekHappyPath(t *testing.T) {
 	writer := newOpenedWriter(t)
 	defer removeFileWriterFile(t, writer)

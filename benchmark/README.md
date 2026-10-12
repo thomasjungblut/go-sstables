@@ -89,6 +89,26 @@ arbitrary offset, the benchmark seeks from one byte after every record start. Bo
 | 1 KB        | 1549 MB/s  | 1385 MB/s         |
 | 64 KB       | 2097 MB/s  | 1530 MB/s         |
 
+### Keeping written data out of the page cache
+
+The `DontCache` writer option keeps written data out of the page cache (see the [recordio](/recordio) package). It
+writes with `RWF_DONTCACHE` where the filesystem supports it and otherwise evicts the pages after every sync. Besides
+the btrfs setup above, where the kernel doesn't support `RWF_DONTCACHE` yet and the fallback is used, the following
+was also measured on XFS, which supports it. That XFS partition is on a different, LUKS encrypted drive: a Samsung SSD
+970 EVO 1TB, which is a PCIe 3.0 drive.
+
+Writing 256 MB, including the fsyncs:
+
+| Records / syncs        | XFS       | XFS with `DontCache` | btrfs     | btrfs with `DontCache` |
+|------------------------|-----------|----------------------|-----------|------------------------|
+| 4 KB, sync on close    | 1804 MB/s | 2358 MB/s            | 1995 MB/s | 2015 MB/s              |
+| 64 KB, sync on close   | 1905 MB/s | 2371 MB/s            | 2183 MB/s | 2025 MB/s              |
+| 4 KB, sync every 1 MB  | 245 MB/s  | 248 MB/s             | 138 MB/s  | 144 MB/s               |
+| 64 KB, sync every 1 MB | 244 MB/s  | 257 MB/s             | 102 MB/s  | 101 MB/s               |
+
+`DontCache` doesn't cost write throughput. With `RWF_DONTCACHE`, the kernel starts the writeback right away, which
+likely explains why XFS is faster when syncing only on close.
+
 ## SSTable
 
 The SSTables contain 1 KB values with 20 byte keys, written from a memstore.

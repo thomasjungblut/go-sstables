@@ -57,16 +57,20 @@ func writeMagicNumberIntoContent(t *testing.T, path string) {
 	require.NoError(t, err)
 }
 
+// writeDirectIOUncompressedSingleRecord mimics a file written with DirectIO by earlier versions, which flushed whole
+// blocks and thus padded the file with zeros to the block size.
 func writeDirectIOUncompressedSingleRecord(t *testing.T, path string) {
 	_ = os.Remove(path)
-	w, err := NewFileWriter(Path(path), BufferSizeBytes(4096), DirectIO())
+	w, err := NewFileWriter(Path(path))
 	require.NoError(t, err)
 	require.NoError(t, w.Open())
-
-	// this should produce a zeroed overhang, as directIO flushes the whole block
 	_, err = w.Write([]byte{13, 06, 29, 07})
 	require.NoError(t, err)
 	require.NoError(t, w.Close())
+
+	bytes, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(bytes, make([]byte, 4096-len(bytes))...), 0666))
 }
 
 func writeDirectIOUncompressedSingleRecordRandomTrailer(t *testing.T, path string) {

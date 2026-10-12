@@ -24,16 +24,15 @@ type WriteSeekerCloserFlusher interface {
 // Flush method to guarantee all data has been forwarded to
 // the underlying io.Writer.
 // This is the same writer as bufio.Writer, but it allows us to supply the buffer from the outside.
-// Namely, it has a new constructor in NewWriterBuf & NewAlignedWriterBuf, implements Close() and supports block aligned flushes.
+// Namely, it has a new constructor in NewWriterBuf and implements Close().
 // Later the interface of the writer added io.Seeker, which the writer now fully implements as well.
 // Additionally, several methods that were not needed are removed to reduce the test surface of the original.
 // For performance improvements, the Writer now implements the BufferPeeker interface.
 type Writer struct {
-	err        error
-	buf        []byte
-	n          int
-	wr         WriteSeekerCloser
-	alignFlush bool
+	err error
+	buf []byte
+	n   int
+	wr  WriteSeekerCloser
 }
 
 func (b *Writer) Seek(offset int64, whence int) (int64, error) {
@@ -60,14 +59,6 @@ func NewWriterBuf(w WriteSeekerCloser, buf []byte) WriteSeekerCloserFlusher {
 	}
 }
 
-func NewAlignedWriterBuf(w WriteSeekerCloser, buf []byte) WriteSeekerCloserFlusher {
-	return &Writer{
-		buf:        buf,
-		wr:         w,
-		alignFlush: true,
-	}
-}
-
 // Size returns the size of the underlying buffer in bytes.
 func (b *Writer) Size() int { return len(b.buf) }
 
@@ -80,15 +71,7 @@ func (b *Writer) Flush() error {
 		return nil
 	}
 
-	toFlush := b.buf[0:b.n]
-	// zero the remainder of the buffer for safety before an aligned flush
-	if b.alignFlush {
-		for i := b.n; i < len(b.buf); i++ {
-			b.buf[i] = 0
-		}
-		toFlush = b.buf
-	}
-	n, err := b.wr.Write(toFlush)
+	n, err := b.wr.Write(b.buf[0:b.n])
 	if n < b.n && err == nil {
 		err = io.ErrShortWrite
 	}
@@ -291,7 +274,7 @@ func (b *Reader) ReadByte() (byte, error) {
 
 // PeekBuffered returns up to n bytes of buffered data without advancing the reader. The underlying reader is only
 // read from when the buffer is completely empty, so that fills always start at the beginning of the buffer
-// (which keeps reads aligned for DirectIO). Thus, fewer than n bytes may be returned even when the underlying reader
+// (the buffer is always filled from its start). Thus, fewer than n bytes may be returned even when the underlying reader
 // has more data. The returned slice is only valid until the next read.
 func (b *Reader) PeekBuffered(n int) []byte {
 	for b.r == b.w && b.err == nil {
