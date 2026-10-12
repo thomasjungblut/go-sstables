@@ -1,4 +1,4 @@
-[![unit-test](https://github.com/thomasjungblut/go-sstables/actions/workflows/unit-test.yml/badge.svg)](https://github.com/thomasjungblut/go-sstables/actions/workflows/unit-test.yml)
+[![unit-test](https://github.com/thomasjungblut/go-sstables/actions/workflows/unit-test.yml/badge.svg)](https://github.com/thomasjungblut/go-sstables/actions/workflows/test.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/thomasjungblut/go-sstables.svg)](https://pkg.go.dev/github.com/thomasjungblut/go-sstables)
 
 ## go-sstables
