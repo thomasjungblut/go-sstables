@@ -22,6 +22,9 @@ type FileReader struct {
 
 	recordHeaderCache      []byte
 	recordHeaderByteReader *checksumByteReader
+
+	readScratch []byte
+	viewScratch []byte
 }
 
 func (r *FileReader) Open() error {
