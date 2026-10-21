@@ -13,7 +13,7 @@ TESTS     := ./...
 LDFLAGS   :=
 GOFLAGS   :=
 BINARIES  := sstables
-VERSION   := v1.7.1
+VERSION   := v1.8.0
 
 # Required for globs to work correctly
 SHELL=/bin/bash
